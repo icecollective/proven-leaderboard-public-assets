@@ -2245,6 +2245,39 @@
     }));
   }
 
+  function rowMatchesActiveView(row) {
+    const norm = normalizeName(row.name);
+
+    if (activeView === "setters") {
+      const isCurrentSetter =
+        row.lifetimeSets > 0 &&
+        row.lifetimeCloses === 0 &&
+        !previousYearHadClose(norm);
+
+      const isOldSetter =
+        isComparisonMode() &&
+        getRowPreviousSets(row) > 0 &&
+        getRowPreviousCloses(row) === 0;
+
+      return isCurrentSetter || isOldSetter;
+    }
+
+    if (activeView === "experts") {
+      const isCurrentExpert = row.lifetimeCloses > 0;
+      const isOldExpert =
+        isComparisonMode() &&
+        getRowPreviousCloses(row) > 0;
+
+      return isCurrentExpert || isOldExpert;
+    }
+
+    if (activeView === "selfgen") {
+      return row.selfGen > 0 || (isComparisonMode() && getRowPreviousSelfGen(row) > 0);
+    }
+
+    return true;
+  }
+
   function addOldRepsToRows(rows) {
     if (!isComparisonMode() || !includeOldReps) return rows;
 
@@ -2703,25 +2736,14 @@
       ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
-    if (activeView === "setters") {
-      rows = rows.filter(row => {
-    const norm = normalizeName(row.name);
-    const had2025Close = previousYearHadClose(norm);
-  
-    return row.lifetimeSets > 0 &&
-           row.lifetimeCloses === 0 &&
-           !had2025Close;
-  });
-    } else if (activeView === "experts") {
-      rows = rows.filter(row => row.lifetimeCloses > 0);
+    if (activeView === "setters" || activeView === "experts") {
+      // Filtered after old reps are added via rowMatchesActiveView.
     } else if (activeView === "selfgen") {
       rows = rows.filter(row => row.lifetimeCloses > 0 && row.selfGen > 0);
     } else {
       rows = rows.filter(row => row.lifetimeSets > 0 || row.lifetimeCloses > 0);
     }
-    if (activeView !== "setters") {
     rows = addOldRepsToRows(rows);
-    }
     if (activeView === "selfgen" && isComparisonMode()) {
     rows = rows.filter(row => row.selfGen > 0 || getRowPreviousSelfGen(row) > 0);
     }
@@ -2740,6 +2762,10 @@
       return !(currentContrib === 0 && previousContrib > 0);
     });
   }
+
+    if (activeView === "setters" || activeView === "experts") {
+      rows = rows.filter(rowMatchesActiveView);
+    }
 
     if (shouldShowPlataRows(useTableauColumn)) {
       rows = addPlataRepsToRows(rows);
