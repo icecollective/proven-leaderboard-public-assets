@@ -300,8 +300,16 @@
   function isTableauViewRelevant() {
     return activeView !== "groups" &&
       activeView !== "selfgen" &&
-      ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode) &&
-      !useMomColumn();
+      ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
+  }
+
+  function canShowTableauButton() {
+    const key = getTableauKeyForDateMode();
+    const dataset = key ? tableauData[key] : null;
+    return isTableauViewRelevant() &&
+      dataset &&
+      Array.isArray(dataset.rows) &&
+      dataset.rows.length > 0;
   }
 
   function shouldShowPlataRows(useTableauColumn) {
@@ -891,9 +899,15 @@
       btn.classList.toggle("active", office.get());
 
       btn.addEventListener("click", () => {
+        if (office.id === "plata-toggle" && !canShowTableauButton()) return;
+
         office.set(!office.get());
         btn.classList.toggle("active", office.get());
-        rebuildComparisonMapsForOffice();
+
+        if (office.id !== "plata-toggle") {
+          rebuildComparisonMapsForOffice();
+        }
+
         renderLeaderboard();
       });
 
@@ -1056,16 +1070,11 @@
     const plataBtn = document.getElementById("plata-toggle");
     if (iceBtn) iceBtn.classList.toggle("active", includeIceCollective);
     if (riotBtn) riotBtn.classList.toggle("active", includeRiot);
-    if (plataBtn) plataBtn.classList.toggle("active", includePlata);
 
     const key = getTableauKeyForDateMode();
     const dataset = key ? tableauData[key] : null;
 
-    const shouldShowTableau =
-    isTableauViewRelevant() &&
-    dataset &&
-    Array.isArray(dataset.rows) &&
-    dataset.rows.length;
+    const shouldShowTableau = canShowTableauButton();
 
     const shouldShowYoy =
       activeDateMode === "ytd" &&
@@ -1078,6 +1087,12 @@
     wrapper.style.display = shouldShowTableau || shouldShowYoy || shouldShowMom ? "flex" : "none";
 
     btn.style.display = shouldShowTableau ? "inline-block" : "none";
+
+    if (plataBtn) {
+      plataBtn.classList.toggle("active", includePlata && shouldShowTableau);
+      plataBtn.disabled = !shouldShowTableau;
+      plataBtn.classList.toggle("disabled", !shouldShowTableau);
+    }
 
     if (!shouldShowTableau) {
       showTableau = false;
@@ -1386,7 +1401,7 @@
   }
   
   function getTableauTotal(rows, metric) {
-    return rows.reduce((sum, row) => sum + getTableauValue(row, metric), 0);
+    return "";
   }
   
   function getTableauValue(row, metric) {
@@ -1621,7 +1636,7 @@
     const repFilteredDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
 
     let rows = getRepMap(repFilteredDeals);
-    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau && !useMomColumn();
+    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters") {
