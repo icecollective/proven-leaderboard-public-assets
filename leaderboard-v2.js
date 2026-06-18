@@ -578,6 +578,61 @@
     return name && !isOfficeGroupName(name);
   }
 
+  function getOfficeGroupKey(name) {
+    const norm = normalizeName(name);
+    if (norm === "ice collective") return "ice";
+    if (norm === "riot") return "riot";
+    return "";
+  }
+
+  function buildGroupNameCell(name) {
+    const officeKey = getOfficeGroupKey(name);
+    if (officeKey) {
+      return `<button type="button" class="group-leader-link" data-office-group="${officeKey}">${name}</button>`;
+    }
+    if (isClickableGroupLeader(name)) {
+      return `<button type="button" class="group-leader-link" data-group-leader="${escapeAttr(name)}">${name}</button>`;
+    }
+    return `<div>${name}</div>`;
+  }
+
+  function setActiveViewTab(viewKey) {
+    const labels = {
+      general: "General",
+      setters: "Setters",
+      experts: "Experts",
+      selfgen: "SelfGen",
+      groups: "Groups"
+    };
+    document.querySelectorAll("#view-tabs button").forEach(btn => {
+      btn.classList.toggle("active", btn.textContent === labels[viewKey]);
+    });
+  }
+
+  function navigateToGeneralFromOfficeGroup(office) {
+    activeGroupDrillLeader = null;
+
+    if (office === "ice") {
+      includeIceCollective = true;
+      includeRiot = false;
+    } else if (office === "riot") {
+      includeRiot = true;
+      includeIceCollective = false;
+    }
+
+    includePlata = false;
+    rebuildComparisonMapsForOffice();
+
+    activeView = "general";
+    if (activeSortMode === "selfGen") {
+      activeSortMode = "currentContribution";
+    }
+
+    setActiveViewTab("general");
+    updateGroupDrillNav();
+    renderLeaderboard();
+  }
+
   function escapeAttr(value) {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -1336,6 +1391,12 @@
   const leaderboardApp = document.getElementById("leaderboard-app");
   if (leaderboardApp) {
     leaderboardApp.addEventListener("click", event => {
+      const officeButton = event.target.closest("[data-office-group]");
+      if (officeButton && activeView === "groups" && !activeGroupDrillLeader) {
+        navigateToGeneralFromOfficeGroup(officeButton.getAttribute("data-office-group"));
+        return;
+      }
+
       const leaderButton = event.target.closest("[data-group-leader]");
       if (!leaderButton || activeView !== "groups" || activeGroupDrillLeader) return;
 
@@ -2393,9 +2454,7 @@
 
     groupRows.forEach((row, index) => {
       const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
-      const nameCell = isClickableGroupLeader(row.name)
-        ? `<button type="button" class="group-leader-link" data-group-leader="${escapeAttr(row.name)}">${row.name}</button>`
-        : `<div>${row.name}</div>`;
+      const nameCell = buildGroupNameCell(row.name);
       bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
