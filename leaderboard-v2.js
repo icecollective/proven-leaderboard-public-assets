@@ -191,6 +191,18 @@
     return (sets + closes) / 2;
   }
 
+  function getRowContributionCredit(row) {
+    return getRepContribution(row.sets, row.closes);
+  }
+
+  function getRowPreviousContributionCredit(row) {
+    return getRepContribution(getRowPreviousSets(row), getRowPreviousCloses(row));
+  }
+
+  function getDealId(deal) {
+    return String(deal.messageId || "").trim();
+  }
+
   function isComparisonMode() {
     return useComparisonColumn();
   }
@@ -220,7 +232,11 @@
   }
 
   function getRowPreviousCs(row) {
-    return getRepContribution(getRowPreviousSets(row), getRowPreviousCloses(row));
+    const norm = normalizeName(row.name);
+    const stats = useMomColumn()
+      ? previousMonthDetailsMap.get(norm)
+      : previousYearDetailsMap.get(norm);
+    return stats?.dealIds?.size || 0;
   }
 
   function getRowPreviousSelfGen(row) {
@@ -413,6 +429,7 @@
       lifetimeCloses: 0,
       lifetimeSelfGen: 0,
       cs: 0,
+      dealIds: new Set(),
       tableau: tableauRow || {},
       previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
@@ -941,6 +958,7 @@
 
       if (!previousYearDetailsMap.has(norm)) {
         previousYearDetailsMap.set(norm, {
+          dealIds: new Set(),
           sets: 0,
           closes: 0,
           setOnly: 0,
@@ -952,6 +970,9 @@
     }
 
     previousYearDeals.forEach(deal => {
+      const dealId = getDealId(deal);
+      if (!dealId) return;
+
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
@@ -959,6 +980,7 @@
       if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
         const setterStats = ensureStats(deal.setter);
         if (setterStats) {
+          setterStats.dealIds.add(dealId);
           setterStats.sets += 1;
           if (isSelfGen) {
             setterStats.selfGen += 1;
@@ -971,6 +993,7 @@
       if (expertNorm && repInOfficeUmbrella(expertNorm, "previous")) {
         const expertStats = ensureStats(deal.expert);
         if (expertStats) {
+          expertStats.dealIds.add(dealId);
           expertStats.closes += 1;
         }
       }
@@ -986,6 +1009,7 @@
 
       if (!previousMonthDetailsMap.has(norm)) {
         previousMonthDetailsMap.set(norm, {
+          dealIds: new Set(),
           sets: 0,
           closes: 0,
           setOnly: 0,
@@ -997,6 +1021,9 @@
     }
 
     getMomPreviousDeals().forEach(deal => {
+      const dealId = getDealId(deal);
+      if (!dealId) return;
+
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
@@ -1004,6 +1031,7 @@
       if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
         const setterStats = ensureStats(deal.setter);
         if (setterStats) {
+          setterStats.dealIds.add(dealId);
           setterStats.sets += 1;
           if (isSelfGen) {
             setterStats.selfGen += 1;
@@ -1016,6 +1044,7 @@
       if (expertNorm && repInOfficeUmbrella(expertNorm, "previous")) {
         const expertStats = ensureStats(deal.expert);
         if (expertStats) {
+          expertStats.dealIds.add(dealId);
           expertStats.closes += 1;
         }
       }
@@ -1425,7 +1454,8 @@
           setOnly: 0,
           lifetimeSets: 0,
           lifetimeCloses: 0,
-          lifetimeSelfGen: 0
+          lifetimeSelfGen: 0,
+          dealIds: new Set()
         });
       }
   
@@ -1450,6 +1480,9 @@
     });
   
     filteredDeals.forEach(deal => {
+      const dealId = getDealId(deal);
+      if (!dealId) return;
+
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
@@ -1457,6 +1490,7 @@
       const setter = ensureRep(deal.setter);
       if (setter) {
         setter.sets += 1;
+        setter.dealIds.add(dealId);
 
         if (isSelfGen) {
           setter.selfGen += 1;
@@ -1468,6 +1502,7 @@
       const expert = ensureRep(deal.expert);
       if (expert) {
         expert.closes += 1;
+        expert.dealIds.add(dealId);
       }
     });
 
@@ -1480,7 +1515,8 @@
       lifetimeSets: rep.lifetimeSets,
       lifetimeCloses: rep.lifetimeCloses,
       lifetimeSelfGen: rep.lifetimeSelfGen,
-      cs: getRepContribution(rep.sets, rep.closes),
+      cs: rep.dealIds.size,
+      dealIds: rep.dealIds,
       tableau: tableauMap.get(normalizeName(rep.name)) || {},
       previousYearSetOnly: previousYearDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
@@ -1526,6 +1562,7 @@
           lifetimeCloses: 0,
           lifetimeSelfGen: 0,
           cs: 0,
+          dealIds: new Set(),
           tableau: tableauMap.get(norm) || {},
           previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
           previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
@@ -1869,8 +1906,8 @@
   }
 
   function getYoyPercent(row) {
-    const current = row.sets + row.closes;
-    const previous = row.previousYearSets + row.previousYearCloses;
+    const current = getRowContributionCredit(row);
+    const previous = getRowPreviousContributionCredit(row);
 
     if (!previous) return null;
     if (current === 0) return null;
@@ -1879,8 +1916,8 @@
   }
 
   function getMomPercent(row) {
-    const current = row.sets + row.closes;
-    const previous = row.previousMonthSets + row.previousMonthCloses;
+    const current = getRowContributionCredit(row);
+    const previous = getRowPreviousContributionCredit(row);
 
     if (!previous) return null;
     if (current === 0) return null;
@@ -1969,8 +2006,8 @@
   }
   
     if (activeSortMode === "currentContribution") {
-    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : a.sets + a.closes;
-    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : b.sets + b.closes;
+    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : a.cs;
+    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : b.cs;
   
     if (bValue !== aValue) return bValue - aValue;
     if (b.cs !== a.cs) return b.cs - a.cs;
@@ -2092,8 +2129,8 @@
               if (bValue !== aValue) return bValue - aValue;
             }
 
-            const aValue = a.sets + a.closes;
-            const bValue = b.sets + b.closes;
+            const aValue = a.cs;
+            const bValue = b.cs;
             if (bValue !== aValue) return bValue - aValue;
             if (b.cs !== a.cs) return b.cs - a.cs;
             return a.name.localeCompare(b.name);
