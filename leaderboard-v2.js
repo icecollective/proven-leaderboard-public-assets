@@ -2489,18 +2489,28 @@
       </div>
     `;
 
-        const drillTotalCs = sumVisibleUniqueCs(drillRows, row => getRowDisplayCs(row));
-        const drillPreviousTotalCs = sumVisibleUniqueCs(drillRows, row => getRowPreviousCs(row), true);
-        const drillTotalComparisonPct = useGroupsComparison
-          ? getComparisonPercent(drillTotalCs, drillPreviousTotalCs)
-          : null;
+        const { current: drillCurrent, previous: drillPrevious } = getGroupLeaderStats(
+          activeGroupDrillLeader,
+          groupContext
+        );
 
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${buildUniqueTotalCell(drillTotalCs, drillTotalComparisonPct)}</div>
-        ${useGroupsComparison ? `<div>${buildUniqueTotalCell(drillPreviousTotalCs)}</div>` : ""}
+        <div>${useGroupsComparison
+          ? buildGroupTotalCell({
+            sets: drillCurrent.sets,
+            cs: drillCurrent.cs,
+            total: drillCurrent.total,
+            previousTotal: drillPrevious.total
+          }, useGroupsComparison, showGroupsTotalNotes)
+          : buildGroupTotalCell(drillCurrent, false, showGroupsTotalNotes)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
+          previousSets: drillPrevious.sets,
+          previousCs: drillPrevious.cs,
+          previousTotal: drillPrevious.total
+        }, showGroupsTotalNotes)}</div>` : ""}
         ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
