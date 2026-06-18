@@ -316,6 +316,16 @@
     return activeView === "general" && canShowTableauButton();
   }
 
+  function wouldHaveActiveOfficeAfterToggle(officeId, turningOn) {
+    const ice = officeId === "ice-collective-toggle" ? turningOn : includeIceCollective;
+    const riot = officeId === "riot-toggle" ? turningOn : includeRiot;
+    const plata = officeId === "plata-toggle" ? turningOn : includePlata;
+
+    if (ice || riot) return true;
+    if (plata && canUsePlataToggle()) return true;
+    return false;
+  }
+
   function shouldShowPlataRows(useTableauColumn) {
     return useTableauColumn && includePlata && canUsePlataToggle();
   }
@@ -960,6 +970,8 @@
         if (office.id === "plata-toggle" && !canUsePlataToggle()) return;
 
         const turningOn = !office.get();
+        if (!wouldHaveActiveOfficeAfterToggle(office.id, turningOn)) return;
+
         office.set(turningOn);
         btn.classList.toggle("active", office.get());
 
