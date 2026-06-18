@@ -29,10 +29,12 @@
   let includeNewReps = true;
   let includeIceCollective = true;
   let includeRiot = true;
+  let includePlata = true;
   let iceCollectiveNames = null;
   let riotNames = null;
   let iceCollective2025Names = null;
   let riot2025Names = null;
+  let recruitingNames = null;
   let activeSortMode = "tableau"; // "tableau", "internal", or "previousYear"
   let tableauData = {};
   let tableauMap = new Map();
@@ -252,6 +254,42 @@
     return { ice, riot };
   }
 
+  function rebuildRecruitingNames() {
+    recruitingNames = new Set(
+      recruitingRows
+        .map(row => normalizeName(row.name))
+        .filter(norm => norm && !HIDDEN_REPS.has(norm))
+    );
+  }
+
+  function ensureRecruitingNames() {
+    if (!recruitingNames) rebuildRecruitingNames();
+  }
+
+  function isPlataRep(normName) {
+    if (!normName || HIDDEN_REPS.has(normName)) return false;
+    ensureRecruitingNames();
+    return !recruitingNames.has(normName);
+  }
+
+  function isTableauViewRelevant() {
+    return activeView !== "groups" &&
+      activeView !== "selfgen" &&
+      ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode) &&
+      !useMomColumn();
+  }
+
+  function shouldShowPlataRows(useTableauColumn) {
+    return useTableauColumn && includePlata && activeView === "general";
+  }
+
+  function hasTableauRowData(tableauRow) {
+    return Object.keys(TABLEAU_METRICS).some(metric => {
+      const value = tableauRow?.[metric];
+      return value !== undefined && value !== null && value !== "";
+    });
+  }
+
   function rebuildOfficeNameSets() {
     const current = buildOfficeNameSetsFromRows(recruitingRows);
     iceCollectiveNames = current.ice;
@@ -260,6 +298,8 @@
     const previous = buildOfficeNameSetsFromRows(recruiting2025Rows);
     iceCollective2025Names = previous.ice;
     riot2025Names = previous.riot;
+
+    rebuildRecruitingNames();
   }
 
   function ensureOfficeNameSets() {
@@ -278,7 +318,9 @@
 
   function repInOfficeUmbrella(normName, year = "current") {
     if (!normName) return true;
-    if (includeIceCollective && includeRiot) return true;
+    if (includeIceCollective && includeRiot && includePlata) return true;
+
+    if (isPlataRep(normName)) return includePlata;
 
     const { ice, riot } = getOfficeNameSets(year);
 
@@ -669,7 +711,7 @@
     rebuildPreviousYearMap();
     rebuildPreviousMonthMap();
     rebuildTableauMap();
-  
+
     setupCustomDateBounds();
   }
   
@@ -817,7 +859,8 @@
 
     [
       { id: "ice-collective-toggle", label: "Ice Collective", get: () => includeIceCollective, set: val => { includeIceCollective = val; } },
-      { id: "riot-toggle", label: "Riot", get: () => includeRiot, set: val => { includeRiot = val; } }
+      { id: "riot-toggle", label: "Riot", get: () => includeRiot, set: val => { includeRiot = val; } },
+      { id: "plata-toggle", label: "Plata", get: () => includePlata, set: val => { includePlata = val; } }
     ].forEach(office => {
       const btn = document.createElement("button");
       btn.id = office.id;
@@ -987,15 +1030,16 @@
 
     const iceBtn = document.getElementById("ice-collective-toggle");
     const riotBtn = document.getElementById("riot-toggle");
+    const plataBtn = document.getElementById("plata-toggle");
     if (iceBtn) iceBtn.classList.toggle("active", includeIceCollective);
     if (riotBtn) riotBtn.classList.toggle("active", includeRiot);
+    if (plataBtn) plataBtn.classList.toggle("active", includePlata);
 
     const key = getTableauKeyForDateMode();
     const dataset = key ? tableauData[key] : null;
 
     const shouldShowTableau =
-    activeView !== "groups" &&
-    activeView !== "selfgen" &&
+    isTableauViewRelevant() &&
     dataset &&
     Array.isArray(dataset.rows) &&
     dataset.rows.length;
@@ -1014,6 +1058,7 @@
 
     if (!shouldShowTableau) {
       showTableau = false;
+      includePlata = false;
     } else {
       const labelDate = formatShortDate(dataset.lastUpdated);
       btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
@@ -1069,6 +1114,8 @@
     function ensureRep(name) {
       const norm = normalizeName(name);
       if (!name || HIDDEN_REPS.has(norm)) return null;
+
+      if (isPlataRep(norm)) return null;
 
       if (!repInOfficeUmbrella(norm)) return null;
 
@@ -1163,6 +1210,7 @@
       [deal.setter, deal.expert].forEach(name => {
         const norm = normalizeName(name);
         if (!norm || HIDDEN_REPS.has(norm) || existing.has(norm)) return;
+        if (isPlataRep(norm)) return;
         if (!repInOfficeUmbrella(norm, "previous")) return;
 
         if (
@@ -1198,7 +1246,41 @@
 
     return rows;
   }
-  
+
+  function addPlataRepsToRows(rows) {
+    const existing = new Set(rows.map(row => normalizeName(row.name)));
+
+    tableauMap.forEach((tableauRow, norm) => {
+      if (HIDDEN_REPS.has(norm) || existing.has(norm) || !isPlataRep(norm)) return;
+      if (!hasTableauRowData(tableauRow)) return;
+
+      existing.add(norm);
+      rows.push({
+        name: String(tableauRow.name || "").trim(),
+        sets: 0,
+        closes: 0,
+        selfGen: 0,
+        setOnly: 0,
+        lifetimeSets: 0,
+        lifetimeCloses: 0,
+        lifetimeSelfGen: 0,
+        cs: 0,
+        tableau: tableauRow,
+        isPlataOnly: true,
+        previousYearSetOnly: 0,
+        previousYearSelfGen: 0,
+        previousYearSets: 0,
+        previousYearCloses: 0,
+        previousMonthSetOnly: 0,
+        previousMonthSelfGen: 0,
+        previousMonthSets: 0,
+        previousMonthCloses: 0
+      });
+    });
+
+    return rows;
+  }
+
   function getCreditTotalsFromDeals(deals, rows, year = "current") {
     const visibleNames = new Set(rows.map(row => normalizeName(row.name)));
 
@@ -1279,7 +1361,7 @@
   }
   
   function getTableauTotal(rows, metric) {
-    return "";
+    return rows.reduce((sum, row) => sum + getTableauValue(row, metric), 0);
   }
   
   function getTableauValue(row, metric) {
@@ -1370,6 +1452,10 @@
     renderLeaderboard();
   }
   
+  function buildInternalPlaceholderCell() {
+    return `<div class="cs-cell"><span class="cs-placeholder">—</span></div>`;
+  }
+
   function buildTableauCell(row, selectedMetric) {
     const data = row.tableau || {};
     const hasTableauData = Object.keys(TABLEAU_METRICS)
@@ -1398,6 +1484,8 @@
   }
   
   function buildCsCell(row, showNotes) {
+    if (row.isPlataOnly) return buildInternalPlaceholderCell();
+
     const leftNotes = [];
     const rightNotes = [];
 
@@ -1436,6 +1524,8 @@
   }
   
   function buildPreviousYearCell(row) {
+    if (row.isPlataOnly) return buildInternalPlaceholderCell();
+
     const notes = [];
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
@@ -1538,6 +1628,10 @@
       getRowPreviousSelfGen(row) > 0
     );
   }
+
+    if (shouldShowPlataRows(useTableauColumn)) {
+      rows = addPlataRepsToRows(rows);
+    }
   
     rows.sort((a, b) => {
     if (activeSortMode === "name") {
@@ -1560,16 +1654,16 @@
   }
   
     if (activeSortMode === "currentContribution") {
-    const aValue = a.sets + a.closes;
-    const bValue = b.sets + b.closes;
+    const aValue = a.isPlataOnly ? -Infinity : a.sets + a.closes;
+    const bValue = b.isPlataOnly ? -Infinity : b.sets + b.closes;
   
     if (bValue !== aValue) return bValue - aValue;
     if (b.cs !== a.cs) return b.cs - a.cs;
   }
   
     if (activeSortMode === "previousContribution") {
-    const aValue = getRowPreviousSets(a) + getRowPreviousCloses(a);
-    const bValue = getRowPreviousSets(b) + getRowPreviousCloses(b);
+    const aValue = a.isPlataOnly ? -Infinity : getRowPreviousSets(a) + getRowPreviousCloses(a);
+    const bValue = b.isPlataOnly ? -Infinity : getRowPreviousSets(b) + getRowPreviousCloses(b);
 
     if (bValue !== aValue) return bValue - aValue;
     if (getRowPreviousCs(b) !== getRowPreviousCs(a)) return getRowPreviousCs(b) - getRowPreviousCs(a);
@@ -1587,11 +1681,11 @@
     if (comparisonActive && activeSortMode === "previousYear") {
     const aPrev = activeView === "selfgen"
       ? getRowPreviousSelfGen(a)
-      : getRowPreviousCs(a);
+      : (a.isPlataOnly ? -Infinity : getRowPreviousCs(a));
 
     const bPrev = activeView === "selfgen"
       ? getRowPreviousSelfGen(b)
-      : getRowPreviousCs(b);
+      : (b.isPlataOnly ? -Infinity : getRowPreviousCs(b));
 
     const diff = bPrev - aPrev;
     if (diff !== 0) return diff;
@@ -1604,7 +1698,9 @@
   
       if (activeView === "selfgen") {
         if (b.selfGen !== a.selfGen) return b.selfGen - a.selfGen;
-      } else {
+      } else if (!a.isPlataOnly || !b.isPlataOnly) {
+        if (b.isPlataOnly && !a.isPlataOnly) return -1;
+        if (a.isPlataOnly && !b.isPlataOnly) return 1;
         if (b.cs !== a.cs) return b.cs - a.cs;
       }
   
