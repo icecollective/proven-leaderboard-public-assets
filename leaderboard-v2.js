@@ -1286,16 +1286,59 @@
     return { sets, cs };
   }
   
-  function buildCreditTotalCell(totals) {
+  function getComparisonPercent(current, previous) {
+    if (!previous) return null;
+    if (current === 0) return null;
+
+    return ((current - previous) / previous) * 100;
+  }
+
+  function buildCreditTotalCell(totals, comparisonPct = null) {
     const total = (totals.sets + totals.cs) / 2;
-  
+    const rightNotes = [];
+
+    if (comparisonPct !== null) {
+      const sign = comparisonPct > 0 ? "+" : "";
+      rightNotes.push(
+        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
+      );
+    }
+
+    const rightHtml = rightNotes.length
+      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
+      : "";
+
     return `
       <div class="cs-cell">
         <div class="cs-notes-stack">
           <span class="cs-note-left">Sets: ${totals.sets}</span>
           <span class="cs-note-left">CS: ${totals.cs}</span>
         </div>
+        ${rightHtml}
         <span class="cs-main">${total}</span>
+      </div>
+    `;
+  }
+
+  function buildUniqueTotalCell(value, comparisonPct = null) {
+    const rightNotes = [];
+
+    if (comparisonPct !== null) {
+      const sign = comparisonPct > 0 ? "+" : "";
+      rightNotes.push(
+        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
+      );
+    }
+
+    const rightHtml = rightNotes.length
+      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
+      : "";
+
+    return `
+      <div class="cs-cell">
+        <div class="cs-notes-stack"></div>
+        ${rightHtml}
+        <span class="cs-main">${value}</span>
       </div>
     `;
   }
@@ -1741,8 +1784,9 @@
           ? buildGroupTotalCell({
             sets: totalStats.current.sets,
             cs: totalStats.current.cs,
-            total: total2026
-          }, false)
+            total: total2026,
+            previousTotal: total2025
+          }, useGroupsComparison)
           : totalStats.current.dealIds.size}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalStats.previous.sets,
@@ -1809,16 +1853,19 @@
         </div>
       `;
 
+      const totalPreviousSelfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
+      const selfGenTotalComparisonPct = comparisonActive
+        ? getComparisonPercent(totalSelfGen, totalPreviousSelfGen)
+        : null;
+
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
           <div>TOTAL</div>
-          <div class="cs-cell">
-    <span class="cs-main">${totalSelfGen}</span>
-  </div>
+          <div>${buildUniqueTotalCell(totalSelfGen, selfGenTotalComparisonPct)}</div>
           ${comparisonActive ? `
     <div class="cs-cell">
-      <span class="cs-main">${rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0)}</span>
+      <span class="cs-main">${totalPreviousSelfGen}</span>
     </div>
   ` : ""}
         </div>
@@ -1875,12 +1922,28 @@
         </div>
       `;
 
+      const currentTotalValue = useCurrentUniqueTotal
+        ? visibleUniqueDeals
+        : (currentCreditTotals.sets + currentCreditTotals.cs) / 2;
+      const previousTotalValue = comparisonActive
+        ? (usePreviousYearUniqueTotal
+          ? getPreviousYearUniqueDealCountFromRows(rows)
+          : (previousYearCreditTotals.sets + previousYearCreditTotals.cs) / 2)
+        : 0;
+      const totalComparisonPct = comparisonActive
+        ? getComparisonPercent(currentTotalValue, previousTotalValue)
+        : null;
+
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
           <div>TOTAL</div>
-         <div>${useCurrentUniqueTotal ? visibleUniqueDeals : buildCreditTotalCell(currentCreditTotals)}</div>
-         ${comparisonActive ? `<div>${usePreviousYearUniqueTotal ? getPreviousYearUniqueDealCountFromRows(rows) : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
+         <div>${useCurrentUniqueTotal
+          ? buildUniqueTotalCell(visibleUniqueDeals, totalComparisonPct)
+          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
+         ${comparisonActive ? `<div>${usePreviousYearUniqueTotal
+          ? getPreviousYearUniqueDealCountFromRows(rows)
+          : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
