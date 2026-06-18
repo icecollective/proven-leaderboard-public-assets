@@ -2630,12 +2630,29 @@
       );
     }
   
-    if (showNotes && row.closes > 0 && row.selfGen > 0) {
-      leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
-    }
-
-    if (showNotes && row.closes > 0 && row.setOnly > 0) {
-      leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
+    if (showNotes) {
+      if (activeView === "setters") {
+        if (row.sets > 0) {
+          leftNotes.push(`<span class="cs-note-left">Sets: ${row.sets}</span>`);
+        }
+        if (row.closes > 0) {
+          leftNotes.push(`<span class="cs-note-left">CS: ${row.closes}</span>`);
+        }
+      } else if (activeView === "experts" || activeView === "general") {
+        if (row.selfGen > 0) {
+          leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
+        }
+        if (row.setOnly > 0) {
+          leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
+        }
+      } else {
+        if (row.closes > 0 && row.selfGen > 0) {
+          leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
+        }
+        if (row.closes > 0 && row.setOnly > 0) {
+          leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
+        }
+      }
     }
   
     const leftHtml = leftNotes.length
@@ -2662,15 +2679,27 @@
     const notes = [];
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
-
+    const previousSets = getRowPreviousSets(row);
     const previousCloses = getRowPreviousCloses(row);
 
-    if (previousCloses > 0 && previousSelfGen > 0) {
-      notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
-    }
-
-    if (previousCloses > 0 && previousSetOnly > 0) {
-      notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
+    if (activeView === "setters") {
+      if (previousSets > 0) {
+        notes.push(`<span class="cs-note-left">Sets: ${previousSets}</span>`);
+      }
+    } else if (activeView === "experts" || activeView === "general") {
+      if (previousSelfGen > 0) {
+        notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
+      }
+      if (previousSetOnly > 0) {
+        notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
+      }
+    } else {
+      if (previousCloses > 0 && previousSelfGen > 0) {
+        notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
+      }
+      if (previousCloses > 0 && previousSetOnly > 0) {
+        notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
+      }
     }
 
     const noteHtml = notes.length
@@ -3296,7 +3325,7 @@
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
             <div>${buildRepNameCell(row.name)}</div>
-            ${activeView === "setters" ? buildCsCell(row, false) : buildCsCell(row, true)}
+            ${buildCsCell(row, true)}
             ${comparisonActive ? buildPreviousYearCell(row) : ""}
             ${useTableauColumn ? buildTableauCell(row, activeTableauMetric) : ""}
           </div>
