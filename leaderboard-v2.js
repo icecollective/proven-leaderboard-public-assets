@@ -312,8 +312,12 @@
       dataset.rows.length > 0;
   }
 
+  function canUsePlataToggle() {
+    return activeView === "general" && canShowTableauButton();
+  }
+
   function shouldShowPlataRows(useTableauColumn) {
-    return useTableauColumn && includePlata && activeView === "general";
+    return useTableauColumn && includePlata && canUsePlataToggle();
   }
 
   function hasTableauRowData(tableauRow) {
@@ -899,7 +903,7 @@
       btn.classList.toggle("active", office.get());
 
       btn.addEventListener("click", () => {
-        if (office.id === "plata-toggle" && !canShowTableauButton()) return;
+        if (office.id === "plata-toggle" && !canUsePlataToggle()) return;
 
         const turningOn = !office.get();
         office.set(turningOn);
@@ -943,16 +947,13 @@
         }
         
         if (activeView === "selfgen" || activeView === "groups") {
-    showTableau = false;
-  
-    if (activeSortMode === "tableau") {
-      activeSortMode = "currentContribution";
-    }
-  } else if (
-    ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode)
-  ) {
-    showTableau = true;
-  }
+          showTableau = false;
+
+          if (activeSortMode === "tableau") {
+            activeSortMode = "currentContribution";
+          }
+        }
+
         document.querySelectorAll("#view-tabs button").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         renderLeaderboard();
@@ -1081,6 +1082,7 @@
     const dataset = key ? tableauData[key] : null;
 
     const shouldShowTableau = canShowTableauButton();
+    const canSelectPlata = canUsePlataToggle();
 
     const shouldShowYoy =
       activeDateMode === "ytd" &&
@@ -1095,18 +1097,21 @@
     btn.style.display = shouldShowTableau ? "inline-block" : "none";
 
     if (plataBtn) {
-      plataBtn.classList.toggle("active", includePlata && shouldShowTableau);
-      plataBtn.disabled = !shouldShowTableau;
-      plataBtn.classList.toggle("disabled", !shouldShowTableau);
+      plataBtn.classList.toggle("active", includePlata && canSelectPlata);
+      plataBtn.disabled = !canSelectPlata;
+      plataBtn.classList.toggle("disabled", !canSelectPlata);
     }
 
     if (!shouldShowTableau) {
       showTableau = false;
-      includePlata = false;
     } else {
       const labelDate = formatShortDate(dataset.lastUpdated);
       btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
       btn.classList.toggle("active", showTableau);
+    }
+
+    if (!canSelectPlata) {
+      includePlata = false;
     }
 
     if (yoyBtn) {
