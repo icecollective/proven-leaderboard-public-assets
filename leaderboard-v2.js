@@ -342,6 +342,24 @@
     return useTableauColumn && includePlata && canUsePlataToggle();
   }
 
+  function getTableauRowForDateMode(normName, dateModeKey) {
+    const dataset = tableauData[dateModeKey];
+    if (!dataset || !Array.isArray(dataset.rows)) return null;
+
+    return dataset.rows.find(row => normalizeName(row.name) === normName) || null;
+  }
+
+  function getTableauCsForDateMode(normName, dateModeKey) {
+    const row = getTableauRowForDateMode(normName, dateModeKey);
+    return Number(row?.cs) || 0;
+  }
+
+  function plataRepMeetsActiveTableauCsGate(normName) {
+    const key = getTableauKeyForDateMode();
+    if (!key) return false;
+    return getTableauCsForDateMode(normName, key) > 0;
+  }
+
   function hasTableauRowData(tableauRow) {
     return Object.keys(TABLEAU_METRICS).some(metric => {
       const value = tableauRow?.[metric];
@@ -359,24 +377,18 @@
     return tableauRow && hasTableauRowData(tableauRow);
   }
 
-  function rowHasNoCurrentInternal(row) {
-    return row.sets + row.closes === 0;
-  }
-
-  function rowHasNoPreviousInternal(row) {
-    return getRowPreviousSets(row) + getRowPreviousCloses(row) === 0;
+  function rowShowsInternalNa(row) {
+    if (row.isPlataOnly) return false;
+    const norm = normalizeName(row.name);
+    return isRecruitingRep(norm) && hasTableauDataForNorm(norm) && !hasInternalRepHistory(norm);
   }
 
   function rowShowsCurrentNa(row) {
-    if (row.isPlataOnly) return false;
-    const norm = normalizeName(row.name);
-    return isRecruitingRep(norm) && hasTableauDataForNorm(norm) && rowHasNoCurrentInternal(row);
+    return rowShowsInternalNa(row);
   }
 
   function rowShowsPreviousNa(row) {
-    if (row.isPlataOnly) return false;
-    const norm = normalizeName(row.name);
-    return isRecruitingRep(norm) && hasTableauDataForNorm(norm) && rowHasNoPreviousInternal(row);
+    return rowShowsInternalNa(row);
   }
 
   function buildEmptyInternalRow(name, tableauRow) {
@@ -1410,6 +1422,7 @@
     tableauMap.forEach((tableauRow, norm) => {
       if (HIDDEN_REPS.has(norm) || existing.has(norm) || !isPlataRep(norm)) return;
       if (!hasTableauRowData(tableauRow)) return;
+      if (!plataRepMeetsActiveTableauCsGate(norm)) return;
 
       existing.add(norm);
       rows.push({
