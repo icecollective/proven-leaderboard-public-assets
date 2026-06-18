@@ -1320,10 +1320,15 @@
       </div>
     `;
 
+    const useGroupsUniqueTotal =
+      !useGroupsYoy || (includeNewReps && includeOldReps);
+
     const groupDealIds = new Set();
+    const groupPreviousDealIds = new Set();
 
     groupRows.forEach(row => {
       row.dealIds.forEach(id => groupDealIds.add(id));
+      row.previousDealIds.forEach(id => groupPreviousDealIds.add(id));
     });
 
     const totalSets = groupRows.reduce((sum, row) => sum + row.sets, 0);
@@ -1331,17 +1336,24 @@
     const totalPreviousSets = groupRows.reduce((sum, row) => sum + row.previousSets, 0);
     const totalPreviousCs = groupRows.reduce((sum, row) => sum + row.previousCs, 0);
 
+    const total2026 = useGroupsUniqueTotal
+      ? groupDealIds.size
+      : (totalSets + totalCs) / 2;
+    const total2025 = useGroupsUniqueTotal
+      ? groupPreviousDealIds.size
+      : (totalPreviousSets + totalPreviousCs) / 2;
+
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div></div>
         <div>TOTAL</div>
         <div>${useGroupsYoy
-          ? buildGroupTotalCell({ sets: totalSets, cs: totalCs, total: (totalSets + totalCs) / 2 }, false)
+          ? buildGroupTotalCell({ sets: totalSets, cs: totalCs, total: total2026 }, false)
           : groupDealIds.size}</div>
         ${useGroupsYoy ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalPreviousSets,
           previousCs: totalPreviousCs,
-          previousTotal: (totalPreviousSets + totalPreviousCs) / 2
+          previousTotal: total2025
         })}</div>` : ""}
       </div>
     `);
