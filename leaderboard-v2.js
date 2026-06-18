@@ -1509,9 +1509,22 @@
     return false;
   }
 
-  function buildCurrentTotalNotesForView(rows) {
+  function buildGeneralTotalNotesFromTotals(totals) {
+    if (!totals) return null;
+
+    const notes = [];
+    if (totals.cs > 0) notes.push(`<span class="cs-note-left">CS: ${totals.cs}</span>`);
+    if (totals.sets > 0) notes.push(`<span class="cs-note-left">Sets: ${totals.sets}</span>`);
+    return notes.length ? notes : null;
+  }
+
+  function buildCurrentTotalNotesForView(rows, totals = null) {
     if (!shouldShowCurrentTotalNotes()) return null;
     if (activeView === "setters") return null;
+
+    if (activeView === "general") {
+      return buildGeneralTotalNotesFromTotals(totals);
+    }
 
     if (activeView === "experts") {
       const selfGen = rows.reduce((sum, row) => sum + (row.selfGen || 0), 0);
@@ -1523,9 +1536,13 @@
     return null;
   }
 
-  function buildPreviousTotalNotesForView(rows) {
+  function buildPreviousTotalNotesForView(rows, totals = null) {
     if (!shouldShowPreviousTotalNotes()) return null;
     if (activeView === "setters") return null;
+
+    if (activeView === "general") {
+      return buildGeneralTotalNotesFromTotals(totals);
+    }
 
     if (activeView === "experts") {
       const selfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
@@ -3291,8 +3308,6 @@
       const totalComparisonPct = comparisonActive
         ? getComparisonPercent(currentTotalValue, previousTotalValue)
         : null;
-      const showCurrentTotalNotes = shouldShowCurrentTotalNotes();
-      const showPreviousTotalNotes = shouldShowPreviousTotalNotes();
       const useUniqueCsTotals = activeView === "setters" || activeView === "experts";
       const currentUniqueDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
       const totalUniqueCs = activeView === "experts"
@@ -3321,14 +3336,22 @@
             uniqueTotalComparisonPct,
             expertTotalNotes
           )
-          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct, showCurrentTotalNotes)}</div>
+          : buildUniqueTotalCell(
+            currentTotalValue,
+            totalComparisonPct,
+            buildCurrentTotalNotesForView(rows, currentCreditTotals)
+          )}</div>
          ${comparisonActive ? `<div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
             totalPreviousUniqueCs,
             null,
             expertPreviousTotalNotes
           )
-          : buildCreditTotalCell(previousYearCreditTotals, null, showPreviousTotalNotes)}</div>` : ""}
+          : buildUniqueTotalCell(
+            previousTotalValue,
+            null,
+            buildPreviousTotalNotesForView(rows, previousYearCreditTotals)
+          )}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
