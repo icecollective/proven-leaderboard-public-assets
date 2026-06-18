@@ -351,9 +351,16 @@
       dataset.rows.length > 0;
   }
 
+  function isPortraitMobile() {
+    return window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+  }
+
   function setShowTableau(value) {
     showTableau = value;
     if (!value) includePlata = false;
+    if (value && isPortraitMobile() && showYoy) {
+      showYoy = false;
+    }
   }
 
   function canUsePlataToggle() {
@@ -1333,7 +1340,12 @@
       }
 
       setShowTableau(!showTableau);
-      if (showTableau) activeSortMode = "tableau";
+      if (showTableau) {
+        activeSortMode = "tableau";
+        if (isPortraitMobile() && showYoy) {
+          showYoy = false;
+        }
+      }
       renderLeaderboard();
     });
     tableauTabs.appendChild(tableauBtn);
@@ -1349,6 +1361,10 @@
       activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
+
+      if (isPortraitMobile() && showTableau) {
+        setShowTableau(false);
+      }
     }
 
     renderLeaderboard();
