@@ -172,7 +172,7 @@
   }
 
   function isComparisonMode() {
-    return showYoy || showMom;
+    return useComparisonColumn();
   }
 
   function useYoyColumn() {
@@ -180,7 +180,7 @@
   }
 
   function useMomColumn() {
-    return showMom;
+    return showMom && activeDateMode === "mtd";
   }
 
   function useComparisonColumn() {
@@ -188,35 +188,35 @@
   }
 
   function getCurrentComparisonLabel(suffix) {
-    if (showMom) return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
+    if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
     if (showYoy) return `2026 ${suffix}`;
     return suffix;
   }
 
   function getPreviousComparisonLabel(suffix) {
-    if (showMom) return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
+    if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
     if (showYoy) return `2025 ${suffix}`;
     return suffix;
   }
 
   function getRowPreviousCs(row) {
-    return showMom ? row.previousMonthCs : row.previousYearCs;
+    return useMomColumn() ? row.previousMonthCs : row.previousYearCs;
   }
 
   function getRowPreviousSelfGen(row) {
-    return showMom ? row.previousMonthSelfGen : row.previousYearSelfGen;
+    return useMomColumn() ? row.previousMonthSelfGen : row.previousYearSelfGen;
   }
 
   function getRowPreviousSets(row) {
-    return showMom ? row.previousMonthSets : row.previousYearSets;
+    return useMomColumn() ? row.previousMonthSets : row.previousYearSets;
   }
 
   function getRowPreviousCloses(row) {
-    return showMom ? row.previousMonthCloses : row.previousYearCloses;
+    return useMomColumn() ? row.previousMonthCloses : row.previousYearCloses;
   }
 
   function getRowPreviousSetOnly(row) {
-    return showMom ? row.previousMonthSetOnly : row.previousYearSetOnly;
+    return useMomColumn() ? row.previousMonthSetOnly : row.previousYearSetOnly;
   }
   
   async function loadDownlineIfNeeded() {
@@ -316,7 +316,7 @@
     const momRanges = getMomDateRanges();
     const momCurrentDeals = allDeals.filter(deal => dealInDateRange(deal, momRanges.current));
     const momPreviousDeals = previousYearDeals.filter(deal => dealInDateRange(deal, momRanges.previous));
-    const useMom = showMom;
+    const useMom = showMom && activeDateMode === "mtd";
     const useYoy = activeDateMode === "ytd" && showYoy && !showMom;
     const useComparison = useMom || useYoy;
     const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
@@ -837,7 +837,7 @@
 
     if (showMom) {
       showYoy = false;
-      activeSortMode = activeView === "groups" ? "currentContribution" : "previousContribution";
+      activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
     }
@@ -889,7 +889,9 @@
       activeDateMode === "ytd" &&
       previousYearDeals.length;
 
-    const shouldShowMom = previousYearDeals.length > 0;
+    const shouldShowMom =
+      activeDateMode === "mtd" &&
+      previousYearDeals.length > 0;
 
     wrapper.style.display = shouldShowTableau || shouldShowYoy || shouldShowMom ? "flex" : "none";
 
@@ -944,7 +946,7 @@
   }
   
   function getRepMap(filteredDeals) {
-    const includeZeroRows = showMom || !["today", "ytd"].includes(activeDateMode);
+    const includeZeroRows = useMomColumn() || !["today", "ytd"].includes(activeDateMode);
     const baseDeals = includeZeroRows ? allDeals.filter(deal => dealInScope(deal)) : filteredDeals;
   
     const repMap = new Map();
@@ -1047,7 +1049,7 @@
     if (!isComparisonMode() || !includeOldReps) return rows;
 
     const existing = new Set(rows.map(row => normalizeName(row.name)));
-    const previousDeals = showMom ? getMomPreviousDeals() : previousYearDeals;
+    const previousDeals = useMomColumn() ? getMomPreviousDeals() : previousYearDeals;
 
     previousDeals.forEach(deal => {
       [deal.setter, deal.expert].forEach(name => {
@@ -1099,7 +1101,7 @@
   
   function getPreviousYearUniqueDealCountFromRows(rows) {
     const ids = new Set();
-    const map = showMom ? previousMonthMap : previousYearMap;
+    const map = useMomColumn() ? previousMonthMap : previousYearMap;
 
     rows.forEach(row => {
       const norm = normalizeName(row.name);
@@ -1277,7 +1279,7 @@
     const leftNotes = [];
     const rightNotes = [];
 
-    const comparisonPct = showMom ? getMomPercent(row) : getYoyPercent(row);
+    const comparisonPct = useMomColumn() ? getMomPercent(row) : getYoyPercent(row);
 
     if (isComparisonMode() && comparisonPct !== null) {
       const sign = comparisonPct > 0 ? "+" : "";
@@ -1380,10 +1382,10 @@
     );
 
     const comparisonActive = useComparisonColumn();
-    const repFilteredDeals = showMom ? getMomCurrentDeals() : filteredDeals;
+    const repFilteredDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
 
     let rows = getRepMap(repFilteredDeals);
-    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau && !showMom;
+    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau && !useMomColumn();
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters") {
@@ -1453,8 +1455,8 @@
   }
 
     if (comparisonActive && activeSortMode === "yoyPercent") {
-    const aPct = showMom ? getMomPercent(a) : getYoyPercent(a);
-    const bPct = showMom ? getMomPercent(b) : getYoyPercent(b);
+    const aPct = useMomColumn() ? getMomPercent(a) : getYoyPercent(a);
+    const bPct = useMomColumn() ? getMomPercent(b) : getYoyPercent(b);
 
     const aValue = aPct === null ? -Infinity : aPct;
     const bValue = bPct === null ? -Infinity : bPct;
@@ -1494,11 +1496,11 @@
   
     const useCurrentUniqueTotal = shouldUseCurrentUniqueTotal();
     const usePreviousYearUniqueTotal = shouldUsePreviousYearUniqueTotal();
-    const previousComparisonDeals = showMom ? getMomPreviousDeals() : previousYearDeals;
-    const currentCreditTotals = getCreditTotalsFromDeals(showMom ? getMomCurrentDeals() : filteredDeals, rows);
+    const previousComparisonDeals = useMomColumn() ? getMomPreviousDeals() : previousYearDeals;
+    const currentCreditTotals = getCreditTotalsFromDeals(useMomColumn() ? getMomCurrentDeals() : filteredDeals, rows);
     const previousYearCreditTotals = getCreditTotalsFromDeals(previousComparisonDeals, rows);
    
-    const title = showMom && activeView !== "groups"
+    const title = useMomColumn() && activeView !== "groups"
       ? `${activeTitle || "Proven Leaderboard V2"} - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
       : `${activeTitle || "Proven Leaderboard V2"} - ${range.label} (${range.start} to ${range.end})`;
   
@@ -1510,7 +1512,7 @@
     let headerHtml = "";
     const bodyRows = [];
     if (activeView === "groups") {
-    const useGroupsComparison = showMom || (activeDateMode === "ytd" && showYoy);
+    const useGroupsComparison = useMomColumn() || (activeDateMode === "ytd" && showYoy);
     const { groupRows, totalStats, range: groupRange } = getGroupRows();
 
     groupRows.sort((a, b) => {
@@ -1618,7 +1620,7 @@
 
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
-        <div class="leaderboard-title">${showMom
+        <div class="leaderboard-title">${useMomColumn()
           ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
           : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`}</div>
         ${headerHtml}
@@ -1743,11 +1745,7 @@
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
             <div>${row.name}</div>
-            ${activeView === "setters" ? `
-    <div class="cs-cell">
-      <span class="cs-main">${row.cs}</span>
-    </div>
-  ` : buildCsCell(row, true)}
+            ${activeView === "setters" ? buildCsCell(row, false) : buildCsCell(row, true)}
             ${comparisonActive ? buildPreviousYearCell(row) : ""}
             ${useTableauColumn ? buildTableauCell(row, activeTableauMetric) : ""}
           </div>
