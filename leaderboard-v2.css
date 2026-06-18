@@ -270,20 +270,30 @@
   }
 
   .group-leader-link {
-    background:none;
-    border:none;
-    padding:0;
+    display:inline-block;
+    padding:6px 12px;
     margin:0;
+    border:none;
+    border-radius:10px;
+    background:#e0e7ff;
     font:inherit;
+    font-weight:700;
     color:#102c57;
-    font-weight:600;
     cursor:pointer;
-    text-decoration:underline;
-    text-underline-offset:2px;
+    text-decoration:none;
+    white-space:nowrap;
+    line-height:1.2;
+    transition:background .15s ease, color .15s ease;
   }
 
   .group-leader-link:hover {
+    background:#c7d2fe;
     color:#061a33;
+  }
+
+  .group-leader-link:active {
+    background:#102c57;
+    color:#fff;
   }
   
   @media (max-width:768px) {
@@ -295,6 +305,12 @@
     .leaderboard-tabs button {
       font-size:12px;
       padding:10px 8px;
+    }
+
+    .group-leader-link {
+      font-size:12px;
+      padding:5px 8px;
+      border-radius:8px;
     }
   
     .cs-notes-stack {
