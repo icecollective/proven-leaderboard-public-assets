@@ -60,6 +60,15 @@
   let isSubsetMode = false;
   let activeDownlineNames = null;
   let activeTitle = "";
+  let activeGroupDrillLeader = null;
+
+  const OFFICE_GROUP_LABELS = new Set(["ice collective", "riot"]);
+  const EXCLUDED_GROUP_LEADERS = new Set([
+    "kelton higgins",
+    "adam lloyd",
+    "ruan meyer",
+    "luke sanders"
+  ]);
   
   function makeSlug(value) {
     return String(value || "")
@@ -530,6 +539,21 @@
     document.getElementById("scope-title").textContent = activeTitle;
   }
   
+  function isOfficeGroupName(name) {
+    return OFFICE_GROUP_LABELS.has(normalizeName(name));
+  }
+
+  function isClickableGroupLeader(name) {
+    return name && !isOfficeGroupName(name);
+  }
+
+  function escapeAttr(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+  }
+
   function buildDownlineSetFromRows(rows, activeRepName) {
     const recruiterNorm = normalizeName(activeRepName);
     const downline = new Set();
@@ -548,7 +572,7 @@
     return downline;
   }
   
-  function getGroupRows() {
+  function buildGroupContext() {
     const range = getDateRange(activeDateMode);
     const periodDeals = allDeals.filter(deal => dealInDateRange(deal, range));
     const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, getDateRange("ytd")));
@@ -560,12 +584,6 @@
     const useComparison = useMom || useYoy;
     const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
     const previousPeriodDeals = useMom ? momPreviousDeals : previousYearDeals;
-    const excludedGroupLeaders = new Set([
-      "kelton higgins",
-      "adam lloyd",
-      "ruan meyer",
-      "luke sanders"
-    ]);
 
     const repContrib2026 = new Map();
     const repContrib2025 = new Map();
@@ -651,13 +669,73 @@
       };
     }
 
+    return {
+      range,
+      ytdDeals,
+      useMom,
+      useYoy,
+      useComparison,
+      currentPeriodDeals,
+      previousPeriodDeals,
+      filterDownlineForYear,
+      computeGroupStats,
+      qualifiesByYtd,
+      buildGroupRow
+    };
+  }
+
+  function getGroupLeaderStats(leaderName, context) {
+    const downlineNames = buildDownlineSetFromRows(recruitingRows, leaderName);
+    const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
+    const current = context.computeGroupStats(
+      context.filterDownlineForYear(downlineNames, "2026", context.useComparison),
+      context.currentPeriodDeals,
+      "current"
+    );
+    const previous = context.computeGroupStats(
+      context.filterDownlineForYear(previousDownlineNames, "2025", context.useComparison),
+      context.previousPeriodDeals,
+      "previous"
+    );
+
+    return { current, previous, downlineNames, previousDownlineNames };
+  }
+
+  function getGroupDrillVisibleNames(leaderName, context) {
+    const currentDownline = buildDownlineSetFromRows(recruitingRows, leaderName);
+    const previousDownline = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
+
+    if (!context.useComparison) return currentDownline;
+
+    const visible = new Set();
+    context.filterDownlineForYear(currentDownline, "2026", true).forEach(norm => visible.add(norm));
+    context.filterDownlineForYear(previousDownline, "2025", true).forEach(norm => visible.add(norm));
+    return visible;
+  }
+
+  function getGroupRows() {
+    const context = buildGroupContext();
+    const {
+      range,
+      ytdDeals,
+      useComparison,
+      currentPeriodDeals,
+      previousPeriodDeals,
+      filterDownlineForYear,
+      computeGroupStats,
+      qualifiesByYtd,
+      buildGroupRow
+    } = context;
+    const showYoy = context.useYoy;
+    const showMom = context.useMom;
+
     const groupRows = [];
 
     recruitingRows.forEach(leader => {
       const leaderName = String(leader.name || "").trim();
       const leaderNorm = normalizeName(leaderName);
 
-      if (!leaderName || HIDDEN_REPS.has(leaderNorm) || excludedGroupLeaders.has(leaderNorm)) return;
+      if (!leaderName || HIDDEN_REPS.has(leaderNorm) || EXCLUDED_GROUP_LEADERS.has(leaderNorm)) return;
       if (!repInOfficeUmbrella(leaderNorm)) return;
 
       const downlineNames = buildDownlineSetFromRows(recruitingRows, leaderName);
@@ -980,6 +1058,10 @@
     tableauTabs.innerHTML = "";
     officeTabs.innerHTML = "";
 
+    const officeToggleButtons = document.createElement("div");
+    officeToggleButtons.id = "office-toggle-buttons";
+    officeToggleButtons.className = "office-toggle-buttons";
+
     [
       { id: "ice-collective-toggle", label: "Ice Collective", get: () => includeIceCollective, set: val => { includeIceCollective = val; } },
       { id: "riot-toggle", label: "Riot", get: () => includeRiot, set: val => { includeRiot = val; } },
@@ -1011,8 +1093,32 @@
         renderLeaderboard();
       });
 
-      officeTabs.appendChild(btn);
+      officeToggleButtons.appendChild(btn);
     });
+
+    const groupDrillNav = document.createElement("div");
+    groupDrillNav.id = "group-drill-nav";
+    groupDrillNav.className = "group-drill-nav";
+
+    const groupDrillBack = document.createElement("button");
+    groupDrillBack.id = "group-drill-back";
+    groupDrillBack.type = "button";
+    groupDrillBack.className = "group-drill-back";
+    groupDrillBack.textContent = "← Back";
+    groupDrillBack.addEventListener("click", () => {
+      activeGroupDrillLeader = null;
+      updateGroupDrillNav();
+      renderLeaderboard();
+    });
+
+    const groupDrillTitle = document.createElement("div");
+    groupDrillTitle.id = "group-drill-title";
+    groupDrillTitle.className = "group-drill-title";
+
+    groupDrillNav.appendChild(groupDrillBack);
+    groupDrillNav.appendChild(groupDrillTitle);
+    officeTabs.appendChild(officeToggleButtons);
+    officeTabs.appendChild(groupDrillNav);
   
     [
       { key: "general", label: "General" },
@@ -1026,6 +1132,10 @@
       btn.classList.toggle("active", activeView === view.key);
   
       btn.addEventListener("click", () => {
+        if (activeView !== view.key) {
+          activeGroupDrillLeader = null;
+        }
+
         activeView = view.key;
   
         if (activeView === "selfgen") {
@@ -1155,6 +1265,41 @@
   tableauTabs.appendChild(oldRepsBtn);
   
   document.getElementById("apply-custom").addEventListener("click", renderLeaderboard);
+
+  const leaderboardApp = document.getElementById("leaderboard-app");
+  if (leaderboardApp) {
+    leaderboardApp.addEventListener("click", event => {
+      const leaderButton = event.target.closest("[data-group-leader]");
+      if (!leaderButton || activeView !== "groups" || activeGroupDrillLeader) return;
+
+      activeGroupDrillLeader = leaderButton.getAttribute("data-group-leader");
+      updateGroupDrillNav();
+      renderLeaderboard();
+    });
+  }
+  }
+
+  function updateGroupDrillNav() {
+    const officeTabs = document.getElementById("office-tabs");
+    const toggleButtons = document.getElementById("office-toggle-buttons");
+    const drillNav = document.getElementById("group-drill-nav");
+    const drillTitle = document.getElementById("group-drill-title");
+
+    if (!officeTabs) return;
+
+    if (isSubsetMode) {
+      officeTabs.style.display = "none";
+      return;
+    }
+
+    const showDrillNav = activeView === "groups" && activeGroupDrillLeader;
+
+    officeTabs.style.display = "flex";
+    if (toggleButtons) toggleButtons.style.display = showDrillNav ? "none" : "flex";
+    if (drillNav) drillNav.style.display = showDrillNav ? "flex" : "none";
+    if (showDrillNav && drillTitle) {
+      drillTitle.textContent = `${activeGroupDrillLeader} Group`;
+    }
   }
   
   function updateTableauToggle() {
@@ -1166,9 +1311,7 @@
 
     if (!wrapper || !btn) return;
 
-    if (officeTabs) {
-      officeTabs.style.display = isSubsetMode ? "none" : "flex";
-    }
+    updateGroupDrillNav();
 
     const iceBtn = document.getElementById("ice-collective-toggle");
     const riotBtn = document.getElementById("riot-toggle");
@@ -1908,7 +2051,135 @@
     const bodyRows = [];
     if (activeView === "groups") {
     const useGroupsComparison = useMomColumn() || (activeDateMode === "ytd" && showYoy);
-    const { groupRows, totalStats, range: groupRange } = getGroupRows();
+    const groupContext = buildGroupContext();
+    const { range: groupRange } = groupContext;
+    const cols = useGroupsComparison ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
+    const groupTitle = useMomColumn()
+      ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
+      : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`;
+
+    if (activeGroupDrillLeader) {
+      const leaderDownline = buildDownlineSetFromRows(recruitingRows, activeGroupDrillLeader);
+      if (!leaderDownline.size) {
+        activeGroupDrillLeader = null;
+        updateGroupDrillNav();
+      } else {
+        const { current, previous } = getGroupLeaderStats(activeGroupDrillLeader, groupContext);
+        const visibleNames = getGroupDrillVisibleNames(activeGroupDrillLeader, groupContext);
+        let drillRows = rows.filter(row => visibleNames.has(normalizeName(row.name)));
+
+        const leaderNorm = normalizeName(activeGroupDrillLeader);
+        if (!drillRows.some(row => normalizeName(row.name) === leaderNorm)) {
+          drillRows.push(buildEmptyInternalRow(activeGroupDrillLeader, tableauMap.get(leaderNorm)));
+          drillRows.sort((a, b) => {
+            if (activeSortMode === "name") return a.name.localeCompare(b.name);
+
+            if (activeSortMode === "previousContribution") {
+              const aPrev = getRowPreviousSets(a) + getRowPreviousCloses(a);
+              const bPrev = getRowPreviousSets(b) + getRowPreviousCloses(b);
+              if (bPrev !== aPrev) return bPrev - aPrev;
+              return a.name.localeCompare(b.name);
+            }
+
+            if (useGroupsComparison && activeSortMode === "yoyPercent") {
+              const aPct = useMomColumn() ? getMomPercent(a) : getYoyPercent(a);
+              const bPct = useMomColumn() ? getMomPercent(b) : getYoyPercent(b);
+              const aValue = aPct === null ? -Infinity : aPct;
+              const bValue = bPct === null ? -Infinity : bPct;
+              if (bValue !== aValue) return bValue - aValue;
+            }
+
+            const aValue = a.sets + a.closes;
+            const bValue = b.sets + b.closes;
+            if (bValue !== aValue) return bValue - aValue;
+            if (b.cs !== a.cs) return b.cs - a.cs;
+            return a.name.localeCompare(b.name);
+          });
+        }
+
+        const drillHeaderHtml = `
+      <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
+        <div>Rank</div>
+        <div>
+    <button
+      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
+      onclick="setNameSort()">
+      Name
+    </button>
+  </div>
+        <div style="display:flex;gap:4px;justify-content:center;">
+    <button
+      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      onclick="setCurrentContributionSort()">
+      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : "CS"}
+    </button>
+    ${useGroupsComparison ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
+  </div>
+        ${useGroupsComparison ? `
+    <div>
+      <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
+        ${getPreviousComparisonLabel("CS")}
+      </button>
+    </div>
+  ` : ""}
+      </div>
+    `;
+
+        bodyRows.push(`
+      <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
+        <div></div>
+        <div>TOTAL</div>
+        <div>${useGroupsComparison
+          ? buildGroupTotalCell({
+            sets: current.sets,
+            cs: current.cs,
+            total: current.total,
+            previousTotal: previous.total
+          }, useGroupsComparison)
+          : buildGroupTotalCell({
+            sets: current.sets,
+            cs: current.cs,
+            total: current.total
+          }, false)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
+          previousSets: previous.sets,
+          previousCs: previous.cs,
+          previousTotal: previous.total
+        })}</div>` : ""}
+      </div>
+    `);
+
+        drillRows.forEach((row, index) => {
+          const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+          bodyRows.push(`
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
+          <div>${index + 1}</div>
+          <div>${row.name}</div>
+          <div>${buildCsCell(row, true)}</div>
+          ${useGroupsComparison ? buildPreviousYearCell(row) : ""}
+        </div>
+      `);
+        });
+
+        document.querySelector(".leaderboard-grid").innerHTML = `
+      <div class="leaderboard-column">
+        <div class="leaderboard-title">${activeGroupDrillLeader} Group - ${groupTitle.replace(/^Groups - /, "")}</div>
+        ${drillHeaderHtml}
+        <div class="leaderboard-body">
+          ${bodyRows.join("")}
+        </div>
+      </div>
+    `;
+
+        return;
+      }
+    }
+
+    const { groupRows, totalStats } = getGroupRows();
 
     groupRows.sort((a, b) => {
       if (activeSortMode === "name") {
@@ -1937,8 +2208,6 @@
       if (b.sets !== a.sets) return b.sets - a.sets;
       return a.name.localeCompare(b.name);
     });
-
-    const cols = useGroupsComparison ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
 
     const headerHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
@@ -1998,10 +2267,13 @@
 
     groupRows.forEach((row, index) => {
       const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+      const nameCell = isClickableGroupLeader(row.name)
+        ? `<button type="button" class="group-leader-link" data-group-leader="${escapeAttr(row.name)}">${row.name}</button>`
+        : `<div>${row.name}</div>`;
       bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
-          <div>${row.name}</div>
+          <div>${nameCell}</div>
           <div>${buildGroupTotalCell(row, useGroupsComparison)}</div>
           ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(row)}</div>` : ""}
         </div>
@@ -2010,9 +2282,7 @@
 
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
-        <div class="leaderboard-title">${useMomColumn()
-          ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
-          : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`}</div>
+        <div class="leaderboard-title">${groupTitle}</div>
         ${headerHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
