@@ -32,6 +32,8 @@
   let includeRiot = true;
   let iceCollectiveNames = null;
   let riotNames = null;
+  let iceCollective2025Names = null;
+  let riot2025Names = null;
   let activeSortMode = "tableau"; // "tableau", "internal", or "previousYear"
   let tableauData = {};
   let tableauMap = new Map();
@@ -173,7 +175,7 @@
   function getMomPreviousDeals() {
     const ranges = momDateRanges || getMomDateRanges();
     return previousYearDeals.filter(deal =>
-      dealInOfficeUmbrella(deal) && dealInDateRange(deal, ranges.previous)
+      dealInOfficeUmbrella(deal, "previous") && dealInDateRange(deal, ranges.previous)
     );
   }
 
@@ -225,62 +227,92 @@
     return useMomColumn() ? row.previousMonthSetOnly : row.previousYearSetOnly;
   }
 
-  function rebuildOfficeNameSets() {
-    iceCollectiveNames = new Set();
-    riotNames = new Set();
+  function buildOfficeNameSetsFromRows(rows) {
+    const ice = new Set();
+    const riot = new Set();
 
-    const recruiterRow = recruitingRows.find(row =>
+    const recruiterRow = rows.find(row =>
       makeSlug(row.slug || row.name) === "justin-wall" ||
       makeSlug(row.name) === "justin-wall"
     );
 
-    if (!recruiterRow) return;
+    if (!recruiterRow) return { ice, riot };
 
-    const baseDownline = buildDownlineSetFromRows(recruitingRows, recruiterRow.name);
+    const baseDownline = buildDownlineSetFromRows(rows, recruiterRow.name);
 
-    recruitingRows.forEach(row => {
+    rows.forEach(row => {
       const norm = normalizeName(row.name);
       if (baseDownline.has(norm)) {
-        iceCollectiveNames.add(norm);
+        ice.add(norm);
       } else {
-        riotNames.add(norm);
+        riot.add(norm);
       }
     });
+
+    return { ice, riot };
+  }
+
+  function rebuildOfficeNameSets() {
+    const current = buildOfficeNameSetsFromRows(recruitingRows);
+    iceCollectiveNames = current.ice;
+    riotNames = current.riot;
+
+    const previous = buildOfficeNameSetsFromRows(recruiting2025Rows);
+    iceCollective2025Names = previous.ice;
+    riot2025Names = previous.riot;
   }
 
   function ensureOfficeNameSets() {
-    if (!iceCollectiveNames || !riotNames) rebuildOfficeNameSets();
+    if (!iceCollectiveNames || !riotNames || !iceCollective2025Names || !riot2025Names) {
+      rebuildOfficeNameSets();
+    }
   }
 
-  function dealInOfficeUmbrella(deal) {
+  function getOfficeNameSets(year = "current") {
+    ensureOfficeNameSets();
+    if (year === "previous") {
+      return { ice: iceCollective2025Names, riot: riot2025Names };
+    }
+    return { ice: iceCollectiveNames, riot: riotNames };
+  }
+
+  function dealInOfficeUmbrella(deal, year = "current") {
     if (includeIceCollective && includeRiot) return true;
 
-    ensureOfficeNameSets();
-
+    const { ice, riot } = getOfficeNameSets(year);
     const setterNorm = normalizeName(deal.setter);
     const expertNorm = normalizeName(deal.expert);
 
     if (!includeIceCollective) {
-      if (iceCollectiveNames.has(setterNorm) || iceCollectiveNames.has(expertNorm)) return false;
+      if (ice.has(setterNorm) || ice.has(expertNorm)) return false;
     }
 
     if (!includeRiot) {
-      if (riotNames.has(setterNorm) || riotNames.has(expertNorm)) return false;
+      if (riot.has(setterNorm) || riot.has(expertNorm)) return false;
     }
 
     return true;
   }
 
-  function repInOfficeUmbrella(normName) {
+  function repInOfficeUmbrella(normName, year = "current") {
     if (!normName) return true;
     if (includeIceCollective && includeRiot) return true;
 
-    ensureOfficeNameSets();
+    const { ice, riot } = getOfficeNameSets(year);
 
-    if (!includeIceCollective && iceCollectiveNames.has(normName)) return false;
-    if (!includeRiot && riotNames.has(normName)) return false;
+    if (!includeIceCollective && ice.has(normName)) return false;
+    if (!includeRiot && riot.has(normName)) return false;
 
     return true;
+  }
+
+  function filterPreviousYearDeals(deals) {
+    return deals.filter(deal => dealInOfficeUmbrella(deal, "previous"));
+  }
+
+  function rebuildComparisonMapsForOffice() {
+    rebuildPreviousYearMap();
+    rebuildPreviousMonthMap();
   }
   
   async function loadDownlineIfNeeded() {
@@ -379,12 +411,12 @@
     const ytdDeals = allDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, getDateRange("ytd")));
     const momRanges = getMomDateRanges();
     const momCurrentDeals = allDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, momRanges.current));
-    const momPreviousDeals = previousYearDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, momRanges.previous));
+    const momPreviousDeals = filterPreviousYearDeals(previousYearDeals).filter(deal => dealInDateRange(deal, momRanges.previous));
     const useMom = showMom && activeDateMode === "mtd";
     const useYoy = activeDateMode === "ytd" && showYoy && !showMom;
     const useComparison = useMom || useYoy;
     const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
-    const previousPeriodDeals = useMom ? momPreviousDeals : previousYearDeals.filter(dealInOfficeUmbrella);
+    const previousPeriodDeals = useMom ? momPreviousDeals : filterPreviousYearDeals(previousYearDeals);
     const excludedGroupLeaders = new Set([
       "kelton higgins",
       "adam lloyd",
@@ -478,7 +510,7 @@
 
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
       const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy || showMom), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy || showMom), previousYearDeals.filter(dealInOfficeUmbrella));
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy || showMom), filterPreviousYearDeals(previousYearDeals));
       const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026", useComparison), currentPeriodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", useComparison), previousPeriodDeals);
 
@@ -516,7 +548,7 @@
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
       const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy || showMom), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy || showMom), previousYearDeals.filter(dealInOfficeUmbrella));
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy || showMom), filterPreviousYearDeals(previousYearDeals));
       const current = computeGroupStats(filterDownlineForYear(currentNames, "2026", useComparison), currentPeriodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025", useComparison), previousPeriodDeals);
 
@@ -636,16 +668,16 @@
   
     allDeals = Array.isArray(payload.deals) ? payload.deals : [];
     previousYearDeals = payload.previousYear && Array.isArray(payload.previousYear.deals) ? payload.previousYear.deals : [];
-  
-    rebuildPreviousYearMap();
-    rebuildPreviousMonthMap();
+
     tableauData = payload.tableau || {};
     recruitingRows =
     payload.recruiting && Array.isArray(payload.recruiting.rows) ? payload.recruiting.rows : [];
-  
+
   recruiting2025Rows = payload.recruiting2025 && Array.isArray(payload.recruiting2025.rows) ? payload.recruiting2025.rows : [];
 
     rebuildOfficeNameSets();
+    rebuildPreviousYearMap();
+    rebuildPreviousMonthMap();
     rebuildTableauMap();
   
     setupCustomDateBounds();
@@ -689,7 +721,7 @@
   
     previousYearDeals.forEach(deal => {
       const dealId = String(deal.messageId || "").trim();
-      if (!dealId || !dealInOfficeUmbrella(deal)) return;
+      if (!dealId || !dealInOfficeUmbrella(deal, "previous")) return;
   
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
@@ -819,6 +851,7 @@
       btn.addEventListener("click", () => {
         office.set(!office.get());
         btn.classList.toggle("active", office.get());
+        rebuildComparisonMapsForOffice();
         renderLeaderboard();
       });
 
@@ -1165,7 +1198,7 @@
       [deal.setter, deal.expert].forEach(name => {
         const norm = normalizeName(name);
         if (!norm || HIDDEN_REPS.has(norm) || existing.has(norm)) return;
-        if (!repInOfficeUmbrella(norm)) return;
+        if (!repInOfficeUmbrella(norm, "previous")) return;
 
         if (
             isSubsetMode &&
@@ -1609,7 +1642,7 @@
     const usePreviousYearUniqueTotal = shouldUsePreviousYearUniqueTotal();
     const previousComparisonDeals = useMomColumn()
       ? getMomPreviousDeals()
-      : previousYearDeals.filter(dealInOfficeUmbrella);
+      : filterPreviousYearDeals(previousYearDeals);
     const currentCreditTotals = getCreditTotalsFromDeals(useMomColumn() ? getMomCurrentDeals() : filteredDeals, rows);
     const previousYearCreditTotals = getCreditTotalsFromDeals(previousComparisonDeals, rows);
    
