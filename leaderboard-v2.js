@@ -834,6 +834,18 @@
     return { groupRows, totalStats, range };
   }
 
+  function shouldShowTotalBreakdownNotes() {
+    return !(includeIceCollective && includeRiot);
+  }
+
+  function buildSetsCsNotesStack(sets, cs) {
+    return `
+        <div class="cs-notes-stack">
+          <span class="cs-note-left">CS: ${cs}</span>
+          <span class="cs-note-left">Sets: ${sets}</span>
+        </div>`;
+  }
+
   function getGroupYoyPercent(row) {
     if (!row.previousTotal) return null;
     if (!row.total) return null;
@@ -841,7 +853,7 @@
     return ((row.total - row.previousTotal) / row.previousTotal) * 100;
   }
 
-  function buildGroupTotalCell(row, showComparison) {
+  function buildGroupTotalCell(row, showComparison, showNotes = true) {
     const rightNotes = [];
 
     if (showComparison) {
@@ -858,25 +870,27 @@
       ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
       : "";
 
+    const leftHtml = showNotes
+      ? buildSetsCsNotesStack(row.sets, row.cs)
+      : `<div class="cs-notes-stack"></div>`;
+
     return `
       <div class="cs-cell">
-        <div class="cs-notes-stack">
-          <span class="cs-note-left">Sets: ${row.sets}</span>
-          <span class="cs-note-left">CS: ${row.cs}</span>
-        </div>
+        ${leftHtml}
         ${rightHtml}
         <span class="cs-main">${row.total}</span>
       </div>
     `;
   }
 
-  function buildGroupPreviousTotalCell(row) {
+  function buildGroupPreviousTotalCell(row, showNotes = true) {
+    const leftHtml = showNotes
+      ? buildSetsCsNotesStack(row.previousSets, row.previousCs)
+      : `<div class="cs-notes-stack"></div>`;
+
     return `
       <div class="cs-cell">
-        <div class="cs-notes-stack">
-          <span class="cs-note-left">Sets: ${row.previousSets}</span>
-          <span class="cs-note-left">CS: ${row.previousCs}</span>
-        </div>
+        ${leftHtml}
         <span class="cs-main">${row.previousTotal}</span>
       </div>
     `;
@@ -1646,7 +1660,7 @@
     return ((current - previous) / previous) * 100;
   }
 
-  function buildCreditTotalCell(totals, comparisonPct = null) {
+  function buildCreditTotalCell(totals, comparisonPct = null, showNotes = true) {
     const total = (totals.sets + totals.cs) / 2;
     const rightNotes = [];
 
@@ -1661,12 +1675,13 @@
       ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
       : "";
 
+    const leftHtml = showNotes
+      ? buildSetsCsNotesStack(totals.sets, totals.cs)
+      : `<div class="cs-notes-stack"></div>`;
+
     return `
       <div class="cs-cell">
-        <div class="cs-notes-stack">
-          <span class="cs-note-left">Sets: ${totals.sets}</span>
-          <span class="cs-note-left">CS: ${totals.cs}</span>
-        </div>
+        ${leftHtml}
         ${rightHtml}
         <span class="cs-main">${total}</span>
       </div>
@@ -2116,6 +2131,7 @@
     const groupTitle = useMomColumn()
       ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
       : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`;
+    const showGroupsTotalNotes = shouldShowTotalBreakdownNotes();
 
     if (activeGroupDrillLeader) {
       const leaderDownline = buildDownlineSetFromRows(recruitingRows, activeGroupDrillLeader);
@@ -2198,17 +2214,17 @@
             cs: current.cs,
             total: current.total,
             previousTotal: previous.total
-          }, useGroupsComparison)
+          }, useGroupsComparison, showGroupsTotalNotes)
           : buildGroupTotalCell({
             sets: current.sets,
             cs: current.cs,
             total: current.total
-          }, false)}</div>
+          }, false, showGroupsTotalNotes)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: previous.sets,
           previousCs: previous.cs,
           previousTotal: previous.total
-        })}</div>` : ""}
+        }, showGroupsTotalNotes)}</div>` : ""}
       </div>
     `);
 
@@ -2310,17 +2326,17 @@
             cs: totalStats.current.cs,
             total: totalStats.current.total,
             previousTotal: totalStats.previous.total
-          }, useGroupsComparison)
+          }, useGroupsComparison, showGroupsTotalNotes)
           : buildGroupTotalCell({
             sets: totalStats.current.sets,
             cs: totalStats.current.cs,
             total: totalStats.current.total
-          }, false)}</div>
+          }, false, showGroupsTotalNotes)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalStats.previous.sets,
           previousCs: totalStats.previous.cs,
           previousTotal: totalStats.previous.total
-        })}</div>` : ""}
+        }, showGroupsTotalNotes)}</div>` : ""}
       </div>
     `);
 
@@ -2458,6 +2474,7 @@
       const totalComparisonPct = comparisonActive
         ? getComparisonPercent(currentTotalValue, previousTotalValue)
         : null;
+      const showTotalNotes = shouldShowTotalBreakdownNotes();
       const useUniqueCsTotals = activeView === "setters" || activeView === "experts";
       const totalUniqueCs = sumVisibleUniqueCs(rows, row => row.cs);
       const totalPreviousUniqueCs = sumVisibleUniqueCs(rows, row => getRowPreviousCs(row), true);
@@ -2479,14 +2496,14 @@
             uniqueTotalComparisonPct,
             activeView === "experts" ? buildExpertTotalNotes(totalExpertSelfGen, totalExpertSetOnly) : null
           )
-          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
+          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct, showTotalNotes)}</div>
          ${comparisonActive ? `<div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
             totalPreviousUniqueCs,
             null,
             activeView === "experts" ? buildExpertTotalNotes(totalPreviousExpertSelfGen, totalPreviousExpertSetOnly) : null
           )
-          : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
+          : buildCreditTotalCell(previousYearCreditTotals, null, showTotalNotes)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
