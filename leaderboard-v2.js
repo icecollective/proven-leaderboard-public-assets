@@ -217,6 +217,7 @@
   function getGroupRows() {
     const range = getDateRange(activeDateMode);
     const periodDeals = allDeals.filter(deal => dealInDateRange(deal, range));
+    const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, getDateRange("ytd")));
     const useYoy = activeDateMode === "ytd" && showYoy;
     const excludedGroupLeaders = new Set([
       "kelton higgins",
@@ -226,7 +227,8 @@
     ]);
 
     const repContrib2026 = new Map();
-    periodDeals.forEach(deal => {
+    const repContribDeals = showYoy ? ytdDeals : periodDeals;
+    repContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       if (setterNorm) repContrib2026.set(setterNorm, (repContrib2026.get(setterNorm) || 0) + 1);
@@ -238,8 +240,8 @@
       return stats ? stats.sets + stats.closes : 0;
     }
 
-    function filterDownlineForYear(downlineNames, year) {
-      if (!useYoy) return downlineNames;
+    function filterDownlineForYear(downlineNames, year, applyYoyFilters = useYoy) {
+      if (!applyYoyFilters) return downlineNames;
       if (year === "2026" && includeNewReps) return downlineNames;
       if (year === "2025" && includeOldReps) return downlineNames;
 
@@ -278,9 +280,9 @@
       return { sets, cs, total: (sets + cs) / 2, dealIds };
     }
 
-    function shouldIncludeGroup(current, previous) {
-      if (useYoy) return current.total >= 25 || previous.total >= 25;
-      return current.total >= 25;
+    function qualifiesByYtd(ytdCurrent, ytdPrevious) {
+      if (showYoy) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
+      return ytdCurrent.total >= 25;
     }
 
     function buildGroupRow(name, current, previous) {
@@ -309,10 +311,12 @@
       if (!downlineNames.size) return;
 
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy), ytdDeals);
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy), previousYearDeals);
       const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026"), periodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025"), previousYearDeals);
 
-      if (shouldIncludeGroup(current, previous)) {
+      if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(leaderName, current, previous));
       }
     });
@@ -345,10 +349,12 @@
       if (!currentNames) return;
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy), ytdDeals);
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy), previousYearDeals);
       const current = computeGroupStats(filterDownlineForYear(currentNames, "2026"), periodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025"), previousYearDeals);
 
-      if (!useYoy || shouldIncludeGroup(current, previous)) {
+      if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(label, current, previous));
       }
     }
