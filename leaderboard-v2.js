@@ -266,10 +266,35 @@
     if (!recruitingNames) rebuildRecruitingNames();
   }
 
-  function isPlataRep(normName) {
+  function getPreviousDetailsMap() {
+    return useMomColumn() ? previousMonthDetailsMap : previousYearDetailsMap;
+  }
+
+  function getPreviousRepStats(normName) {
+    return getPreviousDetailsMap().get(normName);
+  }
+
+  function hasInternalRepHistory(normName) {
+    const previousStats = previousYearDetailsMap.get(normName);
+    if (previousStats && previousStats.sets + previousStats.closes > 0) return true;
+
+    const monthStats = previousMonthDetailsMap.get(normName);
+    if (monthStats && monthStats.sets + monthStats.closes > 0) return true;
+
+    return allDeals.some(deal =>
+      normalizeName(deal.setter) === normName ||
+      normalizeName(deal.expert) === normName
+    );
+  }
+
+  function isTableauOnlyRep(normName) {
     if (!normName || HIDDEN_REPS.has(normName)) return false;
     ensureRecruitingNames();
     return !recruitingNames.has(normName);
+  }
+
+  function isPlataRep(normName) {
+    return isTableauOnlyRep(normName) && !hasInternalRepHistory(normName);
   }
 
   function isTableauViewRelevant() {
@@ -318,9 +343,7 @@
 
   function repInOfficeUmbrella(normName, year = "current") {
     if (!normName) return true;
-    if (includeIceCollective && includeRiot && includePlata) return true;
-
-    if (isPlataRep(normName)) return includePlata;
+    if (includeIceCollective && includeRiot) return true;
 
     const { ice, riot } = getOfficeNameSets(year);
 
@@ -1115,7 +1138,7 @@
       const norm = normalizeName(name);
       if (!name || HIDDEN_REPS.has(norm)) return null;
 
-      if (isPlataRep(norm)) return null;
+      if (isTableauOnlyRep(norm) && !hasInternalRepHistory(norm)) return null;
 
       if (!repInOfficeUmbrella(norm)) return null;
 
@@ -1210,8 +1233,10 @@
       [deal.setter, deal.expert].forEach(name => {
         const norm = normalizeName(name);
         if (!norm || HIDDEN_REPS.has(norm) || existing.has(norm)) return;
-        if (isPlataRep(norm)) return;
         if (!repInOfficeUmbrella(norm, "previous")) return;
+
+        const stats = getPreviousRepStats(norm);
+        if (!stats || stats.sets + stats.closes === 0) return;
 
         if (
             isSubsetMode &&
@@ -1231,7 +1256,7 @@
           lifetimeCloses: 0,
           lifetimeSelfGen: 0,
           cs: 0,
-          tableau: {},
+          tableau: tableauMap.get(norm) || {},
           previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
           previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
           previousYearSets: previousYearDetailsMap.get(norm)?.sets || 0,
@@ -1627,6 +1652,14 @@
       getRowPreviousSetOnly(row) > 0 ||
       getRowPreviousSelfGen(row) > 0
     );
+  }
+
+    if (isComparisonMode() && !includeOldReps) {
+    rows = rows.filter(row => {
+      const currentContrib = row.sets + row.closes;
+      const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
+      return !(currentContrib === 0 && previousContrib > 0);
+    });
   }
 
     if (shouldShowPlataRows(useTableauColumn)) {
