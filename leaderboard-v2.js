@@ -327,6 +327,60 @@
     });
   }
 
+  function isRecruitingRep(normName) {
+    ensureRecruitingNames();
+    return recruitingNames.has(normName);
+  }
+
+  function hasTableauDataForNorm(normName) {
+    const tableauRow = tableauMap.get(normName);
+    return tableauRow && hasTableauRowData(tableauRow);
+  }
+
+  function rowHasNoCurrentInternal(row) {
+    return row.sets + row.closes === 0;
+  }
+
+  function rowHasNoPreviousInternal(row) {
+    return getRowPreviousSets(row) + getRowPreviousCloses(row) === 0;
+  }
+
+  function rowShowsCurrentNa(row) {
+    if (row.isPlataOnly) return false;
+    const norm = normalizeName(row.name);
+    return isRecruitingRep(norm) && hasTableauDataForNorm(norm) && rowHasNoCurrentInternal(row);
+  }
+
+  function rowShowsPreviousNa(row) {
+    if (row.isPlataOnly) return false;
+    const norm = normalizeName(row.name);
+    return isRecruitingRep(norm) && hasTableauDataForNorm(norm) && rowHasNoPreviousInternal(row);
+  }
+
+  function buildEmptyInternalRow(name, tableauRow) {
+    const norm = normalizeName(name);
+    return {
+      name: String(name).trim(),
+      sets: 0,
+      closes: 0,
+      selfGen: 0,
+      setOnly: 0,
+      lifetimeSets: 0,
+      lifetimeCloses: 0,
+      lifetimeSelfGen: 0,
+      cs: 0,
+      tableau: tableauRow || {},
+      previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
+      previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
+      previousYearSets: previousYearDetailsMap.get(norm)?.sets || 0,
+      previousYearCloses: previousYearDetailsMap.get(norm)?.closes || 0,
+      previousMonthSetOnly: previousMonthDetailsMap.get(norm)?.setOnly || 0,
+      previousMonthSelfGen: previousMonthDetailsMap.get(norm)?.selfGen || 0,
+      previousMonthSets: previousMonthDetailsMap.get(norm)?.sets || 0,
+      previousMonthCloses: previousMonthDetailsMap.get(norm)?.closes || 0
+    };
+  }
+
   function rebuildOfficeNameSets() {
     const current = buildOfficeNameSetsFromRows(recruitingRows);
     iceCollectiveNames = current.ice;
@@ -1298,6 +1352,26 @@
     return rows;
   }
 
+  function addTableauRecruitingRepsToRows(rows) {
+    if (activeView !== "general") return rows;
+
+    const existing = new Set(rows.map(row => normalizeName(row.name)));
+
+    tableauMap.forEach((tableauRow, norm) => {
+      if (HIDDEN_REPS.has(norm) || existing.has(norm)) return;
+      if (!isRecruitingRep(norm) || !hasTableauRowData(tableauRow)) return;
+      if (hasInternalRepHistory(norm)) return;
+      if (!repInOfficeUmbrella(norm)) return;
+
+      if (isSubsetMode && activeDownlineNames && !activeDownlineNames.has(norm)) return;
+
+      existing.add(norm);
+      rows.push(buildEmptyInternalRow(tableauRow.name, tableauRow));
+    });
+
+    return rows;
+  }
+
   function addPlataRepsToRows(rows) {
     const existing = new Set(rows.map(row => normalizeName(row.name)));
 
@@ -1307,25 +1381,8 @@
 
       existing.add(norm);
       rows.push({
-        name: String(tableauRow.name || "").trim(),
-        sets: 0,
-        closes: 0,
-        selfGen: 0,
-        setOnly: 0,
-        lifetimeSets: 0,
-        lifetimeCloses: 0,
-        lifetimeSelfGen: 0,
-        cs: 0,
-        tableau: tableauRow,
-        isPlataOnly: true,
-        previousYearSetOnly: 0,
-        previousYearSelfGen: 0,
-        previousYearSets: 0,
-        previousYearCloses: 0,
-        previousMonthSetOnly: 0,
-        previousMonthSelfGen: 0,
-        previousMonthSets: 0,
-        previousMonthCloses: 0
+        ...buildEmptyInternalRow(tableauRow.name, tableauRow),
+        isPlataOnly: true
       });
     });
 
@@ -1507,6 +1564,10 @@
     return `<div class="cs-cell"><span class="cs-placeholder">—</span></div>`;
   }
 
+  function buildInternalNaCell() {
+    return `<div class="cs-cell"><span class="cs-placeholder">na</span></div>`;
+  }
+
   function buildTableauCell(row, selectedMetric) {
     const data = row.tableau || {};
     const hasTableauData = Object.keys(TABLEAU_METRICS)
@@ -1536,6 +1597,7 @@
   
   function buildCsCell(row, showNotes) {
     if (row.isPlataOnly) return buildInternalPlaceholderCell();
+    if (rowShowsCurrentNa(row)) return buildInternalNaCell();
 
     const leftNotes = [];
     const rightNotes = [];
@@ -1576,6 +1638,7 @@
   
   function buildPreviousYearCell(row) {
     if (row.isPlataOnly) return buildInternalPlaceholderCell();
+    if (rowShowsPreviousNa(row)) return buildInternalNaCell();
 
     const notes = [];
     const previousSetOnly = getRowPreviousSetOnly(row);
@@ -1691,6 +1754,8 @@
     if (shouldShowPlataRows(useTableauColumn)) {
       rows = addPlataRepsToRows(rows);
     }
+
+    rows = addTableauRecruitingRepsToRows(rows);
   
     rows.sort((a, b) => {
     if (activeSortMode === "name") {
@@ -1713,16 +1778,16 @@
   }
   
     if (activeSortMode === "currentContribution") {
-    const aValue = a.isPlataOnly ? -Infinity : a.sets + a.closes;
-    const bValue = b.isPlataOnly ? -Infinity : b.sets + b.closes;
+    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : a.sets + a.closes;
+    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : b.sets + b.closes;
   
     if (bValue !== aValue) return bValue - aValue;
     if (b.cs !== a.cs) return b.cs - a.cs;
   }
   
     if (activeSortMode === "previousContribution") {
-    const aValue = a.isPlataOnly ? -Infinity : getRowPreviousSets(a) + getRowPreviousCloses(a);
-    const bValue = b.isPlataOnly ? -Infinity : getRowPreviousSets(b) + getRowPreviousCloses(b);
+    const aValue = (a.isPlataOnly || rowShowsPreviousNa(a)) ? -Infinity : getRowPreviousSets(a) + getRowPreviousCloses(a);
+    const bValue = (b.isPlataOnly || rowShowsPreviousNa(b)) ? -Infinity : getRowPreviousSets(b) + getRowPreviousCloses(b);
 
     if (bValue !== aValue) return bValue - aValue;
     if (getRowPreviousCs(b) !== getRowPreviousCs(a)) return getRowPreviousCs(b) - getRowPreviousCs(a);
@@ -1740,11 +1805,11 @@
     if (comparisonActive && activeSortMode === "previousYear") {
     const aPrev = activeView === "selfgen"
       ? getRowPreviousSelfGen(a)
-      : (a.isPlataOnly ? -Infinity : getRowPreviousCs(a));
+      : (a.isPlataOnly || rowShowsPreviousNa(a) ? -Infinity : getRowPreviousCs(a));
 
     const bPrev = activeView === "selfgen"
       ? getRowPreviousSelfGen(b)
-      : (b.isPlataOnly ? -Infinity : getRowPreviousCs(b));
+      : (b.isPlataOnly || rowShowsPreviousNa(b) ? -Infinity : getRowPreviousCs(b));
 
     const diff = bPrev - aPrev;
     if (diff !== 0) return diff;
@@ -1760,6 +1825,8 @@
       } else if (!a.isPlataOnly || !b.isPlataOnly) {
         if (b.isPlataOnly && !a.isPlataOnly) return -1;
         if (a.isPlataOnly && !b.isPlataOnly) return 1;
+        if (rowShowsCurrentNa(b) && !rowShowsCurrentNa(a)) return -1;
+        if (rowShowsCurrentNa(a) && !rowShowsCurrentNa(b)) return 1;
         if (b.cs !== a.cs) return b.cs - a.cs;
       }
   
