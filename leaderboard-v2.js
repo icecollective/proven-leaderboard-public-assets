@@ -347,8 +347,8 @@
     return "Rank";
   }
 
-  function buildViewRepCountCell(count) {
-    return `<div class="view-rep-count">${count} Reps</div>`;
+  function buildViewRepCountCell(count, label = "Reps") {
+    return `<div class="view-rep-count">${count} ${label}</div>`;
   }
 
   function buildLeaderboardTitleHtml(title) {
@@ -2593,7 +2593,7 @@
 
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-        <div>${buildViewRepCountCell(groupRows.length)}</div>
+        <div>${buildViewRepCountCell(groupRows.length, "Groups")}</div>
         <div>${getTotalRowLabel()}</div>
         <div>${useGroupsComparison
           ? buildGroupTotalCell({
