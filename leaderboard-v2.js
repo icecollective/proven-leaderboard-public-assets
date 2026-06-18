@@ -1498,15 +1498,43 @@
     return { groupRows, totalStats, range };
   }
 
-  function shouldShowTotalBreakdownNotes() {
-    return !(includeIceCollective && includeRiot);
+  function shouldShowCurrentTotalNotes() {
+    if (!includeIceCollective || !includeRiot) return true;
+    if (isComparisonMode() && !includeNewReps) return true;
+    return false;
   }
 
-  function shouldShowGroupsTotalBreakdownNotes(isDrillDown, useComparison) {
-    if (isDrillDown) return true;
-    if (!(includeIceCollective && includeRiot)) return true;
-    if (useComparison && !(includeNewReps && includeOldReps)) return true;
+  function shouldShowPreviousTotalNotes() {
+    if (isComparisonMode() && !includeOldReps) return true;
     return false;
+  }
+
+  function buildCurrentTotalNotesForView(rows) {
+    if (!shouldShowCurrentTotalNotes()) return null;
+    if (activeView === "setters") return null;
+
+    if (activeView === "experts") {
+      const selfGen = rows.reduce((sum, row) => sum + (row.selfGen || 0), 0);
+      const setOnly = rows.reduce((sum, row) => sum + (row.setOnly || 0), 0);
+      const notes = buildExpertTotalNotes(selfGen, setOnly);
+      return notes.length ? notes : null;
+    }
+
+    return null;
+  }
+
+  function buildPreviousTotalNotesForView(rows) {
+    if (!shouldShowPreviousTotalNotes()) return null;
+    if (activeView === "setters") return null;
+
+    if (activeView === "experts") {
+      const selfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
+      const setOnly = rows.reduce((sum, row) => sum + getRowPreviousSetOnly(row), 0);
+      const notes = buildExpertTotalNotes(selfGen, setOnly);
+      return notes.length ? notes : null;
+    }
+
+    return null;
   }
 
   function buildSetsCsNotesStack(sets, cs) {
@@ -2632,12 +2660,7 @@
   
     if (showNotes) {
       if (activeView === "setters") {
-        if (row.sets > 0) {
-          leftNotes.push(`<span class="cs-note-left">Sets: ${row.sets}</span>`);
-        }
-        if (row.closes > 0) {
-          leftNotes.push(`<span class="cs-note-left">CS: ${row.closes}</span>`);
-        }
+        // Setter rows do not show Sets/SG subscripts.
       } else if (activeView === "experts" || activeView === "general") {
         if (row.selfGen > 0) {
           leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
@@ -2679,13 +2702,10 @@
     const notes = [];
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
-    const previousSets = getRowPreviousSets(row);
     const previousCloses = getRowPreviousCloses(row);
 
     if (activeView === "setters") {
-      if (previousSets > 0) {
-        notes.push(`<span class="cs-note-left">Sets: ${previousSets}</span>`);
-      }
+      // Setter rows do not show Sets/SG subscripts.
     } else if (activeView === "experts" || activeView === "general") {
       if (previousSelfGen > 0) {
         notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
@@ -2911,7 +2931,8 @@
     const groupTitle = useMomColumn()
       ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
       : formatTitleWithOptionalDateRange(`Groups - ${groupRange.label}`, groupRange);
-    const showGroupsTotalNotes = shouldShowGroupsTotalBreakdownNotes(false, useGroupsComparison);
+    const showCurrentGroupTotalNotes = shouldShowCurrentTotalNotes();
+    const showPreviousGroupTotalNotes = shouldShowPreviousTotalNotes();
 
     if (activeGroupDrillLeader) {
       const leaderDownline = buildDownlineSetFromRows(recruitingRows, activeGroupDrillLeader);
@@ -3012,13 +3033,13 @@
             cs: drillCurrent.cs,
             total: drillCurrent.total,
             previousTotal: drillPrevious.total
-          }, useGroupsComparison, true)
-          : buildGroupTotalCell(drillCurrent, false, true)}</div>
+          }, useGroupsComparison, showCurrentGroupTotalNotes)
+          : buildGroupTotalCell(drillCurrent, false, showCurrentGroupTotalNotes)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: drillPrevious.sets,
           previousCs: drillPrevious.cs,
           previousTotal: drillPrevious.total
-        }, true)}</div>` : ""}
+        }, showPreviousGroupTotalNotes)}</div>` : ""}
         ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
@@ -3123,17 +3144,17 @@
             cs: totalStats.current.cs,
             total: totalStats.current.total,
             previousTotal: totalStats.previous.total
-          }, useGroupsComparison, showGroupsTotalNotes)
+          }, useGroupsComparison, showCurrentGroupTotalNotes)
           : buildGroupTotalCell({
             sets: totalStats.current.sets,
             cs: totalStats.current.cs,
             total: totalStats.current.total
-          }, false, showGroupsTotalNotes)}</div>
+          }, false, showCurrentGroupTotalNotes)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalStats.previous.sets,
           previousCs: totalStats.previous.cs,
           previousTotal: totalStats.previous.total
-        }, showGroupsTotalNotes)}</div>` : ""}
+        }, showPreviousGroupTotalNotes)}</div>` : ""}
       </div>
     `);
 
@@ -3270,7 +3291,8 @@
       const totalComparisonPct = comparisonActive
         ? getComparisonPercent(currentTotalValue, previousTotalValue)
         : null;
-      const showTotalNotes = shouldShowTotalBreakdownNotes();
+      const showCurrentTotalNotes = shouldShowCurrentTotalNotes();
+      const showPreviousTotalNotes = shouldShowPreviousTotalNotes();
       const useUniqueCsTotals = activeView === "setters" || activeView === "experts";
       const currentUniqueDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
       const totalUniqueCs = activeView === "experts"
@@ -3283,16 +3305,8 @@
         : activeView === "setters"
         ? getUniqueRoleDealTotal(previousComparisonDeals, rows, "setter", "previous")
         : sumVisibleUniqueCs(rows, row => getRowPreviousCs(row), true);
-      const totalExpertSelfGen = rows.reduce((sum, row) => sum + row.selfGen, 0);
-      const totalExpertSetOnly = rows.reduce((sum, row) => sum + row.setOnly, 0);
-      const totalPreviousExpertSelfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
-      const totalPreviousExpertSetOnly = rows.reduce((sum, row) => sum + getRowPreviousSetOnly(row), 0);
-      const expertTotalNotes = showTotalNotes
-        ? buildExpertTotalNotes(totalExpertSelfGen, totalExpertSetOnly)
-        : null;
-      const expertPreviousTotalNotes = showTotalNotes
-        ? buildExpertTotalNotes(totalPreviousExpertSelfGen, totalPreviousExpertSetOnly)
-        : null;
+      const expertTotalNotes = buildCurrentTotalNotesForView(rows);
+      const expertPreviousTotalNotes = buildPreviousTotalNotesForView(rows);
       const uniqueTotalComparisonPct = comparisonActive
         ? getComparisonPercent(totalUniqueCs, totalPreviousUniqueCs)
         : null;
@@ -3305,16 +3319,16 @@
           ? buildUniqueTotalCell(
             totalUniqueCs,
             uniqueTotalComparisonPct,
-            activeView === "experts" ? expertTotalNotes : null
+            expertTotalNotes
           )
-          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct, showTotalNotes)}</div>
+          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct, showCurrentTotalNotes)}</div>
          ${comparisonActive ? `<div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
             totalPreviousUniqueCs,
             null,
-            activeView === "experts" ? expertPreviousTotalNotes : null
+            expertPreviousTotalNotes
           )
-          : buildCreditTotalCell(previousYearCreditTotals, null, showTotalNotes)}</div>` : ""}
+          : buildCreditTotalCell(previousYearCreditTotals, null, showPreviousTotalNotes)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
