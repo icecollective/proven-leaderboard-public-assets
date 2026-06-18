@@ -356,7 +356,23 @@
     addOfficeGroup("Ice Collective", "justin-wall", false);
     addOfficeGroup("Riot", "justin-wall", true);
 
-    return groupRows;
+    const allCurrentNames = new Set(
+      recruitingRows
+        .map(row => normalizeName(row.name))
+        .filter(norm => norm && !HIDDEN_REPS.has(norm))
+    );
+    const allPreviousNames = new Set(
+      recruiting2025Rows
+        .map(row => normalizeName(row.name))
+        .filter(norm => norm && !HIDDEN_REPS.has(norm))
+    );
+
+    const totalStats = {
+      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026"), ytdDeals),
+      previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025"), previousYearDeals)
+    };
+
+    return { groupRows, totalStats };
   }
 
   function getGroupYoyPercent(row) {
@@ -1276,7 +1292,7 @@
     const bodyRows = [];
     if (activeView === "groups") {
     const useGroupsYoy = activeDateMode === "ytd" && showYoy;
-    let groupRows = getGroupRowsYtd();
+    const { groupRows, totalStats } = getGroupRowsYtd();
 
     groupRows.sort((a, b) => {
       if (activeSortMode === "name") {
@@ -1343,36 +1359,27 @@
     const useGroupsUnique2026 = !useGroupsYoy || includeNewReps;
     const useGroupsUnique2025 = !useGroupsYoy || includeOldReps;
 
-    const groupDealIds = new Set();
-    const groupPreviousDealIds = new Set();
-
-    groupRows.forEach(row => {
-      row.dealIds.forEach(id => groupDealIds.add(id));
-      row.previousDealIds.forEach(id => groupPreviousDealIds.add(id));
-    });
-
-    const totalSets = groupRows.reduce((sum, row) => sum + row.sets, 0);
-    const totalCs = groupRows.reduce((sum, row) => sum + row.cs, 0);
-    const totalPreviousSets = groupRows.reduce((sum, row) => sum + row.previousSets, 0);
-    const totalPreviousCs = groupRows.reduce((sum, row) => sum + row.previousCs, 0);
-
     const total2026 = useGroupsUnique2026
-      ? groupDealIds.size
-      : (totalSets + totalCs) / 2;
+      ? totalStats.current.dealIds.size
+      : totalStats.current.total;
     const total2025 = useGroupsUnique2025
-      ? groupPreviousDealIds.size
-      : (totalPreviousSets + totalPreviousCs) / 2;
+      ? totalStats.previous.dealIds.size
+      : totalStats.previous.total;
 
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div></div>
         <div>TOTAL</div>
         <div>${useGroupsYoy
-          ? buildGroupTotalCell({ sets: totalSets, cs: totalCs, total: total2026 }, false)
-          : groupDealIds.size}</div>
+          ? buildGroupTotalCell({
+            sets: totalStats.current.sets,
+            cs: totalStats.current.cs,
+            total: total2026
+          }, false)
+          : totalStats.current.dealIds.size}</div>
         ${useGroupsYoy ? `<div>${buildGroupPreviousTotalCell({
-          previousSets: totalPreviousSets,
-          previousCs: totalPreviousCs,
+          previousSets: totalStats.previous.sets,
+          previousCs: totalStats.previous.cs,
           previousTotal: total2025
         })}</div>` : ""}
       </div>
