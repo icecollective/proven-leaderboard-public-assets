@@ -156,12 +156,12 @@
   
   .cs-notes-right {
     position:absolute;
-    left:calc(50% + 22px);
+    left:calc(50% + 10px);
     top:50%;
     transform:translateY(-50%);
     display:flex;
     flex-direction:column;
-    align-items:center;
+    align-items:flex-start;
     justify-content:center;
     line-height:1.05;
   }
@@ -191,6 +191,24 @@
   .sort-header-button:hover,
   .tableau-select:hover {
     background:rgba(255,255,255,.12);
+  }
+
+  .rank-header-cell {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    line-height:1.1;
+  }
+
+  .rank-header-sub {
+    font-size:9px;
+    font-weight:600;
+    opacity:0.85;
+    margin-top:2px;
+  }
+
+  .view-rep-count {
+    font-weight:700;
   }
   
   .tableau-header-cell {
@@ -302,6 +320,10 @@
   
     .cs-notes-stack {
       right:calc(50% + 18px);
+    }
+
+    .cs-notes-right {
+      left:calc(50% + 8px);
     }
   
     .cs-note-left {

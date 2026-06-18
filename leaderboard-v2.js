@@ -1,6 +1,10 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbwAum0sv4KhswD0Svr2QWEdBw4cP2K-_wg_bBzkA4lNAgWDX58JX4ODT9xRXxljqR5T/exec";
   
   const INCLUDE_RECRUITER_SELF = true;
+
+  // Debug/testing UI — set true to re-enable
+  const SHOW_DEBUG_LEADERBOARD_META = false;
+  const SHOW_DEBUG_TITLE_DATE_RANGE = false;
   
   const officeMap = {
     "ice-collective": { recruiterSlug: "justin-wall", title: "Ice Collective Leaderboard" },
@@ -220,15 +224,117 @@
   }
 
   function getCurrentComparisonLabel(suffix) {
+    if (suffix === "Total") return getPeriodLabel();
     if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
     if (showYoy) return `2026 ${suffix}`;
     return suffix;
   }
 
   function getPreviousComparisonLabel(suffix) {
+    if (suffix === "Total") return getPreviousPeriodLabel();
     if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
     if (showYoy) return `2025 ${suffix}`;
     return suffix;
+  }
+
+  function getMondayOfWeek(date) {
+    const monday = new Date(date);
+    const day = monday.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    monday.setDate(monday.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
+
+  function getSummerWeekNumber(date = new Date()) {
+    const monday = getMondayOfWeek(date);
+    const year = monday.getFullYear();
+    let seasonStart = getMondayOfWeek(new Date(year, 4, 1));
+
+    if (monday < seasonStart) {
+      seasonStart = getMondayOfWeek(new Date(year, 0, 1));
+    }
+
+    const diffWeeks = Math.round((monday - seasonStart) / (7 * 24 * 60 * 60 * 1000));
+    return diffWeeks + 1;
+  }
+
+  function getPeriodLabel(date = new Date()) {
+    if (useMomColumn()) {
+      return (momDateRanges || getMomDateRanges()).current.label;
+    }
+
+    if (showYoy && activeDateMode === "ytd") {
+      return "2026";
+    }
+
+    switch (activeDateMode) {
+      case "ytd":
+        return String(date.getFullYear());
+      case "mtd":
+        return date.toLocaleString("en-US", { month: "long" });
+      case "wtd":
+        return `Week ${getSummerWeekNumber(date)}`;
+      case "today":
+        return date.toLocaleString("en-US", { month: "short", day: "numeric" });
+      case "lastWeek": {
+        const range = getDateRange("lastWeek");
+        const endDate = new Date(`${range.end}T12:00:00`);
+        return `Week ${getSummerWeekNumber(endDate)}`;
+      }
+      case "custom": {
+        const range = getDateRange("custom");
+        if (range.start && range.end) {
+          return `${formatShortDate(range.start)}-${formatShortDate(range.end)}`;
+        }
+        return "Custom";
+      }
+      default:
+        return "Total";
+    }
+  }
+
+  function getPreviousPeriodLabel() {
+    if (useMomColumn()) {
+      return (momDateRanges || getMomDateRanges()).previous.label;
+    }
+    if (showYoy && activeDateMode === "ytd") {
+      return "2025";
+    }
+    return "";
+  }
+
+  function getTotalRowLabel() {
+    return getPeriodLabel();
+  }
+
+  function formatTitleWithOptionalDateRange(label, range) {
+    if (!SHOW_DEBUG_TITLE_DATE_RANGE || !range?.start || !range?.end) return label;
+    return `${label} (${range.start} to ${range.end})`;
+  }
+
+  function buildRankHeaderCell() {
+    return `<div class="rank-header-cell"><div>Rank</div><div class="rank-header-sub"># Reps</div></div>`;
+  }
+
+  function buildViewRepCountCell(count) {
+    return `<div class="view-rep-count">${count}</div>`;
+  }
+
+  function updateLeaderboardMeta(filteredDealsCount) {
+    const meta = document.getElementById("leaderboard-meta");
+    if (!meta) return;
+
+    if (!SHOW_DEBUG_LEADERBOARD_META) {
+      meta.textContent = "";
+      meta.style.display = "none";
+      return;
+    }
+
+    meta.style.display = "";
+    meta.textContent = apiMeta
+      ? `Deals loaded: ${apiMeta.recordCount} | Deals in view: ${filteredDealsCount} | Last updated: ${new Date(apiMeta.lastUpdated).toLocaleString()}`
+      : "";
   }
 
   function getRowPreviousCs(row) {
@@ -2248,12 +2354,9 @@
    
     const title = useMomColumn() && activeView !== "groups"
       ? `${activeTitle || "Proven Leaderboard V2"} - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
-      : `${activeTitle || "Proven Leaderboard V2"} - ${range.label} (${range.start} to ${range.end})`;
-  
-    const meta = document.getElementById("leaderboard-meta");
-    meta.textContent = apiMeta
-      ? `Deals loaded: ${apiMeta.recordCount} | Deals in view: ${filteredDeals.length} | Last updated: ${new Date(apiMeta.lastUpdated).toLocaleString()}`
-      : "";
+      : formatTitleWithOptionalDateRange(`${activeTitle || "Proven Leaderboard V2"} - ${range.label}`, range);
+
+    updateLeaderboardMeta(filteredDeals.length);
   
     let headerHtml = "";
     const bodyRows = [];
@@ -2264,7 +2367,7 @@
     const cols = useGroupsComparison ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
     const groupTitle = useMomColumn()
       ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
-      : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`;
+      : formatTitleWithOptionalDateRange(`Groups - ${groupRange.label}`, groupRange);
     const showGroupsTotalNotes = shouldShowTotalBreakdownNotes();
 
     if (activeGroupDrillLeader) {
@@ -2321,7 +2424,7 @@
 
         const drillHeaderHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${drillCols};">
-        <div>Rank</div>
+        <div>${buildRankHeaderCell()}</div>
         <div>
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
@@ -2354,20 +2457,7 @@
 
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
-        <div></div>
-        <div>TOTAL</div>
-        <div>${useGroupsComparison
-          ? buildGroupTotalCell({
-            sets: current.sets,
-            cs: current.cs,
-            total: current.total,
-            previousTotal: previous.total
-          }, useGroupsComparison, showGroupsTotalNotes)
-          : buildGroupTotalCell({
-            sets: current.sets,
-            cs: current.cs,
-            total: current.total
-          }, false, showGroupsTotalNotes)}</div>
+        <div>${buildViewRepCountCell(drillRows.length)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: previous.sets,
           previousCs: previous.cs,
@@ -2436,7 +2526,7 @@
 
     const headerHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
-        <div>Rank</div>
+        <div>${buildRankHeaderCell()}</div>
         <div>
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
@@ -2448,7 +2538,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : "Total"}
+      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : getPeriodLabel()}
     </button>
     ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
@@ -2468,8 +2558,8 @@
 
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-        <div></div>
-        <div>TOTAL</div>
+        <div>${buildViewRepCountCell(groupRows.length)}</div>
+        <div>${getTotalRowLabel()}</div>
         <div>${useGroupsComparison
           ? buildGroupTotalCell({
             sets: totalStats.current.sets,
@@ -2521,7 +2611,7 @@
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
-          <div>Rank</div>
+          <div>${buildRankHeaderCell()}</div>
           <div>
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
@@ -2553,8 +2643,8 @@
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-          <div></div>
-          <div>TOTAL</div>
+          <div>${buildViewRepCountCell(rows.length)}</div>
+          <div>${getTotalRowLabel()}</div>
           <div>${buildUniqueTotalCell(totalSelfGen, selfGenTotalComparisonPct)}</div>
           ${comparisonActive ? `
     <div class="cs-cell">
@@ -2582,7 +2672,7 @@
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
-          <div>Rank</div>
+          <div>${buildRankHeaderCell()}</div>
           <div>
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
@@ -2651,8 +2741,8 @@
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-          <div></div>
-          <div>TOTAL</div>
+          <div>${buildViewRepCountCell(rows.length)}</div>
+          <div>${getTotalRowLabel()}</div>
          <div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
             totalUniqueCs,
