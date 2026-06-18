@@ -62,6 +62,8 @@
     border-radius:16px;
     box-shadow:0 4px 12px rgba(0,0,0,.08);
     overflow:visible;
+    --lb-title-height:0px;
+    --lb-header-height:36px;
   }
   
   .leaderboard-title {
@@ -70,12 +72,12 @@
     text-align:center;
     font-size:16px;
     font-weight:700;
-  
+
     position:sticky;
     top:0;
     z-index:50;
   }
-  
+
   .leaderboard-header-row,
   .leaderboard-row {
     display:grid;
@@ -83,27 +85,30 @@
     text-align:center;
     align-items:center;
   }
-  
+
   .leaderboard-header-row {
     background:#102c57;
     color:white;
     font-weight:700;
     padding:9px 0;
-  
+
     position:sticky;
-    top:43px;
+    top:var(--lb-title-height);
     z-index:49;
   }
-  
+
   .leaderboard-row {
     padding:9px 0;
     border-bottom:1px solid #e5e7eb;
     font-size:13.5px;
   }
-  
+
   .total-row {
     font-weight:700;
     background:#e0edff;
+    position:sticky;
+    top:calc(var(--lb-title-height) + var(--lb-header-height));
+    z-index:48;
   }
   
   .even-row { background:#f5f8ff; }

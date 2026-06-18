@@ -356,6 +356,22 @@
     return `<div class="leaderboard-title">${title}</div>`;
   }
 
+  function updateLeaderboardStickyOffsets() {
+    const column = document.querySelector(".leaderboard-column");
+    if (!column) return;
+
+    const title = column.querySelector(".leaderboard-title");
+    const header = column.querySelector(".leaderboard-header-row");
+    if (!header) return;
+
+    column.style.setProperty("--lb-title-height", `${title ? title.offsetHeight : 0}px`);
+    column.style.setProperty("--lb-header-height", `${header.offsetHeight}px`);
+  }
+
+  function finishLeaderboardRender() {
+    requestAnimationFrame(updateLeaderboardStickyOffsets);
+  }
+
   function updateLeaderboardMeta(filteredDealsCount) {
     const meta = document.getElementById("leaderboard-meta");
     if (!meta) return;
@@ -2547,6 +2563,7 @@
       </div>
     `;
 
+        finishLeaderboardRender();
         return;
       }
     }
@@ -2660,6 +2677,7 @@
       </div>
     `;
 
+    finishLeaderboardRender();
     return;
   }
   
@@ -2841,6 +2859,8 @@
         </div>
       </div>
     `;
+
+    finishLeaderboardRender();
   }
   
   document.addEventListener("DOMContentLoaded", async () => {
@@ -2855,5 +2875,7 @@
       document.querySelector(".leaderboard-grid").innerHTML =
         `<div style="text-align:center;color:red;">Error loading Leaderboard V2. Check console.</div>`;
     }
+
+    window.addEventListener("resize", updateLeaderboardStickyOffsets);
   });
   
