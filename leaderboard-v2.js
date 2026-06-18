@@ -225,6 +225,41 @@
       "luke sanders"
     ]);
 
+    const repContrib2026 = new Map();
+    ytdDeals.forEach(deal => {
+      const setterNorm = normalizeName(deal.setter);
+      const expertNorm = normalizeName(deal.expert);
+      if (setterNorm) repContrib2026.set(setterNorm, (repContrib2026.get(setterNorm) || 0) + 1);
+      if (expertNorm) repContrib2026.set(expertNorm, (repContrib2026.get(expertNorm) || 0) + 1);
+    });
+
+    function getRepContributions2025(normName) {
+      const stats = previousYearDetailsMap.get(normName);
+      return stats ? stats.sets + stats.closes : 0;
+    }
+
+    function filterDownlineForYear(downlineNames, year) {
+      if (!useYoy) return downlineNames;
+      if (year === "2026" && includeNewReps) return downlineNames;
+      if (year === "2025" && includeOldReps) return downlineNames;
+
+      const filtered = new Set();
+      downlineNames.forEach(norm => {
+        const contrib2026 = repContrib2026.get(norm) || 0;
+        const contrib2025 = getRepContributions2025(norm);
+
+        if (year === "2026") {
+          if (contrib2026 > 0 && contrib2025 === 0) return;
+        } else if (contrib2025 > 0 && contrib2026 === 0) {
+          return;
+        }
+
+        filtered.add(norm);
+      });
+
+      return filtered;
+    }
+
     function computeGroupStats(downlineNames, deals) {
       let sets = 0;
       let cs = 0;
@@ -273,9 +308,9 @@
       const downlineNames = buildDownlineSetFromRows(recruitingRows, leaderName);
       if (!downlineNames.size) return;
 
-      const current = computeGroupStats(downlineNames, ytdDeals);
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
-      const previous = computeGroupStats(previousDownlineNames, previousYearDeals);
+      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026"), ytdDeals);
+      const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025"), previousYearDeals);
 
       if (shouldIncludeGroup(current, previous)) {
         groupRows.push(buildGroupRow(leaderName, current, previous));
@@ -310,8 +345,8 @@
       if (!currentNames) return;
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
-      const current = computeGroupStats(currentNames, ytdDeals);
-      const previous = computeGroupStats(previousNames, previousYearDeals);
+      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026"), ytdDeals);
+      const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025"), previousYearDeals);
 
       if (!useYoy || shouldIncludeGroup(current, previous)) {
         groupRows.push(buildGroupRow(label, current, previous));
@@ -372,17 +407,6 @@
     `;
   }
 
-  function filterGroupRowsForYoy(groupRows) {
-    return groupRows.filter(row => {
-      const isNew = row.total > 0 && row.previousTotal === 0;
-      const isOld = row.previousTotal > 0 && row.total === 0;
-
-      if (!includeNewReps && isNew) return false;
-      if (!includeOldReps && isOld) return false;
-      return true;
-    });
-  }
-  
   function getUrlMode() {
     const params = new URLSearchParams(window.location.search);
     const officeSlug = makeSlug(params.get("office") || "");
@@ -1254,10 +1278,6 @@
     const useGroupsYoy = activeDateMode === "ytd" && showYoy;
     let groupRows = getGroupRowsYtd();
 
-    if (useGroupsYoy) {
-      groupRows = filterGroupRowsForYoy(groupRows);
-    }
-
     groupRows.sort((a, b) => {
       if (activeSortMode === "name") {
         return a.name.localeCompare(b.name);
@@ -1320,8 +1340,8 @@
       </div>
     `;
 
-    const useGroupsUniqueTotal =
-      !useGroupsYoy || (includeNewReps && includeOldReps);
+    const useGroupsUnique2026 = !useGroupsYoy || includeNewReps;
+    const useGroupsUnique2025 = !useGroupsYoy || includeOldReps;
 
     const groupDealIds = new Set();
     const groupPreviousDealIds = new Set();
@@ -1336,10 +1356,10 @@
     const totalPreviousSets = groupRows.reduce((sum, row) => sum + row.previousSets, 0);
     const totalPreviousCs = groupRows.reduce((sum, row) => sum + row.previousCs, 0);
 
-    const total2026 = useGroupsUniqueTotal
+    const total2026 = useGroupsUnique2026
       ? groupDealIds.size
       : (totalSets + totalCs) / 2;
-    const total2025 = useGroupsUniqueTotal
+    const total2025 = useGroupsUnique2025
       ? groupPreviousDealIds.size
       : (totalPreviousSets + totalPreviousCs) / 2;
 
