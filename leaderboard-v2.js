@@ -5,6 +5,7 @@
   // Debug/testing UI — set true to re-enable
   const SHOW_DEBUG_LEADERBOARD_META = false;
   const SHOW_DEBUG_TITLE_DATE_RANGE = false;
+  const SHOW_DEBUG_LEADERBOARD_TITLE = false;
   
   const officeMap = {
     "ice-collective": { recruiterSlug: "justin-wall", title: "Ice Collective Leaderboard" },
@@ -223,18 +224,37 @@
     return useYoyColumn() || useMomColumn();
   }
 
+  function isPeriodMetricSuffix(suffix) {
+    return suffix === "Total" || suffix === "CS" || suffix === "SG";
+  }
+
   function getCurrentComparisonLabel(suffix) {
-    if (suffix === "Total") return getPeriodLabel();
-    if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
-    if (showYoy) return `2026 ${suffix}`;
+    if (useMomColumn()) {
+      if (isPeriodMetricSuffix(suffix)) {
+        return (momDateRanges || getMomDateRanges()).current.label;
+      }
+      return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
+    }
+    if (showYoy) {
+      if (isPeriodMetricSuffix(suffix)) return "2026";
+      return `2026 ${suffix}`;
+    }
+    if (isPeriodMetricSuffix(suffix)) return getPeriodLabel();
     return suffix;
   }
 
   function getPreviousComparisonLabel(suffix) {
-    if (suffix === "Total") return getPreviousPeriodLabel();
-    if (useMomColumn()) return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
-    if (showYoy) return `2025 ${suffix}`;
-    return suffix;
+    if (useMomColumn()) {
+      if (isPeriodMetricSuffix(suffix)) {
+        return (momDateRanges || getMomDateRanges()).previous.label;
+      }
+      return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
+    }
+    if (showYoy) {
+      if (isPeriodMetricSuffix(suffix)) return "2025";
+      return `2025 ${suffix}`;
+    }
+    return "";
   }
 
   function getMondayOfWeek(date) {
@@ -246,16 +266,26 @@
     return monday;
   }
 
+  function getSummerSeasonStart(date = new Date()) {
+    const year = date.getFullYear();
+    const may1 = new Date(year, 4, 1);
+    may1.setHours(0, 0, 0, 0);
+    const day = may1.getDay();
+    const daysUntilMonday = (8 - day) % 7;
+    may1.setDate(may1.getDate() + daysUntilMonday);
+    return may1;
+  }
+
   function getSummerWeekNumber(date = new Date()) {
     const monday = getMondayOfWeek(date);
     const year = monday.getFullYear();
-    let seasonStart = getMondayOfWeek(new Date(year, 4, 1));
+    let seasonStart = getSummerSeasonStart(monday);
 
     if (monday < seasonStart) {
       seasonStart = getMondayOfWeek(new Date(year, 0, 1));
     }
 
-    const diffWeeks = Math.round((monday - seasonStart) / (7 * 24 * 60 * 60 * 1000));
+    const diffWeeks = Math.floor((monday - seasonStart) / (7 * 24 * 60 * 60 * 1000));
     return diffWeeks + 1;
   }
 
@@ -314,11 +344,16 @@
   }
 
   function buildRankHeaderCell() {
-    return `<div class="rank-header-cell"><div>Rank</div><div class="rank-header-sub"># Reps</div></div>`;
+    return "Rank";
   }
 
   function buildViewRepCountCell(count) {
-    return `<div class="view-rep-count">${count}</div>`;
+    return `<div class="view-rep-count">${count} Reps</div>`;
+  }
+
+  function buildLeaderboardTitleHtml(title) {
+    if (!SHOW_DEBUG_LEADERBOARD_TITLE) return "";
+    return `<div class="leaderboard-title">${title}</div>`;
   }
 
   function updateLeaderboardMeta(filteredDealsCount) {
@@ -2436,7 +2471,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : "CS"}
+      ${getCurrentComparisonLabel("CS")}
     </button>
     ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
@@ -2482,7 +2517,7 @@
 
         document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column ${drillUseTableau ? "tableau-on" : ""}">
-        <div class="leaderboard-title">${activeGroupDrillLeader} Group - ${groupTitle.replace(/^Groups - /, "")}</div>
+        ${buildLeaderboardTitleHtml(`${activeGroupDrillLeader} Group - ${groupTitle.replace(/^Groups - /, "")}`)}
         ${drillHeaderHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
@@ -2538,7 +2573,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : getPeriodLabel()}
+      ${getCurrentComparisonLabel("Total")}
     </button>
     ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
@@ -2595,7 +2630,7 @@
 
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
-        <div class="leaderboard-title">${groupTitle}</div>
+        ${buildLeaderboardTitleHtml(groupTitle)}
         ${headerHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
@@ -2623,7 +2658,7 @@
     <button
     class="sort-header-button ${activeSortMode === "selfGen" ? "active-sort" : ""}"
     onclick="setSelfGenSort()">
-    ${comparisonActive ? getCurrentComparisonLabel("SG") : "SelfGen"}
+    ${getCurrentComparisonLabel("SG")}
   </button>
   </div>
           ${comparisonActive ? `
@@ -2684,7 +2719,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
+      ${getCurrentComparisonLabel("CS")}
     </button>
 
     ${comparisonActive ? `
@@ -2777,7 +2812,7 @@
   
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column ${useTableauColumn ? "tableau-on" : ""}">
-        <div class="leaderboard-title">${title}</div>
+        ${buildLeaderboardTitleHtml(title)}
         ${headerHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
