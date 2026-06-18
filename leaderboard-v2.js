@@ -25,6 +25,7 @@
   let previousYearMap = new Map();
   let previousYearDetailsMap = new Map();
   let showYoy = false;
+  let showMom = false;
   let includeOldReps = true;
   let includeNewReps = true;
   let activeSortMode = "tableau"; // "tableau", "internal", or "previousYear"
@@ -33,6 +34,9 @@
   let recruitingRows = [];
   let recruiting2025Rows = [];
   let activePreviousYearDownlineNames = null;
+  let previousMonthMap = new Map();
+  let previousMonthDetailsMap = new Map();
+  let momDateRanges = null;
   
   const TABLEAU_METRICS = {
     cs: "CS",
@@ -122,6 +126,97 @@
       end: document.getElementById("custom-end").value,
       label: "Custom"
     };
+  }
+
+  function getMomDateRanges() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const day = today.getDate();
+    const monthLabel = today.toLocaleString("en-US", { month: "short" });
+
+    const currentStart = new Date(year, month, 1);
+    const prevYear = year - 1;
+    const prevStart = new Date(prevYear, month, 1);
+    let prevEnd = new Date(prevYear, month, day);
+    if (prevEnd.getMonth() !== month) {
+      prevEnd = new Date(prevYear, month + 1, 0);
+    }
+
+    momDateRanges = {
+      current: {
+        start: formatDate(currentStart),
+        end: formatDate(today),
+        label: `${monthLabel} ${year}`
+      },
+      previous: {
+        start: formatDate(prevStart),
+        end: formatDate(prevEnd),
+        label: `${monthLabel} ${prevYear}`
+      }
+    };
+
+    return momDateRanges;
+  }
+
+  function getMomCurrentDeals() {
+    const ranges = momDateRanges || getMomDateRanges();
+    return allDeals.filter(deal =>
+      dealInScope(deal) && dealInDateRange(deal, ranges.current)
+    );
+  }
+
+  function getMomPreviousDeals() {
+    const ranges = momDateRanges || getMomDateRanges();
+    return previousYearDeals.filter(deal => dealInDateRange(deal, ranges.previous));
+  }
+
+  function isComparisonMode() {
+    return showYoy || showMom;
+  }
+
+  function useYoyColumn() {
+    return activeDateMode === "ytd" && showYoy;
+  }
+
+  function useMomColumn() {
+    return showMom;
+  }
+
+  function useComparisonColumn() {
+    return useYoyColumn() || useMomColumn();
+  }
+
+  function getCurrentComparisonLabel(suffix) {
+    if (showMom) return `${(momDateRanges || getMomDateRanges()).current.label} ${suffix}`;
+    if (showYoy) return `2026 ${suffix}`;
+    return suffix;
+  }
+
+  function getPreviousComparisonLabel(suffix) {
+    if (showMom) return `${(momDateRanges || getMomDateRanges()).previous.label} ${suffix}`;
+    if (showYoy) return `2025 ${suffix}`;
+    return suffix;
+  }
+
+  function getRowPreviousCs(row) {
+    return showMom ? row.previousMonthCs : row.previousYearCs;
+  }
+
+  function getRowPreviousSelfGen(row) {
+    return showMom ? row.previousMonthSelfGen : row.previousYearSelfGen;
+  }
+
+  function getRowPreviousSets(row) {
+    return showMom ? row.previousMonthSets : row.previousYearSets;
+  }
+
+  function getRowPreviousCloses(row) {
+    return showMom ? row.previousMonthCloses : row.previousYearCloses;
+  }
+
+  function getRowPreviousSetOnly(row) {
+    return showMom ? row.previousMonthSetOnly : row.previousYearSetOnly;
   }
   
   async function loadDownlineIfNeeded() {
@@ -218,7 +313,14 @@
     const range = getDateRange(activeDateMode);
     const periodDeals = allDeals.filter(deal => dealInDateRange(deal, range));
     const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, getDateRange("ytd")));
-    const useYoy = activeDateMode === "ytd" && showYoy;
+    const momRanges = getMomDateRanges();
+    const momCurrentDeals = allDeals.filter(deal => dealInDateRange(deal, momRanges.current));
+    const momPreviousDeals = previousYearDeals.filter(deal => dealInDateRange(deal, momRanges.previous));
+    const useMom = showMom;
+    const useYoy = activeDateMode === "ytd" && showYoy && !showMom;
+    const useComparison = useMom || useYoy;
+    const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
+    const previousPeriodDeals = useMom ? momPreviousDeals : previousYearDeals;
     const excludedGroupLeaders = new Set([
       "kelton higgins",
       "adam lloyd",
@@ -227,7 +329,7 @@
     ]);
 
     const repContrib2026 = new Map();
-    const repContribDeals = showYoy ? ytdDeals : periodDeals;
+    const repContribDeals = useMom ? momCurrentDeals : (showYoy ? ytdDeals : periodDeals);
     repContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
@@ -240,7 +342,7 @@
       return stats ? stats.sets + stats.closes : 0;
     }
 
-    function filterDownlineForYear(downlineNames, year, applyYoyFilters = useYoy) {
+    function filterDownlineForYear(downlineNames, year, applyYoyFilters = useComparison) {
       if (!applyYoyFilters) return downlineNames;
       if (year === "2026" && includeNewReps) return downlineNames;
       if (year === "2025" && includeOldReps) return downlineNames;
@@ -281,7 +383,7 @@
     }
 
     function qualifiesByYtd(ytdCurrent, ytdPrevious) {
-      if (showYoy) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
+      if (showYoy || showMom) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
       return ytdCurrent.total >= 25;
     }
 
@@ -311,10 +413,10 @@
       if (!downlineNames.size) return;
 
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
-      const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy), previousYearDeals);
-      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026"), periodDeals);
-      const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025"), previousYearDeals);
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy || showMom), ytdDeals);
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy || showMom), previousYearDeals);
+      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026", useComparison), currentPeriodDeals);
+      const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", useComparison), previousPeriodDeals);
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(leaderName, current, previous));
@@ -349,10 +451,10 @@
       if (!currentNames) return;
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
-      const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy), previousYearDeals);
-      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026"), periodDeals);
-      const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025"), previousYearDeals);
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy || showMom), ytdDeals);
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy || showMom), previousYearDeals);
+      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026", useComparison), currentPeriodDeals);
+      const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025", useComparison), previousPeriodDeals);
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(label, current, previous));
@@ -374,8 +476,8 @@
     );
 
     const totalStats = {
-      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026"), periodDeals),
-      previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025"), previousYearDeals)
+      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026", useComparison), currentPeriodDeals),
+      previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025", useComparison), previousPeriodDeals)
     };
 
     return { groupRows, totalStats, range };
@@ -388,10 +490,10 @@
     return ((row.total - row.previousTotal) / row.previousTotal) * 100;
   }
 
-  function buildGroupTotalCell(row, showYoy) {
+  function buildGroupTotalCell(row, showComparison) {
     const rightNotes = [];
 
-    if (showYoy) {
+    if (showComparison) {
       const yoy = getGroupYoyPercent(row);
       if (yoy !== null) {
         const sign = yoy > 0 ? "+" : "";
@@ -468,6 +570,7 @@
     previousYearDeals = payload.previousYear && Array.isArray(payload.previousYear.deals) ? payload.previousYear.deals : [];
   
     rebuildPreviousYearMap();
+    rebuildPreviousMonthMap();
     tableauData = payload.tableau || {};
     recruitingRows =
     payload.recruiting && Array.isArray(payload.recruiting.rows) ? payload.recruiting.rows : [];
@@ -543,6 +646,58 @@
   
     previousYearDetailsMap.forEach((stats, norm) => {
       previousYearMap.set(norm, stats.dealIds);
+    });
+  }
+
+  function rebuildPreviousMonthMap() {
+    previousMonthMap = new Map();
+    previousMonthDetailsMap = new Map();
+
+    function ensureStats(name) {
+      const norm = normalizeName(name);
+      if (!norm || HIDDEN_REPS.has(norm)) return null;
+
+      if (!previousMonthDetailsMap.has(norm)) {
+        previousMonthDetailsMap.set(norm, {
+          dealIds: new Set(),
+          sets: 0,
+          closes: 0,
+          setOnly: 0,
+          selfGen: 0
+        });
+      }
+
+      return previousMonthDetailsMap.get(norm);
+    }
+
+    getMomPreviousDeals().forEach(deal => {
+      const dealId = String(deal.messageId || "").trim();
+      if (!dealId) return;
+
+      const setterNorm = normalizeName(deal.setter);
+      const expertNorm = normalizeName(deal.expert);
+      const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
+
+      const setterStats = ensureStats(deal.setter);
+      if (setterStats) {
+        setterStats.dealIds.add(dealId);
+        setterStats.sets += 1;
+        if (isSelfGen) {
+          setterStats.selfGen += 1;
+        } else {
+          setterStats.setOnly += 1;
+        }
+      }
+
+      const expertStats = ensureStats(deal.expert);
+      if (expertStats) {
+        expertStats.dealIds.add(dealId);
+        expertStats.closes += 1;
+      }
+    });
+
+    previousMonthDetailsMap.forEach((stats, norm) => {
+      previousMonthMap.set(norm, stats.dealIds);
     });
   }
   
@@ -662,16 +817,34 @@
   yoyBtn.textContent = "YOY";
   yoyBtn.addEventListener("click", () => {
     showYoy = !showYoy;
-  
+
     if (showYoy) {
+      showMom = false;
       activeSortMode = activeView === "groups" ? "currentContribution" : "previousContribution";
       includeOldReps = true;
       includeNewReps = true;
     }
-  
+
     renderLeaderboard();
   });
   tableauTabs.appendChild(yoyBtn);
+
+  const momBtn = document.createElement("button");
+  momBtn.id = "mom-toggle";
+  momBtn.textContent = "MOM";
+  momBtn.addEventListener("click", () => {
+    showMom = !showMom;
+
+    if (showMom) {
+      showYoy = false;
+      activeSortMode = activeView === "groups" ? "currentContribution" : "previousContribution";
+      includeOldReps = true;
+      includeNewReps = true;
+    }
+
+    renderLeaderboard();
+  });
+  tableauTabs.appendChild(momBtn);
   
   const newRepsBtn = document.createElement("button");
   newRepsBtn.id = "new-reps-toggle";
@@ -698,27 +871,30 @@
     const wrapper = document.getElementById("tableau-tabs");
     const btn = document.getElementById("tableau-toggle");
     const yoyBtn = document.getElementById("yoy-toggle");
-  
+    const momBtn = document.getElementById("mom-toggle");
+
     if (!wrapper || !btn) return;
-  
+
     const key = getTableauKeyForDateMode();
     const dataset = key ? tableauData[key] : null;
-  
+
     const shouldShowTableau =
     activeView !== "groups" &&
     activeView !== "selfgen" &&
     dataset &&
     Array.isArray(dataset.rows) &&
     dataset.rows.length;
-  
+
     const shouldShowYoy =
       activeDateMode === "ytd" &&
       previousYearDeals.length;
-  
-    wrapper.style.display = shouldShowTableau || shouldShowYoy ? "flex" : "none";
-  
+
+    const shouldShowMom = previousYearDeals.length > 0;
+
+    wrapper.style.display = shouldShowTableau || shouldShowYoy || shouldShowMom ? "flex" : "none";
+
     btn.style.display = shouldShowTableau ? "inline-block" : "none";
-  
+
     if (!shouldShowTableau) {
       showTableau = false;
     } else {
@@ -726,22 +902,29 @@
       btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
       btn.classList.toggle("active", showTableau);
     }
-  
+
     if (yoyBtn) {
       yoyBtn.style.display = shouldShowYoy ? "inline-block" : "none";
       if (!shouldShowYoy) showYoy = false;
       yoyBtn.classList.toggle("active", showYoy);
     }
+
+    if (momBtn) {
+      momBtn.style.display = shouldShowMom ? "inline-block" : "none";
+      if (!shouldShowMom) showMom = false;
+      momBtn.classList.toggle("active", showMom);
+    }
+
     const oldRepsBtn = document.getElementById("old-reps-toggle");
   const newRepsBtn = document.getElementById("new-reps-toggle");
-  
+
   if (oldRepsBtn) {
-    oldRepsBtn.style.display = showYoy ? "inline-block" : "none";
+    oldRepsBtn.style.display = isComparisonMode() ? "inline-block" : "none";
     oldRepsBtn.classList.toggle("active", includeOldReps);
   }
-  
+
   if (newRepsBtn) {
-    newRepsBtn.style.display = showYoy ? "inline-block" : "none";
+    newRepsBtn.style.display = isComparisonMode() ? "inline-block" : "none";
     newRepsBtn.classList.toggle("active", includeNewReps);
   }
   }
@@ -761,7 +944,7 @@
   }
   
   function getRepMap(filteredDeals) {
-    const includeZeroRows = !["today", "ytd"].includes(activeDateMode);
+    const includeZeroRows = showMom || !["today", "ytd"].includes(activeDateMode);
     const baseDeals = includeZeroRows ? allDeals.filter(deal => dealInScope(deal)) : filteredDeals;
   
     const repMap = new Map();
@@ -851,28 +1034,34 @@
       previousYearSetOnly: previousYearDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
       previousYearSets: previousYearDetailsMap.get(normalizeName(rep.name))?.sets || 0,
-      previousYearCloses: previousYearDetailsMap.get(normalizeName(rep.name))?.closes || 0
+      previousYearCloses: previousYearDetailsMap.get(normalizeName(rep.name))?.closes || 0,
+      previousMonthCs: previousMonthMap.has(normalizeName(rep.name)) ? previousMonthMap.get(normalizeName(rep.name)).size : 0,
+      previousMonthSetOnly: previousMonthDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
+      previousMonthSelfGen: previousMonthDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
+      previousMonthSets: previousMonthDetailsMap.get(normalizeName(rep.name))?.sets || 0,
+      previousMonthCloses: previousMonthDetailsMap.get(normalizeName(rep.name))?.closes || 0
     }));
   }
-  
+
   function addOldRepsToRows(rows) {
-    if (!showYoy || !includeOldReps) return rows;
-  
+    if (!isComparisonMode() || !includeOldReps) return rows;
+
     const existing = new Set(rows.map(row => normalizeName(row.name)));
-  
-    previousYearDeals.forEach(deal => {
+    const previousDeals = showMom ? getMomPreviousDeals() : previousYearDeals;
+
+    previousDeals.forEach(deal => {
       [deal.setter, deal.expert].forEach(name => {
         const norm = normalizeName(name);
         if (!norm || HIDDEN_REPS.has(norm) || existing.has(norm)) return;
-  
+
         if (
             isSubsetMode &&
             activePreviousYearDownlineNames &&
             !activePreviousYearDownlineNames.has(norm)
         ) return;
-  
+
         existing.add(norm);
-  
+
         rows.push({
           name: String(name).trim(),
           sets: 0,
@@ -889,11 +1078,16 @@
           previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
           previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
           previousYearSets: previousYearDetailsMap.get(norm)?.sets || 0,
-          previousYearCloses: previousYearDetailsMap.get(norm)?.closes || 0
+          previousYearCloses: previousYearDetailsMap.get(norm)?.closes || 0,
+          previousMonthCs: previousMonthMap.has(norm) ? previousMonthMap.get(norm).size : 0,
+          previousMonthSetOnly: previousMonthDetailsMap.get(norm)?.setOnly || 0,
+          previousMonthSelfGen: previousMonthDetailsMap.get(norm)?.selfGen || 0,
+          previousMonthSets: previousMonthDetailsMap.get(norm)?.sets || 0,
+          previousMonthCloses: previousMonthDetailsMap.get(norm)?.closes || 0
         });
       });
     });
-  
+
     return rows;
   }
   
@@ -905,15 +1099,16 @@
   
   function getPreviousYearUniqueDealCountFromRows(rows) {
     const ids = new Set();
-  
+    const map = showMom ? previousMonthMap : previousYearMap;
+
     rows.forEach(row => {
       const norm = normalizeName(row.name);
-      const repDeals = previousYearMap.get(norm);
+      const repDeals = map.get(norm);
       if (!repDeals) return;
-  
+
       repDeals.forEach(id => ids.add(id));
     });
-  
+
     return ids.size;
   }
   
@@ -924,11 +1119,11 @@
   }
     
   function shouldUseCurrentUniqueTotal() {
-    return !isSubsetMode && (!showYoy || includeNewReps);
+    return !isSubsetMode && (!isComparisonMode() || includeNewReps);
   }
-  
+
   function shouldUsePreviousYearUniqueTotal() {
-    return !isSubsetMode && (!showYoy || includeOldReps);
+    return !isSubsetMode && (!isComparisonMode() || includeOldReps);
   }
   
   function getCreditTotalsFromDeals(deals, rows) {
@@ -1081,13 +1276,13 @@
   function buildCsCell(row, showNotes) {
     const leftNotes = [];
     const rightNotes = [];
-  
-    const yoy = getYoyPercent(row);
-  
-    if (showYoy && yoy !== null) {
-      const sign = yoy > 0 ? "+" : "";
+
+    const comparisonPct = showMom ? getMomPercent(row) : getYoyPercent(row);
+
+    if (isComparisonMode() && comparisonPct !== null) {
+      const sign = comparisonPct > 0 ? "+" : "";
       rightNotes.push(
-        `<span class="cs-note-left">${sign}${yoy.toFixed(0)}%</span>`
+        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
       );
     }
   
@@ -1118,46 +1313,60 @@
   
   function buildPreviousYearCell(row) {
     const notes = [];
-  
-    if (row.previousYearCs > row.previousYearSetOnly && row.previousYearSetOnly > 0) {
-      notes.push(`<span class="cs-note-left">Sets: ${row.previousYearSetOnly}</span>`);
+    const previousCs = getRowPreviousCs(row);
+    const previousSetOnly = getRowPreviousSetOnly(row);
+    const previousSelfGen = getRowPreviousSelfGen(row);
+
+    if (previousCs > previousSetOnly && previousSetOnly > 0) {
+      notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
     }
-  
-    if (row.previousYearSelfGen > 0) {
-      notes.push(`<span class="cs-note-left">SG: ${row.previousYearSelfGen}</span>`);
+
+    if (previousSelfGen > 0) {
+      notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
     }
-  
+
     const noteHtml = notes.length
       ? `<div class="cs-notes-stack">${notes.join("")}</div>`
       : `<div class="cs-notes-stack"></div>`;
-  
+
     return `
       <div class="cs-cell">
         ${noteHtml}
-        <span class="cs-main">${row.previousYearCs}</span>
+        <span class="cs-main">${previousCs}</span>
       </div>
     `;
   }
-  
+
   function buildPreviousYearSelfGenCell(row) {
-    if (!row.previousYearSelfGen) {
+    const previousSelfGen = getRowPreviousSelfGen(row);
+    if (!previousSelfGen) {
       return `<div></div>`;
     }
-  
+
     return `
       <div class="cs-cell">
-        <span class="cs-main">${row.previousYearSelfGen}</span>
+        <span class="cs-main">${previousSelfGen}</span>
       </div>
     `;
   }
-  
+
   function getYoyPercent(row) {
     const current = row.sets + row.closes;
     const previous = row.previousYearSets + row.previousYearCloses;
-  
+
     if (!previous) return null;
     if (current === 0) return null;
-  
+
+    return ((current - previous) / previous) * 100;
+  }
+
+  function getMomPercent(row) {
+    const current = row.sets + row.closes;
+    const previous = row.previousMonthSets + row.previousMonthCloses;
+
+    if (!previous) return null;
+    if (current === 0) return null;
+
     return ((current - previous) / previous) * 100;
   }
     
@@ -1169,10 +1378,12 @@
     const filteredDeals = allDeals.filter(deal =>
       dealInScope(deal) && dealInDateRange(deal, range)
     );
-  
-    let rows = getRepMap(filteredDeals);
-    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
-    const useYoyColumn = activeDateMode === "ytd" && showYoy;
+
+    const comparisonActive = useComparisonColumn();
+    const repFilteredDeals = showMom ? getMomCurrentDeals() : filteredDeals;
+
+    let rows = getRepMap(repFilteredDeals);
+    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau && !showMom;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters") {
@@ -1194,14 +1405,14 @@
     if (activeView !== "setters") {
     rows = addOldRepsToRows(rows);
     }
-    if (activeView === "selfgen" && showYoy) {
-    rows = rows.filter(row => row.selfGen > 0 || row.previousYearSelfGen > 0);
+    if (activeView === "selfgen" && isComparisonMode()) {
+    rows = rows.filter(row => row.selfGen > 0 || getRowPreviousSelfGen(row) > 0);
     }
-    if (showYoy && !includeNewReps) {
+    if (isComparisonMode() && !includeNewReps) {
     rows = rows.filter(row =>
-      row.previousYearCs > 0 ||
-      row.previousYearSetOnly > 0 ||
-      row.previousYearSelfGen > 0
+      getRowPreviousCs(row) > 0 ||
+      getRowPreviousSetOnly(row) > 0 ||
+      getRowPreviousSelfGen(row) > 0
     );
   }
   
@@ -1216,12 +1427,12 @@
   }
   
   if (activeSortMode === "previousYearSelfGen") {
-    if (b.previousYearSelfGen !== a.previousYearSelfGen) {
-      return b.previousYearSelfGen - a.previousYearSelfGen;
+    if (getRowPreviousSelfGen(b) !== getRowPreviousSelfGen(a)) {
+      return getRowPreviousSelfGen(b) - getRowPreviousSelfGen(a);
     }
-  
-    if (b.previousYearCs !== a.previousYearCs) {
-      return b.previousYearCs - a.previousYearCs;
+
+    if (getRowPreviousCs(b) !== getRowPreviousCs(a)) {
+      return getRowPreviousCs(b) - getRowPreviousCs(a);
     }
   }
   
@@ -1234,31 +1445,31 @@
   }
   
     if (activeSortMode === "previousContribution") {
-    const aValue = a.previousYearSets + a.previousYearCloses;
-    const bValue = b.previousYearSets + b.previousYearCloses;
-  
+    const aValue = getRowPreviousSets(a) + getRowPreviousCloses(a);
+    const bValue = getRowPreviousSets(b) + getRowPreviousCloses(b);
+
     if (bValue !== aValue) return bValue - aValue;
-    if (b.previousYearCs !== a.previousYearCs) return b.previousYearCs - a.previousYearCs;
+    if (getRowPreviousCs(b) !== getRowPreviousCs(a)) return getRowPreviousCs(b) - getRowPreviousCs(a);
   }
-  
-    if (useYoyColumn && activeSortMode === "yoyPercent") {
-    const aPct = getYoyPercent(a);
-    const bPct = getYoyPercent(b);
-  
+
+    if (comparisonActive && activeSortMode === "yoyPercent") {
+    const aPct = showMom ? getMomPercent(a) : getYoyPercent(a);
+    const bPct = showMom ? getMomPercent(b) : getYoyPercent(b);
+
     const aValue = aPct === null ? -Infinity : aPct;
     const bValue = bPct === null ? -Infinity : bPct;
-  
+
     if (bValue !== aValue) return bValue - aValue;
   }
-    if (useYoyColumn && activeSortMode === "previousYear") {
+    if (comparisonActive && activeSortMode === "previousYear") {
     const aPrev = activeView === "selfgen"
-      ? a.previousYearSelfGen
-      : a.previousYearCs;
-  
+      ? getRowPreviousSelfGen(a)
+      : getRowPreviousCs(a);
+
     const bPrev = activeView === "selfgen"
-      ? b.previousYearSelfGen
-      : b.previousYearCs;
-  
+      ? getRowPreviousSelfGen(b)
+      : getRowPreviousCs(b);
+
     const diff = bPrev - aPrev;
     if (diff !== 0) return diff;
   }
@@ -1283,11 +1494,13 @@
   
     const useCurrentUniqueTotal = shouldUseCurrentUniqueTotal();
     const usePreviousYearUniqueTotal = shouldUsePreviousYearUniqueTotal();
-    const currentCreditTotals = getCreditTotalsFromDeals(filteredDeals, rows);
-    const previousYearCreditTotals = getCreditTotalsFromDeals(previousYearDeals, rows);
+    const previousComparisonDeals = showMom ? getMomPreviousDeals() : previousYearDeals;
+    const currentCreditTotals = getCreditTotalsFromDeals(showMom ? getMomCurrentDeals() : filteredDeals, rows);
+    const previousYearCreditTotals = getCreditTotalsFromDeals(previousComparisonDeals, rows);
    
-    const title =
-      `${activeTitle || "Proven Leaderboard V2"} - ${range.label} (${range.start} to ${range.end})`;
+    const title = showMom && activeView !== "groups"
+      ? `${activeTitle || "Proven Leaderboard V2"} - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
+      : `${activeTitle || "Proven Leaderboard V2"} - ${range.label} (${range.start} to ${range.end})`;
   
     const meta = document.getElementById("leaderboard-meta");
     meta.textContent = apiMeta
@@ -1297,7 +1510,7 @@
     let headerHtml = "";
     const bodyRows = [];
     if (activeView === "groups") {
-    const useGroupsYoy = activeDateMode === "ytd" && showYoy;
+    const useGroupsComparison = showMom || (activeDateMode === "ytd" && showYoy);
     const { groupRows, totalStats, range: groupRange } = getGroupRows();
 
     groupRows.sort((a, b) => {
@@ -1311,7 +1524,7 @@
         return a.name.localeCompare(b.name);
       }
 
-      if (useGroupsYoy && activeSortMode === "yoyPercent") {
+      if (useGroupsComparison && activeSortMode === "yoyPercent") {
         const aPct = getGroupYoyPercent(a);
         const bPct = getGroupYoyPercent(b);
         const aValue = aPct === null ? -Infinity : aPct;
@@ -1328,7 +1541,7 @@
       return a.name.localeCompare(b.name);
     });
 
-    const cols = useGroupsYoy ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
+    const cols = useGroupsComparison ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
 
     const headerHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
@@ -1344,26 +1557,26 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsYoy ? "2026 Total" : "Total"}
+      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : "Total"}
     </button>
-    ${useGroupsYoy ? `
+    ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
         %
       </button>
     ` : ""}
   </div>
-        ${useGroupsYoy ? `
+        ${useGroupsComparison ? `
     <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
-        2025 Total
+        ${getPreviousComparisonLabel("Total")}
       </button>
     </div>
   ` : ""}
       </div>
     `;
 
-    const useGroupsUnique2026 = !useGroupsYoy || includeNewReps;
-    const useGroupsUnique2025 = !useGroupsYoy || includeOldReps;
+    const useGroupsUnique2026 = !useGroupsComparison || includeNewReps;
+    const useGroupsUnique2025 = !useGroupsComparison || includeOldReps;
 
     const total2026 = useGroupsUnique2026
       ? totalStats.current.dealIds.size
@@ -1376,14 +1589,14 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div></div>
         <div>TOTAL</div>
-        <div>${useGroupsYoy
+        <div>${useGroupsComparison
           ? buildGroupTotalCell({
             sets: totalStats.current.sets,
             cs: totalStats.current.cs,
             total: total2026
           }, false)
           : totalStats.current.dealIds.size}</div>
-        ${useGroupsYoy ? `<div>${buildGroupPreviousTotalCell({
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalStats.previous.sets,
           previousCs: totalStats.previous.cs,
           previousTotal: total2025
@@ -1397,15 +1610,17 @@
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
           <div>${row.name}</div>
-          <div>${buildGroupTotalCell(row, useGroupsYoy)}</div>
-          ${useGroupsYoy ? `<div>${buildGroupPreviousTotalCell(row)}</div>` : ""}
+          <div>${buildGroupTotalCell(row, useGroupsComparison)}</div>
+          ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(row)}</div>` : ""}
         </div>
       `);
     });
 
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
-        <div class="leaderboard-title">Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})</div>
+        <div class="leaderboard-title">${showMom
+          ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
+          : `Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})`}</div>
         ${headerHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
@@ -1417,8 +1632,8 @@
   }
   
     if (activeView === "selfgen") {
-      const cols = useYoyColumn ? ".55fr 1.45fr 1.4fr 1.4fr" : ".55fr 1.65fr 1.8fr";
-  
+      const cols = comparisonActive ? ".55fr 1.45fr 1.4fr 1.4fr" : ".55fr 1.65fr 1.8fr";
+
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
           <div>Rank</div>
@@ -1433,19 +1648,19 @@
     <button
     class="sort-header-button ${activeSortMode === "selfGen" ? "active-sort" : ""}"
     onclick="setSelfGenSort()">
-    ${useYoyColumn ? "2026 SG" : "SelfGen"}
+    ${comparisonActive ? getCurrentComparisonLabel("SG") : "SelfGen"}
   </button>
   </div>
-          ${useYoyColumn ? `
+          ${comparisonActive ? `
     <div>
       <button class="sort-header-button ${activeSortMode === "previousYearSelfGen" ? "active-sort" : ""}" onclick="setPreviousYearSelfGenSort()">
-    2025 SG
+    ${getPreviousComparisonLabel("SG")}
   </button>
     </div>
   ` : ""}
         </div>
       `;
-  
+
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
@@ -1453,14 +1668,14 @@
           <div class="cs-cell">
     <span class="cs-main">${totalSelfGen}</span>
   </div>
-          ${useYoyColumn ? `
+          ${comparisonActive ? `
     <div class="cs-cell">
-      <span class="cs-main">${rows.reduce((sum, row) => sum + row.previousYearSelfGen, 0)}</span>
+      <span class="cs-main">${rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0)}</span>
     </div>
   ` : ""}
         </div>
       `);
-  
+
       rows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
@@ -1470,13 +1685,13 @@
             <div class="cs-cell">
     <span class="cs-main">${row.selfGen}</span>
   </div>
-            ${useYoyColumn ? buildPreviousYearSelfGenCell(row) : ""}
+            ${comparisonActive ? buildPreviousYearSelfGenCell(row) : ""}
           </div>
         `);
       });
     } else {
-      const cols = useTableauColumn && useYoyColumn ? ".45fr 1.55fr 1.1fr 1.1fr .9fr" : useTableauColumn ? ".55fr 1.85fr 1.35fr .95fr" : useYoyColumn ? ".55fr 1.65fr 1.2fr 1.2fr" : ".6fr 1.7fr 1.7fr";
-  
+      const cols = useTableauColumn && comparisonActive ? ".45fr 1.55fr 1.1fr 1.1fr .9fr" : useTableauColumn ? ".55fr 1.85fr 1.35fr .95fr" : comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".6fr 1.7fr 1.7fr";
+
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
           <div>Rank</div>
@@ -1491,37 +1706,37 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useYoyColumn ? "2026 CS" : "CS"}
+      ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
     </button>
-  
-    ${useYoyColumn ? `
+
+    ${comparisonActive ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
         %
       </button>
     ` : ""}
   </div>
-          ${useYoyColumn ? `
+          ${comparisonActive ? `
     <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
-        2025 CS
+        ${getPreviousComparisonLabel("CS")}
       </button>
     </div>
   ` : ""}
-  
+
   ${useTableauColumn ? buildTableauHeader() : ""}
         </div>
       `;
-  
+
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
           <div>TOTAL</div>
          <div>${useCurrentUniqueTotal ? visibleUniqueDeals : buildCreditTotalCell(currentCreditTotals)}</div>
-         ${useYoyColumn ? `<div>${usePreviousYearUniqueTotal ? getPreviousYearUniqueDealCountFromRows(rows) : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
+         ${comparisonActive ? `<div>${usePreviousYearUniqueTotal ? getPreviousYearUniqueDealCountFromRows(rows) : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
-  
+
       rows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
@@ -1533,7 +1748,7 @@
       <span class="cs-main">${row.cs}</span>
     </div>
   ` : buildCsCell(row, true)}
-            ${useYoyColumn ? buildPreviousYearCell(row) : ""}
+            ${comparisonActive ? buildPreviousYearCell(row) : ""}
             ${useTableauColumn ? buildTableauCell(row, activeTableauMetric) : ""}
           </div>
         `);
