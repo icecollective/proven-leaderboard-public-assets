@@ -371,6 +371,17 @@
       </div>
     `;
   }
+
+  function filterGroupRowsForYoy(groupRows) {
+    return groupRows.filter(row => {
+      const isNew = row.total > 0 && row.previousTotal === 0;
+      const isOld = row.previousTotal > 0 && row.total === 0;
+
+      if (!includeNewReps && isNew) return false;
+      if (!includeOldReps && isOld) return false;
+      return true;
+    });
+  }
   
   function getUrlMode() {
     const params = new URLSearchParams(window.location.search);
@@ -1243,6 +1254,10 @@
     const useGroupsYoy = activeDateMode === "ytd" && showYoy;
     let groupRows = getGroupRowsYtd();
 
+    if (useGroupsYoy) {
+      groupRows = filterGroupRowsForYoy(groupRows);
+    }
+
     groupRows.sort((a, b) => {
       if (activeSortMode === "name") {
         return a.name.localeCompare(b.name);
@@ -1306,28 +1321,28 @@
     `;
 
     const groupDealIds = new Set();
-    const groupPreviousDealIds = new Set();
 
     groupRows.forEach(row => {
       row.dealIds.forEach(id => groupDealIds.add(id));
-      row.previousDealIds.forEach(id => groupPreviousDealIds.add(id));
     });
 
-    const useGroupsContributionTotal =
-      useGroupsYoy && (isSubsetMode || !includeNewReps || !includeOldReps);
-    const total = useGroupsContributionTotal
-      ? groupRows.reduce((sum, row) => sum + row.total, 0)
-      : groupDealIds.size;
-    const previousTotal = useGroupsContributionTotal
-      ? groupRows.reduce((sum, row) => sum + row.previousTotal, 0)
-      : groupPreviousDealIds.size;
+    const totalSets = groupRows.reduce((sum, row) => sum + row.sets, 0);
+    const totalCs = groupRows.reduce((sum, row) => sum + row.cs, 0);
+    const totalPreviousSets = groupRows.reduce((sum, row) => sum + row.previousSets, 0);
+    const totalPreviousCs = groupRows.reduce((sum, row) => sum + row.previousCs, 0);
 
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div></div>
         <div>TOTAL</div>
-        <div>${total}</div>
-        ${useGroupsYoy ? `<div>${previousTotal}</div>` : ""}
+        <div>${useGroupsYoy
+          ? buildGroupTotalCell({ sets: totalSets, cs: totalCs, total: (totalSets + totalCs) / 2 }, false)
+          : groupDealIds.size}</div>
+        ${useGroupsYoy ? `<div>${buildGroupPreviousTotalCell({
+          previousSets: totalPreviousSets,
+          previousCs: totalPreviousCs,
+          previousTotal: (totalPreviousSets + totalPreviousCs) / 2
+        })}</div>` : ""}
       </div>
     `);
 
