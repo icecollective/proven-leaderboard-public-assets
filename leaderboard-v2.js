@@ -1058,6 +1058,13 @@
     return !(includeIceCollective && includeRiot);
   }
 
+  function shouldShowGroupsTotalBreakdownNotes(isDrillDown, useComparison) {
+    if (isDrillDown) return true;
+    if (!(includeIceCollective && includeRiot)) return true;
+    if (useComparison && !(includeNewReps && includeOldReps)) return true;
+    return false;
+  }
+
   function buildSetsCsNotesStack(sets, cs) {
     return `
         <div class="cs-notes-stack">
@@ -2403,7 +2410,7 @@
     const groupTitle = useMomColumn()
       ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
       : formatTitleWithOptionalDateRange(`Groups - ${groupRange.label}`, groupRange);
-    const showGroupsTotalNotes = shouldShowTotalBreakdownNotes();
+    const showGroupsTotalNotes = shouldShowGroupsTotalBreakdownNotes(false, useGroupsComparison);
 
     if (activeGroupDrillLeader) {
       const leaderDownline = buildDownlineSetFromRows(recruitingRows, activeGroupDrillLeader);
@@ -2504,13 +2511,13 @@
             cs: drillCurrent.cs,
             total: drillCurrent.total,
             previousTotal: drillPrevious.total
-          }, useGroupsComparison, showGroupsTotalNotes)
-          : buildGroupTotalCell(drillCurrent, false, showGroupsTotalNotes)}</div>
+          }, useGroupsComparison, true)
+          : buildGroupTotalCell(drillCurrent, false, true)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: drillPrevious.sets,
           previousCs: drillPrevious.cs,
           previousTotal: drillPrevious.total
-        }, showGroupsTotalNotes)}</div>` : ""}
+        }, true)}</div>` : ""}
         ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
