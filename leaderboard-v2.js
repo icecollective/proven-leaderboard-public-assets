@@ -335,7 +335,7 @@
   }
 
   function getTotalRowLabel() {
-    return getPeriodLabel();
+    return "Total";
   }
 
   function formatTitleWithOptionalDateRange(label, range) {
@@ -2411,7 +2411,6 @@
         activeGroupDrillLeader = null;
         updateGroupDrillNav();
       } else {
-        const { current, previous } = getGroupLeaderStats(activeGroupDrillLeader, groupContext);
         const visibleNames = getGroupDrillVisibleNames(activeGroupDrillLeader, groupContext);
         let drillRows = rows.filter(row => visibleNames.has(normalizeName(row.name)));
         const drillUseTableau = useTableauColumn;
@@ -2490,15 +2489,19 @@
       </div>
     `;
 
+        const drillTotalCs = sumVisibleUniqueCs(drillRows, row => getRowDisplayCs(row));
+        const drillPreviousTotalCs = sumVisibleUniqueCs(drillRows, row => getRowPreviousCs(row), true);
+        const drillTotalComparisonPct = useGroupsComparison
+          ? getComparisonPercent(drillTotalCs, drillPreviousTotalCs)
+          : null;
+
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
-          previousSets: previous.sets,
-          previousCs: previous.cs,
-          previousTotal: previous.total
-        }, showGroupsTotalNotes)}</div>` : ""}
-        ${drillUseTableau ? `<div>${totalTableauValue}</div>` : ""}
+        <div>${getTotalRowLabel()}</div>
+        <div>${buildUniqueTotalCell(drillTotalCs, drillTotalComparisonPct)}</div>
+        ${useGroupsComparison ? `<div>${buildUniqueTotalCell(drillPreviousTotalCs)}</div>` : ""}
+        ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
 
