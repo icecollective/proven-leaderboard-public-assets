@@ -26,6 +26,12 @@
     background:#102c57;
     color:white;
   }
+
+  .leaderboard-tabs button.disabled,
+  .leaderboard-tabs button:disabled {
+    opacity:0.45;
+    cursor:not-allowed;
+  }
   
   #custom-date-wrapper input {
     padding:10px;
@@ -127,6 +133,16 @@
     font-weight:600;
     text-align:center;
   }
+
+  .cs-placeholder {
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%, -50%);
+    font-weight:400;
+    text-align:center;
+    color:#9ca3af;
+  }
   
   .cs-notes-right {
     position:absolute;
@@ -210,6 +226,64 @@
   
   #scope-title:empty {
     display:none;
+  }
+
+  #office-tabs {
+    align-items:center;
+    justify-content:center;
+  }
+
+  .office-toggle-buttons {
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .group-drill-nav {
+    display:none;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+  }
+
+  .group-drill-back {
+    padding:10px 12px;
+    border-radius:12px;
+    border:none;
+    background:#e0e7ff;
+    font-weight:700;
+    cursor:pointer;
+    font-size:14px;
+    color:#1f2937;
+    white-space:nowrap;
+  }
+
+  .group-drill-back:hover {
+    background:#c7d2fe;
+  }
+
+  .group-drill-title {
+    font-weight:700;
+    font-size:16px;
+    color:#102c57;
+  }
+
+  .group-leader-link {
+    background:none;
+    border:none;
+    padding:0;
+    margin:0;
+    font:inherit;
+    color:#102c57;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+
+  .group-leader-link:hover {
+    color:#061a33;
   }
   
   @media (max-width:768px) {

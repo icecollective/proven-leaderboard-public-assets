@@ -61,6 +61,7 @@
   let activeDownlineNames = null;
   let activeTitle = "";
   let activeGroupDrillLeader = null;
+  let isLeaderboardReady = false;
 
   const OFFICE_GROUP_LABELS = new Set(["ice collective", "riot"]);
   const EXCLUDED_GROUP_LEADERS = new Set([
@@ -1117,6 +1118,8 @@
 
     groupDrillNav.appendChild(groupDrillBack);
     groupDrillNav.appendChild(groupDrillTitle);
+    groupDrillNav.style.display = "none";
+    officeTabs.style.display = "none";
     officeTabs.appendChild(officeToggleButtons);
     officeTabs.appendChild(groupDrillNav);
   
@@ -1287,7 +1290,7 @@
 
     if (!officeTabs) return;
 
-    if (isSubsetMode) {
+    if (!isLeaderboardReady || isSubsetMode) {
       officeTabs.style.display = "none";
       return;
     }
@@ -2440,6 +2443,7 @@
       createButtons();
       await loadApiData();
       await loadDownlineIfNeeded();
+      isLeaderboardReady = true;
       renderLeaderboard();
     } catch (error) {
       console.error(error);
