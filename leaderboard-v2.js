@@ -214,9 +214,9 @@
     return downline;
   }
   
-  function getGroupRowsYtd() {
-    const ytdRange = getDateRange("ytd");
-    const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, ytdRange));
+  function getGroupRows() {
+    const range = getDateRange(activeDateMode);
+    const periodDeals = allDeals.filter(deal => dealInDateRange(deal, range));
     const useYoy = activeDateMode === "ytd" && showYoy;
     const excludedGroupLeaders = new Set([
       "kelton higgins",
@@ -226,7 +226,7 @@
     ]);
 
     const repContrib2026 = new Map();
-    ytdDeals.forEach(deal => {
+    periodDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       if (setterNorm) repContrib2026.set(setterNorm, (repContrib2026.get(setterNorm) || 0) + 1);
@@ -309,7 +309,7 @@
       if (!downlineNames.size) return;
 
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
-      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026"), ytdDeals);
+      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026"), periodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025"), previousYearDeals);
 
       if (shouldIncludeGroup(current, previous)) {
@@ -345,7 +345,7 @@
       if (!currentNames) return;
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
-      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026"), ytdDeals);
+      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026"), periodDeals);
       const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025"), previousYearDeals);
 
       if (!useYoy || shouldIncludeGroup(current, previous)) {
@@ -368,11 +368,11 @@
     );
 
     const totalStats = {
-      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026"), ytdDeals),
+      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026"), periodDeals),
       previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025"), previousYearDeals)
     };
 
-    return { groupRows, totalStats };
+    return { groupRows, totalStats, range };
   }
 
   function getGroupYoyPercent(row) {
@@ -1292,7 +1292,7 @@
     const bodyRows = [];
     if (activeView === "groups") {
     const useGroupsYoy = activeDateMode === "ytd" && showYoy;
-    const { groupRows, totalStats } = getGroupRowsYtd();
+    const { groupRows, totalStats, range: groupRange } = getGroupRows();
 
     groupRows.sort((a, b) => {
       if (activeSortMode === "name") {
@@ -1399,7 +1399,7 @@
 
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
-        <div class="leaderboard-title">Groups - YTD</div>
+        <div class="leaderboard-title">Groups - ${groupRange.label} (${groupRange.start} to ${groupRange.end})</div>
         ${headerHtml}
         <div class="leaderboard-body">
           ${bodyRows.join("")}
