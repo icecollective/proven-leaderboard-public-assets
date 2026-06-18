@@ -236,7 +236,16 @@
     const stats = useMomColumn()
       ? previousMonthDetailsMap.get(norm)
       : previousYearDetailsMap.get(norm);
-    return stats?.dealIds?.size || 0;
+    if (!stats) return 0;
+    if (activeView === "experts") return stats.expertDealIds?.size || 0;
+    if (activeView === "setters") return stats.setterDealIds?.size || 0;
+    return stats.dealIds?.size || 0;
+  }
+
+  function getRowDisplayCs(row) {
+    if (activeView === "experts") return row.expertCs || 0;
+    if (activeView === "setters") return row.setterCs || 0;
+    return row.cs;
   }
 
   function getRowPreviousSelfGen(row) {
@@ -429,7 +438,11 @@
       lifetimeCloses: 0,
       lifetimeSelfGen: 0,
       cs: 0,
+      setterCs: 0,
+      expertCs: 0,
       dealIds: new Set(),
+      setterDealIds: new Set(),
+      expertDealIds: new Set(),
       tableau: tableauRow || {},
       previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
@@ -973,6 +986,8 @@
       if (!previousYearDetailsMap.has(norm)) {
         previousYearDetailsMap.set(norm, {
           dealIds: new Set(),
+          setterDealIds: new Set(),
+          expertDealIds: new Set(),
           sets: 0,
           closes: 0,
           setOnly: 0,
@@ -995,6 +1010,7 @@
         const setterStats = ensureStats(deal.setter);
         if (setterStats) {
           setterStats.dealIds.add(dealId);
+          setterStats.setterDealIds.add(dealId);
           setterStats.sets += 1;
           if (isSelfGen) {
             setterStats.selfGen += 1;
@@ -1008,6 +1024,7 @@
         const expertStats = ensureStats(deal.expert);
         if (expertStats) {
           expertStats.dealIds.add(dealId);
+          expertStats.expertDealIds.add(dealId);
           expertStats.closes += 1;
         }
       }
@@ -1024,6 +1041,8 @@
       if (!previousMonthDetailsMap.has(norm)) {
         previousMonthDetailsMap.set(norm, {
           dealIds: new Set(),
+          setterDealIds: new Set(),
+          expertDealIds: new Set(),
           sets: 0,
           closes: 0,
           setOnly: 0,
@@ -1046,6 +1065,7 @@
         const setterStats = ensureStats(deal.setter);
         if (setterStats) {
           setterStats.dealIds.add(dealId);
+          setterStats.setterDealIds.add(dealId);
           setterStats.sets += 1;
           if (isSelfGen) {
             setterStats.selfGen += 1;
@@ -1059,6 +1079,7 @@
         const expertStats = ensureStats(deal.expert);
         if (expertStats) {
           expertStats.dealIds.add(dealId);
+          expertStats.expertDealIds.add(dealId);
           expertStats.closes += 1;
         }
       }
@@ -1469,7 +1490,9 @@
           lifetimeSets: 0,
           lifetimeCloses: 0,
           lifetimeSelfGen: 0,
-          dealIds: new Set()
+          dealIds: new Set(),
+          setterDealIds: new Set(),
+          expertDealIds: new Set()
         });
       }
   
@@ -1505,6 +1528,7 @@
       if (setter) {
         setter.sets += 1;
         setter.dealIds.add(dealId);
+        setter.setterDealIds.add(dealId);
 
         if (isSelfGen) {
           setter.selfGen += 1;
@@ -1517,6 +1541,7 @@
       if (expert) {
         expert.closes += 1;
         expert.dealIds.add(dealId);
+        expert.expertDealIds.add(dealId);
       }
     });
 
@@ -1530,7 +1555,11 @@
       lifetimeCloses: rep.lifetimeCloses,
       lifetimeSelfGen: rep.lifetimeSelfGen,
       cs: rep.dealIds.size,
+      setterCs: rep.setterDealIds.size,
+      expertCs: rep.expertDealIds.size,
       dealIds: rep.dealIds,
+      setterDealIds: rep.setterDealIds,
+      expertDealIds: rep.expertDealIds,
       tableau: tableauMap.get(normalizeName(rep.name)) || {},
       previousYearSetOnly: previousYearDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
@@ -1576,7 +1605,11 @@
           lifetimeCloses: 0,
           lifetimeSelfGen: 0,
           cs: 0,
+          setterCs: 0,
+          expertCs: 0,
           dealIds: new Set(),
+          setterDealIds: new Set(),
+          expertDealIds: new Set(),
           tableau: tableauMap.get(norm) || {},
           previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
           previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
@@ -1645,6 +1678,24 @@
     });
 
     return { sets, cs };
+  }
+
+  function getUniqueRoleDealTotal(deals, rows, role, year = "current") {
+    const visibleNames = new Set(rows.map(row => normalizeName(row.name)));
+    const dealIds = new Set();
+
+    deals.forEach(deal => {
+      const dealId = getDealId(deal);
+      if (!dealId) return;
+
+      const name = role === "expert" ? deal.expert : deal.setter;
+      const norm = normalizeName(name);
+      if (!visibleNames.has(norm) || !repInOfficeUmbrella(norm, year)) return;
+
+      dealIds.add(dealId);
+    });
+
+    return dealIds.size;
   }
 
   function previousYearHadClose(normName) {
@@ -1893,7 +1944,7 @@
       <div class="cs-cell">
         ${leftHtml}
         ${rightHtml}
-        <span class="cs-main">${row.cs}</span>
+        <span class="cs-main">${getRowDisplayCs(row)}</span>
       </div>
     `;
   }
@@ -2040,8 +2091,8 @@
   }
   
     if (activeSortMode === "currentContribution") {
-    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : a.cs;
-    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : b.cs;
+    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : getRowDisplayCs(a);
+    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : getRowDisplayCs(b);
   
     if (bValue !== aValue) return bValue - aValue;
     if (b.cs !== a.cs) return b.cs - a.cs;
@@ -2164,8 +2215,8 @@
               if (bValue !== aValue) return bValue - aValue;
             }
 
-            const aValue = a.cs;
-            const bValue = b.cs;
+            const aValue = getRowDisplayCs(a);
+            const bValue = getRowDisplayCs(b);
             if (bValue !== aValue) return bValue - aValue;
             if (b.cs !== a.cs) return b.cs - a.cs;
             return a.name.localeCompare(b.name);
@@ -2476,12 +2527,27 @@
         : null;
       const showTotalNotes = shouldShowTotalBreakdownNotes();
       const useUniqueCsTotals = activeView === "setters" || activeView === "experts";
-      const totalUniqueCs = sumVisibleUniqueCs(rows, row => row.cs);
-      const totalPreviousUniqueCs = sumVisibleUniqueCs(rows, row => getRowPreviousCs(row), true);
+      const currentUniqueDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
+      const totalUniqueCs = activeView === "experts"
+        ? getUniqueRoleDealTotal(currentUniqueDeals, rows, "expert")
+        : activeView === "setters"
+        ? getUniqueRoleDealTotal(currentUniqueDeals, rows, "setter")
+        : sumVisibleUniqueCs(rows, row => row.cs);
+      const totalPreviousUniqueCs = activeView === "experts"
+        ? getUniqueRoleDealTotal(previousComparisonDeals, rows, "expert", "previous")
+        : activeView === "setters"
+        ? getUniqueRoleDealTotal(previousComparisonDeals, rows, "setter", "previous")
+        : sumVisibleUniqueCs(rows, row => getRowPreviousCs(row), true);
       const totalExpertSelfGen = rows.reduce((sum, row) => sum + row.selfGen, 0);
       const totalExpertSetOnly = rows.reduce((sum, row) => sum + row.setOnly, 0);
       const totalPreviousExpertSelfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
       const totalPreviousExpertSetOnly = rows.reduce((sum, row) => sum + getRowPreviousSetOnly(row), 0);
+      const expertTotalNotes = showTotalNotes
+        ? buildExpertTotalNotes(totalExpertSelfGen, totalExpertSetOnly)
+        : null;
+      const expertPreviousTotalNotes = showTotalNotes
+        ? buildExpertTotalNotes(totalPreviousExpertSelfGen, totalPreviousExpertSetOnly)
+        : null;
       const uniqueTotalComparisonPct = comparisonActive
         ? getComparisonPercent(totalUniqueCs, totalPreviousUniqueCs)
         : null;
@@ -2494,14 +2560,14 @@
           ? buildUniqueTotalCell(
             totalUniqueCs,
             uniqueTotalComparisonPct,
-            activeView === "experts" ? buildExpertTotalNotes(totalExpertSelfGen, totalExpertSetOnly) : null
+            activeView === "experts" ? expertTotalNotes : null
           )
           : buildCreditTotalCell(currentCreditTotals, totalComparisonPct, showTotalNotes)}</div>
          ${comparisonActive ? `<div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
             totalPreviousUniqueCs,
             null,
-            activeView === "experts" ? buildExpertTotalNotes(totalPreviousExpertSelfGen, totalPreviousExpertSetOnly) : null
+            activeView === "experts" ? expertPreviousTotalNotes : null
           )
           : buildCreditTotalCell(previousYearCreditTotals, null, showTotalNotes)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
