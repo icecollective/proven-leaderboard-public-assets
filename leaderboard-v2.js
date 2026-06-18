@@ -1673,7 +1673,7 @@
     `;
   }
 
-  function buildUniqueTotalCell(value, comparisonPct = null) {
+  function buildUniqueTotalCell(value, comparisonPct = null, leftNotes = null) {
     const rightNotes = [];
 
     if (comparisonPct !== null) {
@@ -1683,17 +1683,36 @@
       );
     }
 
+    const leftHtml = leftNotes && leftNotes.length
+      ? `<div class="cs-notes-stack">${leftNotes.join("")}</div>`
+      : `<div class="cs-notes-stack"></div>`;
+
     const rightHtml = rightNotes.length
       ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
       : "";
 
     return `
       <div class="cs-cell">
-        <div class="cs-notes-stack"></div>
+        ${leftHtml}
         ${rightHtml}
         <span class="cs-main">${value}</span>
       </div>
     `;
+  }
+
+  function buildExpertTotalNotes(selfGen, setOnly) {
+    const notes = [];
+    if (selfGen > 0) notes.push(`<span class="cs-note-left">SG: ${selfGen}</span>`);
+    if (setOnly > 0) notes.push(`<span class="cs-note-left">Sets: ${setOnly}</span>`);
+    return notes;
+  }
+
+  function sumVisibleUniqueCs(rows, getValue, forPrevious = false) {
+    return rows.reduce((sum, row) => {
+      if (row.isPlataOnly) return sum;
+      if (forPrevious ? rowShowsPreviousNa(row) : rowShowsCurrentNa(row)) return sum;
+      return sum + getValue(row);
+    }, 0);
   }
   
   function getTableauTotal(rows, metric) {
@@ -1839,12 +1858,12 @@
       );
     }
   
-    if (showNotes && row.lifetimeCloses > 0 && row.setOnly > 0) {
-      leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
-    }
-  
     if (showNotes && row.lifetimeCloses > 0 && row.selfGen > 0) {
       leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
+    }
+
+    if (showNotes && row.lifetimeCloses > 0 && row.setOnly > 0) {
+      leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
     }
   
     const leftHtml = leftNotes.length
@@ -1872,12 +1891,12 @@
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
 
-    if (previousSetOnly > 0) {
-      notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
-    }
-
     if (previousSelfGen > 0) {
       notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
+    }
+
+    if (previousSetOnly > 0) {
+      notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
     }
 
     const noteHtml = notes.length
@@ -2439,13 +2458,35 @@
       const totalComparisonPct = comparisonActive
         ? getComparisonPercent(currentTotalValue, previousTotalValue)
         : null;
+      const useUniqueCsTotals = activeView === "setters" || activeView === "experts";
+      const totalUniqueCs = sumVisibleUniqueCs(rows, row => row.cs);
+      const totalPreviousUniqueCs = sumVisibleUniqueCs(rows, row => getRowPreviousCs(row), true);
+      const totalExpertSelfGen = rows.reduce((sum, row) => sum + row.selfGen, 0);
+      const totalExpertSetOnly = rows.reduce((sum, row) => sum + row.setOnly, 0);
+      const totalPreviousExpertSelfGen = rows.reduce((sum, row) => sum + getRowPreviousSelfGen(row), 0);
+      const totalPreviousExpertSetOnly = rows.reduce((sum, row) => sum + getRowPreviousSetOnly(row), 0);
+      const uniqueTotalComparisonPct = comparisonActive
+        ? getComparisonPercent(totalUniqueCs, totalPreviousUniqueCs)
+        : null;
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
           <div>TOTAL</div>
-         <div>${buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
-         ${comparisonActive ? `<div>${buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
+         <div>${useUniqueCsTotals
+          ? buildUniqueTotalCell(
+            totalUniqueCs,
+            uniqueTotalComparisonPct,
+            activeView === "experts" ? buildExpertTotalNotes(totalExpertSelfGen, totalExpertSetOnly) : null
+          )
+          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
+         ${comparisonActive ? `<div>${useUniqueCsTotals
+          ? buildUniqueTotalCell(
+            totalPreviousUniqueCs,
+            null,
+            activeView === "experts" ? buildExpertTotalNotes(totalPreviousExpertSelfGen, totalPreviousExpertSetOnly) : null
+          )
+          : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
