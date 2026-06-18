@@ -808,6 +808,434 @@
       .replace(/</g, "&lt;");
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  let repCardEventsReady = false;
+
+  function isValidSetterName(name) {
+    const norm = normalizeName(name);
+    if (!norm) return false;
+    if (norm === "idk" || norm === "unknown" || norm === "n/a" || norm === "na") return false;
+    return true;
+  }
+
+  function buildRepNameCell(name) {
+    const displayName = String(name || "").trim();
+    return `<button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>`;
+  }
+
+  function getRecruitingRowForRep(repName) {
+    const norm = normalizeName(repName);
+    return recruitingRows.find(row => normalizeName(row.name) === norm) || null;
+  }
+
+  function repContributesToDeal(deal, repNorm) {
+    const dealId = getDealId(deal);
+    if (!dealId) return false;
+
+    const expertNorm = normalizeName(deal.expert);
+    if (expertNorm === repNorm) return true;
+
+    const setterNorm = normalizeName(deal.setter);
+    return isValidSetterName(deal.setter) && setterNorm === repNorm;
+  }
+
+  function getRepDiscordCsForRange(repName, mode) {
+    const repNorm = normalizeName(repName);
+    if (!repNorm) return 0;
+
+    const range = getDateRange(mode);
+    const dealIds = new Set();
+
+    allDeals.forEach(deal => {
+      if (!dealInDateRange(deal, range)) return;
+      if (repContributesToDeal(deal, repNorm)) {
+        dealIds.add(getDealId(deal));
+      }
+    });
+
+    return dealIds.size;
+  }
+
+  function getRepTableauStatsForPeriod(repName, periodKey) {
+    const row = getTableauRowForDateMode(normalizeName(repName), periodKey);
+    if (!row || !hasTableauRowData(row)) return null;
+
+    return {
+      cs: row.cs,
+      sra: row.sra,
+      cap: row.cap,
+      ic: row.ic
+    };
+  }
+
+  function formatRepCardStatValue(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    return String(value);
+  }
+
+  function formatRepCardTableauSub(stats) {
+    if (!stats) return "TBL: —";
+    return `TBL CS: ${formatRepCardStatValue(stats.cs)} · SRA: ${formatRepCardStatValue(stats.sra)} · CAP: ${formatRepCardStatValue(stats.cap)} · IC: ${formatRepCardStatValue(stats.ic)}`;
+  }
+
+  function getRepBestMonthCs(repName) {
+    const repNorm = normalizeName(repName);
+    if (!repNorm) return 0;
+
+    const monthly = new Map();
+
+    allDeals.forEach(deal => {
+      if (!deal.date) return;
+      if (!repContributesToDeal(deal, repNorm)) return;
+
+      const monthKey = deal.date.slice(0, 7);
+      if (!monthly.has(monthKey)) monthly.set(monthKey, new Set());
+      monthly.get(monthKey).add(getDealId(deal));
+    });
+
+    let best = 0;
+    monthly.forEach(dealIds => {
+      if (dealIds.size > best) best = dealIds.size;
+    });
+
+    return best;
+  }
+
+  function getRepBestWeekCs(repName) {
+    const repNorm = normalizeName(repName);
+    if (!repNorm) return 0;
+
+    const weekly = new Map();
+
+    allDeals.forEach(deal => {
+      if (!deal.date) return;
+      if (!repContributesToDeal(deal, repNorm)) return;
+
+      const weekKey = formatDate(getMondayOfWeek(new Date(`${deal.date}T12:00:00`)));
+      if (!weekly.has(weekKey)) weekly.set(weekKey, new Set());
+      weekly.get(weekKey).add(getDealId(deal));
+    });
+
+    let best = 0;
+    weekly.forEach(dealIds => {
+      if (dealIds.size > best) best = dealIds.size;
+    });
+
+    return best;
+  }
+
+  function getEligibleRepNamesForRank() {
+    ensureRecruitingNames();
+    const names = [];
+
+    recruitingRows.forEach(row => {
+      const norm = normalizeName(row.name);
+      if (!norm || HIDDEN_REPS.has(norm)) return;
+      names.push(String(row.name).trim());
+    });
+
+    return names;
+  }
+
+  function getCompetitionRank(sortedItems, targetNorm, getNorm) {
+    let rank = null;
+    let currentRank = 0;
+    let previousValue = null;
+
+    sortedItems.forEach((item, index) => {
+      const value = item.value;
+      if (value !== previousValue) {
+        currentRank = index + 1;
+        previousValue = value;
+      }
+      if (getNorm(item) === targetNorm) {
+        rank = currentRank;
+      }
+    });
+
+    return rank;
+  }
+
+  function getRepYtdDiscordRank(repName) {
+    const targetNorm = normalizeName(repName);
+    const scored = getEligibleRepNamesForRank()
+      .map(name => ({
+        norm: normalizeName(name),
+        value: getRepDiscordCsForRange(name, "ytd")
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return getCompetitionRank(scored, targetNorm, item => item.norm);
+  }
+
+  function getTableauMetricRank(repName, metric) {
+    const dataset = tableauData.ytd;
+    if (!dataset || !Array.isArray(dataset.rows)) return null;
+
+    const targetNorm = normalizeName(repName);
+    const scored = dataset.rows
+      .map(row => ({
+        norm: normalizeName(row.name),
+        value: Number(row[metric]) || 0
+      }))
+      .filter(row => row.norm)
+      .sort((a, b) => b.value - a.value);
+
+    return getCompetitionRank(scored, targetNorm, item => item.norm);
+  }
+
+  function getGroupLeaderYtdTotal(leaderName) {
+    const downline = buildDownlineSetFromRows(recruitingRows, leaderName);
+    const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, getDateRange("ytd")));
+    let sets = 0;
+    let cs = 0;
+
+    ytdDeals.forEach(deal => {
+      const setterNorm = normalizeName(deal.setter);
+      const expertNorm = normalizeName(deal.expert);
+      if (downline.has(setterNorm) && isValidSetterName(deal.setter)) sets += 1;
+      if (downline.has(expertNorm)) cs += 1;
+    });
+
+    return (sets + cs) / 2;
+  }
+
+  function leaderQualifiesForGroup(leaderName) {
+    const norm = normalizeName(leaderName);
+    if (!norm || HIDDEN_REPS.has(norm)) return false;
+    if (EXCLUDED_GROUP_LEADERS.has(norm)) return false;
+    if (OFFICE_GROUP_LABELS.has(norm)) return false;
+    return getGroupLeaderYtdTotal(leaderName) >= 25;
+  }
+
+  function getLowestQualifyingGroup(repName) {
+    const row = getRecruitingRowForRep(repName);
+    const path = String(row?.treePath || "");
+    const repNorm = normalizeName(repName);
+
+    const candidates = path
+      .split(">")
+      .map(part => String(part || "").trim())
+      .filter(Boolean)
+      .filter(name => {
+        const norm = normalizeName(name);
+        if (norm === repNorm) return false;
+        if (HIDDEN_REPS.has(norm)) return false;
+        if (EXCLUDED_GROUP_LEADERS.has(norm)) return false;
+        if (OFFICE_GROUP_LABELS.has(norm)) return false;
+        return true;
+      });
+
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      if (leaderQualifiesForGroup(candidates[i])) {
+        return `${candidates[i]} Group`;
+      }
+    }
+
+    if (candidates.length) {
+      return `${candidates[candidates.length - 1]} Group`;
+    }
+
+    if (row?.directRecruiter) {
+      return `${row.directRecruiter} Group`;
+    }
+
+    return "—";
+  }
+
+  function getRepProfileInfo(repName) {
+    const displayName = String(repName || "").trim();
+    const row = getRecruitingRowForRep(repName);
+    const ytdRange = getDateRange("ytd");
+    let hasClose = false;
+    let hasSet = false;
+
+    allDeals.forEach(deal => {
+      if (!dealInDateRange(deal, ytdRange)) return;
+      const norm = normalizeName(repName);
+      if (normalizeName(deal.expert) === norm) hasClose = true;
+      if (isValidSetterName(deal.setter) && normalizeName(deal.setter) === norm) hasSet = true;
+    });
+
+    let role = row?.role || row?.title || "";
+    if (!role) {
+      if (hasClose) role = "Expert";
+      else if (hasSet) role = "Setter";
+      else role = "Rep";
+    }
+
+    let office = row?.office || "";
+    if (!office) {
+      ensureOfficeNameSets();
+      const norm = normalizeName(repName);
+      if (iceCollectiveNames.has(norm)) office = "Ice Collective";
+      else if (riotNames.has(norm)) office = "Riot";
+      else office = "—";
+    }
+
+    return {
+      name: displayName || "—",
+      role,
+      office,
+      managementGroup: getLowestQualifyingGroup(repName),
+      phone: "123456789",
+      instagram: "@person.person"
+    };
+  }
+
+  function buildRepCardData(repName) {
+    const profile = getRepProfileInfo(repName);
+    const ytdTableauRank = getTableauMetricRank(repName, "cs");
+
+    return {
+      profile,
+      periods: {
+        ytd: {
+          label: "YTD",
+          discordCs: getRepDiscordCsForRange(repName, "ytd"),
+          tableau: getRepTableauStatsForPeriod(repName, "ytd")
+        },
+        mtd: {
+          label: "MTD",
+          discordCs: getRepDiscordCsForRange(repName, "mtd"),
+          tableau: getRepTableauStatsForPeriod(repName, "mtd")
+        },
+        wtd: {
+          label: "WTD",
+          discordCs: getRepDiscordCsForRange(repName, "wtd"),
+          tableau: getRepTableauStatsForPeriod(repName, "wtd")
+        }
+      },
+      bestMonth: getRepBestMonthCs(repName),
+      bestWeek: getRepBestWeekCs(repName),
+      ytdDiscordRank: getRepYtdDiscordRank(repName),
+      ytdTableauCsRank: ytdTableauRank,
+      ytdSraRank: getTableauMetricRank(repName, "sra"),
+      ytdCapRank: getTableauMetricRank(repName, "cap"),
+      ytdInstallRank: getTableauMetricRank(repName, "ic")
+    };
+  }
+
+  function renderRepCardStat(label, value, sub = "") {
+    return `
+      <div class="rep-card-stat">
+        <div class="rep-card-stat-label">${escapeHtml(label)}</div>
+        <div class="rep-card-stat-value">${escapeHtml(value)}</div>
+        ${sub ? `<div class="rep-card-stat-sub">${escapeHtml(sub)}</div>` : ""}
+      </div>
+    `;
+  }
+
+  function renderRepCard(data) {
+    const { profile, periods } = data;
+
+    return `
+      <div class="rep-card-profile">
+        <div class="rep-card-avatar" aria-hidden="true">?</div>
+        <div>
+          <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
+          <div class="rep-card-meta">${escapeHtml(profile.role)} · ${escapeHtml(profile.office)}</div>
+          <div class="rep-card-meta">Management Group: ${escapeHtml(profile.managementGroup)}</div>
+          <div class="rep-card-contact">Phone: ${escapeHtml(profile.phone)}</div>
+          <div class="rep-card-contact">Instagram: ${escapeHtml(profile.instagram)}</div>
+        </div>
+      </div>
+      <div class="rep-card-stat-grid">
+        ${renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, formatRepCardTableauSub(periods.ytd.tableau))}
+        ${renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, formatRepCardTableauSub(periods.mtd.tableau))}
+        ${renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, formatRepCardTableauSub(periods.wtd.tableau))}
+        ${renderRepCardStat("Best Month", data.bestMonth)}
+        ${renderRepCardStat("Best Week", data.bestWeek)}
+        ${renderRepCardStat(
+          "YTD CS Rank",
+          data.ytdDiscordRank ?? "—",
+          data.ytdTableauCsRank ? `TBL CS Rank: ${data.ytdTableauCsRank}` : "TBL CS Rank: —"
+        )}
+        ${renderRepCardStat("YTD SRA Rank", data.ytdSraRank ?? "—")}
+        ${renderRepCardStat("YTD CAP Rank", data.ytdCapRank ?? "—")}
+        ${renderRepCardStat("YTD Install Rank", data.ytdInstallRank ?? "—")}
+      </div>
+    `;
+  }
+
+  function ensureRepCardModal() {
+    if (document.getElementById("rep-card-overlay")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "rep-card-overlay";
+    overlay.className = "rep-card-overlay";
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="rep-card-modal" role="dialog" aria-modal="true" aria-labelledby="rep-card-title">
+        <button type="button" class="rep-card-close" aria-label="Close">&times;</button>
+        <div id="rep-card-content"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  function openRepCard(repName) {
+    ensureRepCardModal();
+
+    const overlay = document.getElementById("rep-card-overlay");
+    const content = document.getElementById("rep-card-content");
+    if (!overlay || !content) return;
+
+    const data = buildRepCardData(repName);
+    content.innerHTML = renderRepCard(data);
+    overlay.hidden = false;
+    document.body.classList.add("rep-card-open");
+  }
+
+  function closeRepCard() {
+    const overlay = document.getElementById("rep-card-overlay");
+    if (!overlay) return;
+
+    overlay.hidden = true;
+    document.body.classList.remove("rep-card-open");
+  }
+
+  function setupRepCardEvents() {
+    if (repCardEventsReady) return;
+    repCardEventsReady = true;
+
+    ensureRepCardModal();
+
+    const app = document.getElementById("leaderboard-app");
+    if (app) {
+      app.addEventListener("click", event => {
+        const repButton = event.target.closest(".rep-card-name-button");
+        if (!repButton) return;
+
+        const repName = repButton.getAttribute("data-rep-card-name");
+        if (repName) openRepCard(repName);
+      });
+    }
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeRepCard();
+    });
+
+    const overlay = document.getElementById("rep-card-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", event => {
+        if (event.target === overlay) closeRepCard();
+      });
+
+      const closeButton = overlay.querySelector(".rep-card-close");
+      if (closeButton) {
+        closeButton.addEventListener("click", closeRepCard);
+      }
+    }
+  }
+
   function buildDownlineSetFromRows(rows, activeRepName) {
     const recruiterNorm = normalizeName(activeRepName);
     const downline = new Set();
@@ -2545,7 +2973,7 @@
           bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
           <div>${index + 1}</div>
-          <div>${row.name}</div>
+          <div>${buildRepNameCell(row.name)}</div>
           <div>${buildCsCell(row, true)}</div>
           ${useGroupsComparison ? buildPreviousYearCell(row) : ""}
           ${drillUseTableau ? buildTableauCell(row, activeTableauMetric) : ""}
@@ -2734,7 +3162,7 @@
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
-            <div>${row.name}</div>
+            <div>${buildRepNameCell(row.name)}</div>
             <div class="cs-cell">
     <span class="cs-main">${row.selfGen}</span>
   </div>
@@ -2841,7 +3269,7 @@
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
-            <div>${row.name}</div>
+            <div>${buildRepNameCell(row.name)}</div>
             ${activeView === "setters" ? buildCsCell(row, false) : buildCsCell(row, true)}
             ${comparisonActive ? buildPreviousYearCell(row) : ""}
             ${useTableauColumn ? buildTableauCell(row, activeTableauMetric) : ""}
@@ -2866,6 +3294,7 @@
   document.addEventListener("DOMContentLoaded", async () => {
     try {
       createButtons();
+      setupRepCardEvents();
       await loadApiData();
       await loadDownlineIfNeeded();
       isLeaderboardReady = true;
