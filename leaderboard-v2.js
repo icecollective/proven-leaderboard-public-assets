@@ -2153,11 +2153,11 @@
       );
     }
   
-    if (showNotes && row.lifetimeCloses > 0 && row.selfGen > 0) {
+    if (showNotes && row.closes > 0 && row.selfGen > 0) {
       leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
     }
 
-    if (showNotes && row.lifetimeCloses > 0 && row.setOnly > 0) {
+    if (showNotes && row.closes > 0 && row.setOnly > 0) {
       leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
     }
   
@@ -2186,11 +2186,13 @@
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
 
-    if (previousSelfGen > 0) {
+    const previousCloses = getRowPreviousCloses(row);
+
+    if (previousCloses > 0 && previousSelfGen > 0) {
       notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
     }
 
-    if (previousSetOnly > 0) {
+    if (previousCloses > 0 && previousSetOnly > 0) {
       notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
     }
 
