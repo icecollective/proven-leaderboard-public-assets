@@ -332,10 +332,14 @@
     return isTableauOnlyRep(normName) && !hasInternalRepHistory(normName);
   }
 
+  function isGroupDrillDownView() {
+    return activeView === "groups" && !!activeGroupDrillLeader;
+  }
+
   function isTableauViewRelevant() {
-    return activeView !== "groups" &&
-      activeView !== "selfgen" &&
-      ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
+    if (activeView === "selfgen") return false;
+    if (activeView === "groups" && !isGroupDrillDownView()) return false;
+    return ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
   }
 
   function canShowTableauButton() {
@@ -1268,7 +1272,7 @@
             activeSortMode = "currentContribution";
         }
         
-        if (activeView === "selfgen" || activeView === "groups") {
+        if (activeView === "selfgen" || (activeView === "groups" && !isGroupDrillDownView())) {
           setShowTableau(false);
 
           if (activeSortMode === "tableau") {
@@ -2084,7 +2088,9 @@
     const repFilteredDeals = useMomColumn() ? getMomCurrentDeals() : filteredDeals;
 
     let rows = getRepMap(repFilteredDeals);
-    const useTableauColumn = activeView !== "groups" && ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
+    const useTableauColumn = activeView !== "selfgen" &&
+      (activeView !== "groups" || isGroupDrillDownView()) &&
+      ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters") {
@@ -2254,6 +2260,14 @@
         const { current, previous } = getGroupLeaderStats(activeGroupDrillLeader, groupContext);
         const visibleNames = getGroupDrillVisibleNames(activeGroupDrillLeader, groupContext);
         let drillRows = rows.filter(row => visibleNames.has(normalizeName(row.name)));
+        const drillUseTableau = useTableauColumn;
+        const drillCols = drillUseTableau && useGroupsComparison
+          ? ".45fr 1.55fr 1.1fr 1.1fr .9fr"
+          : drillUseTableau
+          ? ".55fr 1.85fr 1.35fr .95fr"
+          : useGroupsComparison
+          ? ".55fr 1.65fr 1.2fr 1.2fr"
+          : ".6fr 1.7fr 1.7fr";
 
         const leaderNorm = normalizeName(activeGroupDrillLeader);
         if (!drillRows.some(row => normalizeName(row.name) === leaderNorm)) {
@@ -2276,6 +2290,11 @@
               if (bValue !== aValue) return bValue - aValue;
             }
 
+            if (drillUseTableau && activeSortMode === "tableau") {
+              const diff = getTableauValue(b, activeTableauMetric) - getTableauValue(a, activeTableauMetric);
+              if (diff !== 0) return diff;
+            }
+
             const aValue = getRowDisplayCs(a);
             const bValue = getRowDisplayCs(b);
             if (bValue !== aValue) return bValue - aValue;
@@ -2285,7 +2304,7 @@
         }
 
         const drillHeaderHtml = `
-      <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
+      <div class="leaderboard-header-row" style="grid-template-columns:${drillCols};">
         <div>Rank</div>
         <div>
     <button
@@ -2313,11 +2332,12 @@
       </button>
     </div>
   ` : ""}
+  ${drillUseTableau ? buildTableauHeader() : ""}
       </div>
     `;
 
         bodyRows.push(`
-      <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
+      <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div></div>
         <div>TOTAL</div>
         <div>${useGroupsComparison
@@ -2337,23 +2357,25 @@
           previousCs: previous.cs,
           previousTotal: previous.total
         }, showGroupsTotalNotes)}</div>` : ""}
+        ${drillUseTableau ? `<div>${totalTableauValue}</div>` : ""}
       </div>
     `);
 
         drillRows.forEach((row, index) => {
           const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
           bodyRows.push(`
-        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
           <div>${index + 1}</div>
           <div>${row.name}</div>
           <div>${buildCsCell(row, true)}</div>
           ${useGroupsComparison ? buildPreviousYearCell(row) : ""}
+          ${drillUseTableau ? buildTableauCell(row, activeTableauMetric) : ""}
         </div>
       `);
         });
 
         document.querySelector(".leaderboard-grid").innerHTML = `
-      <div class="leaderboard-column">
+      <div class="leaderboard-column ${drillUseTableau ? "tableau-on" : ""}">
         <div class="leaderboard-title">${activeGroupDrillLeader} Group - ${groupTitle.replace(/^Groups - /, "")}</div>
         ${drillHeaderHtml}
         <div class="leaderboard-body">
