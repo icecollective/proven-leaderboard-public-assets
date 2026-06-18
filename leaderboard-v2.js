@@ -22,7 +22,6 @@
   let allDeals = [];
   let apiMeta = null;
   let previousYearDeals = [];
-  let previousYearMap = new Map();
   let previousYearDetailsMap = new Map();
   let showYoy = false;
   let showMom = false;
@@ -40,7 +39,6 @@
   let recruitingRows = [];
   let recruiting2025Rows = [];
   let activePreviousYearDownlineNames = null;
-  let previousMonthMap = new Map();
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
   
@@ -174,9 +172,11 @@
 
   function getMomPreviousDeals() {
     const ranges = momDateRanges || getMomDateRanges();
-    return previousYearDeals.filter(deal =>
-      dealInOfficeUmbrella(deal, "previous") && dealInDateRange(deal, ranges.previous)
-    );
+    return previousYearDeals.filter(deal => dealInDateRange(deal, ranges.previous));
+  }
+
+  function getRepContribution(sets, closes) {
+    return (sets + closes) / 2;
   }
 
   function isComparisonMode() {
@@ -208,7 +208,7 @@
   }
 
   function getRowPreviousCs(row) {
-    return useMomColumn() ? row.previousMonthCs : row.previousYearCs;
+    return getRepContribution(getRowPreviousSets(row), getRowPreviousCloses(row));
   }
 
   function getRowPreviousSelfGen(row) {
@@ -276,24 +276,6 @@
     return { ice: iceCollectiveNames, riot: riotNames };
   }
 
-  function dealInOfficeUmbrella(deal, year = "current") {
-    if (includeIceCollective && includeRiot) return true;
-
-    const { ice, riot } = getOfficeNameSets(year);
-    const setterNorm = normalizeName(deal.setter);
-    const expertNorm = normalizeName(deal.expert);
-
-    if (!includeIceCollective) {
-      if (ice.has(setterNorm) || ice.has(expertNorm)) return false;
-    }
-
-    if (!includeRiot) {
-      if (riot.has(setterNorm) || riot.has(expertNorm)) return false;
-    }
-
-    return true;
-  }
-
   function repInOfficeUmbrella(normName, year = "current") {
     if (!normName) return true;
     if (includeIceCollective && includeRiot) return true;
@@ -304,10 +286,6 @@
     if (!includeRiot && riot.has(normName)) return false;
 
     return true;
-  }
-
-  function filterPreviousYearDeals(deals) {
-    return deals.filter(deal => dealInOfficeUmbrella(deal, "previous"));
   }
 
   function rebuildComparisonMapsForOffice() {
@@ -407,16 +385,16 @@
   
   function getGroupRows() {
     const range = getDateRange(activeDateMode);
-    const periodDeals = allDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, range));
-    const ytdDeals = allDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, getDateRange("ytd")));
+    const periodDeals = allDeals.filter(deal => dealInDateRange(deal, range));
+    const ytdDeals = allDeals.filter(deal => dealInDateRange(deal, getDateRange("ytd")));
     const momRanges = getMomDateRanges();
-    const momCurrentDeals = allDeals.filter(deal => dealInOfficeUmbrella(deal) && dealInDateRange(deal, momRanges.current));
-    const momPreviousDeals = filterPreviousYearDeals(previousYearDeals).filter(deal => dealInDateRange(deal, momRanges.previous));
+    const momCurrentDeals = allDeals.filter(deal => dealInDateRange(deal, momRanges.current));
+    const momPreviousDeals = previousYearDeals.filter(deal => dealInDateRange(deal, momRanges.previous));
     const useMom = showMom && activeDateMode === "mtd";
     const useYoy = activeDateMode === "ytd" && showYoy && !showMom;
     const useComparison = useMom || useYoy;
     const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
-    const previousPeriodDeals = useMom ? momPreviousDeals : filterPreviousYearDeals(previousYearDeals);
+    const previousPeriodDeals = useMom ? momPreviousDeals : previousYearDeals;
     const excludedGroupLeaders = new Set([
       "kelton higgins",
       "adam lloyd",
@@ -425,17 +403,31 @@
     ]);
 
     const repContrib2026 = new Map();
+    const repContrib2025 = new Map();
     const repContribDeals = useMom ? momCurrentDeals : (showYoy ? ytdDeals : periodDeals);
     repContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
-      if (setterNorm) repContrib2026.set(setterNorm, (repContrib2026.get(setterNorm) || 0) + 1);
-      if (expertNorm) repContrib2026.set(expertNorm, (repContrib2026.get(expertNorm) || 0) + 1);
+      if (setterNorm && repInOfficeUmbrella(setterNorm)) {
+        repContrib2026.set(setterNorm, (repContrib2026.get(setterNorm) || 0) + 1);
+      }
+      if (expertNorm && repInOfficeUmbrella(expertNorm)) {
+        repContrib2026.set(expertNorm, (repContrib2026.get(expertNorm) || 0) + 1);
+      }
+    });
+    previousYearDeals.forEach(deal => {
+      const setterNorm = normalizeName(deal.setter);
+      const expertNorm = normalizeName(deal.expert);
+      if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
+        repContrib2025.set(setterNorm, (repContrib2025.get(setterNorm) || 0) + 1);
+      }
+      if (expertNorm && repInOfficeUmbrella(expertNorm, "previous")) {
+        repContrib2025.set(expertNorm, (repContrib2025.get(expertNorm) || 0) + 1);
+      }
     });
 
     function getRepContributions2025(normName) {
-      const stats = previousYearDetailsMap.get(normName);
-      return stats ? stats.sets + stats.closes : 0;
+      return repContrib2025.get(normName) || 0;
     }
 
     function filterDownlineForYear(downlineNames, year, applyYoyFilters = useComparison) {
@@ -460,22 +452,21 @@
       return filtered;
     }
 
-    function computeGroupStats(downlineNames, deals) {
+    function computeGroupStats(downlineNames, deals, year = "current") {
       let sets = 0;
       let cs = 0;
-      const dealIds = new Set();
 
       deals.forEach(deal => {
-        const dealId = String(deal.messageId || "").trim();
-        const setterInGroup = downlineNames.has(normalizeName(deal.setter));
-        const expertInGroup = downlineNames.has(normalizeName(deal.expert));
+        const setterNorm = normalizeName(deal.setter);
+        const expertNorm = normalizeName(deal.expert);
+        const setterInGroup = downlineNames.has(setterNorm) && repInOfficeUmbrella(setterNorm, year);
+        const expertInGroup = downlineNames.has(expertNorm) && repInOfficeUmbrella(expertNorm, year);
 
         if (setterInGroup) sets += 1;
         if (expertInGroup) cs += 1;
-        if (dealId && (setterInGroup || expertInGroup)) dealIds.add(dealId);
       });
 
-      return { sets, cs, total: (sets + cs) / 2, dealIds };
+      return { sets, cs, total: (sets + cs) / 2 };
     }
 
     function qualifiesByYtd(ytdCurrent, ytdPrevious) {
@@ -489,11 +480,9 @@
         sets: current.sets,
         cs: current.cs,
         total: current.total,
-        dealIds: current.dealIds,
         previousSets: previous.sets,
         previousCs: previous.cs,
-        previousTotal: previous.total,
-        previousDealIds: previous.dealIds
+        previousTotal: previous.total
       };
     }
 
@@ -504,15 +493,16 @@
       const leaderNorm = normalizeName(leaderName);
 
       if (!leaderName || HIDDEN_REPS.has(leaderNorm) || excludedGroupLeaders.has(leaderNorm)) return;
+      if (!repInOfficeUmbrella(leaderNorm)) return;
 
       const downlineNames = buildDownlineSetFromRows(recruitingRows, leaderName);
       if (!downlineNames.size) return;
 
       const previousDownlineNames = buildDownlineSetFromRows(recruiting2025Rows, leaderName);
-      const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy || showMom), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy || showMom), filterPreviousYearDeals(previousYearDeals));
-      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026", useComparison), currentPeriodDeals);
-      const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", useComparison), previousPeriodDeals);
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(downlineNames, "2026", showYoy || showMom), ytdDeals, "current");
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", showYoy || showMom), previousYearDeals, "previous");
+      const current = computeGroupStats(filterDownlineForYear(downlineNames, "2026", useComparison), currentPeriodDeals, "current");
+      const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", useComparison), previousPeriodDeals, "previous");
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(leaderName, current, previous));
@@ -547,10 +537,10 @@
       if (!currentNames) return;
 
       const previousNames = buildOfficeNames(recruiting2025Rows) || new Set();
-      const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy || showMom), ytdDeals);
-      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy || showMom), filterPreviousYearDeals(previousYearDeals));
-      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026", useComparison), currentPeriodDeals);
-      const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025", useComparison), previousPeriodDeals);
+      const ytdCurrent = computeGroupStats(filterDownlineForYear(currentNames, "2026", showYoy || showMom), ytdDeals, "current");
+      const ytdPrevious = computeGroupStats(filterDownlineForYear(previousNames, "2025", showYoy || showMom), previousYearDeals, "previous");
+      const current = computeGroupStats(filterDownlineForYear(currentNames, "2026", useComparison), currentPeriodDeals, "current");
+      const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025", useComparison), previousPeriodDeals, "previous");
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
         groupRows.push(buildGroupRow(label, current, previous));
@@ -576,8 +566,8 @@
     );
 
     const totalStats = {
-      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026", useComparison), currentPeriodDeals),
-      previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025", useComparison), previousPeriodDeals)
+      current: computeGroupStats(filterDownlineForYear(allCurrentNames, "2026", useComparison), currentPeriodDeals, "current"),
+      previous: computeGroupStats(filterDownlineForYear(allPreviousNames, "2025", useComparison), previousPeriodDeals, "previous")
     };
 
     return { groupRows, totalStats, range };
@@ -699,59 +689,51 @@
   }
   
   function rebuildPreviousYearMap() {
-    previousYearMap = new Map();
     previousYearDetailsMap = new Map();
-  
+
     function ensureStats(name) {
-    const norm = normalizeName(name);
-    if (!norm || HIDDEN_REPS.has(norm)) return null;
-  
-    if (!previousYearDetailsMap.has(norm)) {
-      previousYearDetailsMap.set(norm, {
-        dealIds: new Set(),
-        sets: 0,
-        closes: 0,
-        setOnly: 0,
-        selfGen: 0
-      });
+      const norm = normalizeName(name);
+      if (!norm || HIDDEN_REPS.has(norm)) return null;
+
+      if (!previousYearDetailsMap.has(norm)) {
+        previousYearDetailsMap.set(norm, {
+          sets: 0,
+          closes: 0,
+          setOnly: 0,
+          selfGen: 0
+        });
+      }
+
+      return previousYearDetailsMap.get(norm);
     }
-  
-    return previousYearDetailsMap.get(norm);
-  }
-  
+
     previousYearDeals.forEach(deal => {
-      const dealId = String(deal.messageId || "").trim();
-      if (!dealId || !dealInOfficeUmbrella(deal, "previous")) return;
-  
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
-  
-      const setterStats = ensureStats(deal.setter);
-      if (setterStats) {
-        setterStats.dealIds.add(dealId);
-        setterStats.sets += 1;
-        if (isSelfGen) {
-          setterStats.selfGen += 1;
-        } else {
-          setterStats.setOnly += 1;
+
+      if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
+        const setterStats = ensureStats(deal.setter);
+        if (setterStats) {
+          setterStats.sets += 1;
+          if (isSelfGen) {
+            setterStats.selfGen += 1;
+          } else {
+            setterStats.setOnly += 1;
+          }
         }
       }
-  
-      const expertStats = ensureStats(deal.expert);
-      if (expertStats) {
-    expertStats.dealIds.add(dealId);
-    expertStats.closes += 1;
-  }
-    });
-  
-    previousYearDetailsMap.forEach((stats, norm) => {
-      previousYearMap.set(norm, stats.dealIds);
+
+      if (expertNorm && repInOfficeUmbrella(expertNorm, "previous")) {
+        const expertStats = ensureStats(deal.expert);
+        if (expertStats) {
+          expertStats.closes += 1;
+        }
+      }
     });
   }
 
   function rebuildPreviousMonthMap() {
-    previousMonthMap = new Map();
     previousMonthDetailsMap = new Map();
 
     function ensureStats(name) {
@@ -760,7 +742,6 @@
 
       if (!previousMonthDetailsMap.has(norm)) {
         previousMonthDetailsMap.set(norm, {
-          dealIds: new Set(),
           sets: 0,
           closes: 0,
           setOnly: 0,
@@ -772,33 +753,28 @@
     }
 
     getMomPreviousDeals().forEach(deal => {
-      const dealId = String(deal.messageId || "").trim();
-      if (!dealId) return;
-
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
 
-      const setterStats = ensureStats(deal.setter);
-      if (setterStats) {
-        setterStats.dealIds.add(dealId);
-        setterStats.sets += 1;
-        if (isSelfGen) {
-          setterStats.selfGen += 1;
-        } else {
-          setterStats.setOnly += 1;
+      if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
+        const setterStats = ensureStats(deal.setter);
+        if (setterStats) {
+          setterStats.sets += 1;
+          if (isSelfGen) {
+            setterStats.selfGen += 1;
+          } else {
+            setterStats.setOnly += 1;
+          }
         }
       }
 
-      const expertStats = ensureStats(deal.expert);
-      if (expertStats) {
-        expertStats.dealIds.add(dealId);
-        expertStats.closes += 1;
+      if (expertNorm && repInOfficeUmbrella(expertNorm, "previous")) {
+        const expertStats = ensureStats(deal.expert);
+        if (expertStats) {
+          expertStats.closes += 1;
+        }
       }
-    });
-
-    previousMonthDetailsMap.forEach((stats, norm) => {
-      previousMonthMap.set(norm, stats.dealIds);
     });
   }
   
@@ -1071,13 +1047,11 @@
   }
   
   function dealInScope(deal) {
-    if (!dealInOfficeUmbrella(deal)) return false;
-
     if (!isSubsetMode || !activeDownlineNames) return true;
-  
+
     const setterInScope = activeDownlineNames.has(normalizeName(deal.setter));
     const expertInScope = activeDownlineNames.has(normalizeName(deal.expert));
-  
+
     return setterInScope || expertInScope;
   }
   
@@ -1111,8 +1085,7 @@
           setOnly: 0,
           lifetimeSets: 0,
           lifetimeCloses: 0,
-          lifetimeSelfGen: 0,
-          dealIds: new Set()
+          lifetimeSelfGen: 0
         });
       }
   
@@ -1137,32 +1110,27 @@
     });
   
     filteredDeals.forEach(deal => {
-      const dealId = String(deal.messageId || "").trim();
-      if (!dealId) return;
-  
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
       const isSelfGen = setterNorm && expertNorm && setterNorm === expertNorm;
-  
+
       const setter = ensureRep(deal.setter);
       if (setter) {
         setter.sets += 1;
-        setter.dealIds.add(dealId);
-  
+
         if (isSelfGen) {
           setter.selfGen += 1;
         } else {
           setter.setOnly += 1;
         }
       }
-  
+
       const expert = ensureRep(deal.expert);
       if (expert) {
         expert.closes += 1;
-        expert.dealIds.add(dealId);
       }
     });
-  
+
     return Array.from(repMap.values()).map(rep => ({
       name: rep.name,
       sets: rep.sets,
@@ -1172,15 +1140,12 @@
       lifetimeSets: rep.lifetimeSets,
       lifetimeCloses: rep.lifetimeCloses,
       lifetimeSelfGen: rep.lifetimeSelfGen,
-      cs: rep.dealIds.size,
-      dealIds: rep.dealIds,
+      cs: getRepContribution(rep.sets, rep.closes),
       tableau: tableauMap.get(normalizeName(rep.name)) || {},
-      previousYearCs: previousYearMap.has(normalizeName(rep.name)) ? previousYearMap.get(normalizeName(rep.name)).size : 0,
       previousYearSetOnly: previousYearDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
       previousYearSelfGen: previousYearDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
       previousYearSets: previousYearDetailsMap.get(normalizeName(rep.name))?.sets || 0,
       previousYearCloses: previousYearDetailsMap.get(normalizeName(rep.name))?.closes || 0,
-      previousMonthCs: previousMonthMap.has(normalizeName(rep.name)) ? previousMonthMap.get(normalizeName(rep.name)).size : 0,
       previousMonthSetOnly: previousMonthDetailsMap.get(normalizeName(rep.name))?.setOnly || 0,
       previousMonthSelfGen: previousMonthDetailsMap.get(normalizeName(rep.name))?.selfGen || 0,
       previousMonthSets: previousMonthDetailsMap.get(normalizeName(rep.name))?.sets || 0,
@@ -1218,14 +1183,11 @@
           lifetimeCloses: 0,
           lifetimeSelfGen: 0,
           cs: 0,
-          dealIds: new Set(),
           tableau: {},
-          previousYearCs: previousYearMap.has(norm) ? previousYearMap.get(norm).size : 0,
           previousYearSetOnly: previousYearDetailsMap.get(norm)?.setOnly || 0,
           previousYearSelfGen: previousYearDetailsMap.get(norm)?.selfGen || 0,
           previousYearSets: previousYearDetailsMap.get(norm)?.sets || 0,
           previousYearCloses: previousYearDetailsMap.get(norm)?.closes || 0,
-          previousMonthCs: previousMonthMap.has(norm) ? previousMonthMap.get(norm).size : 0,
           previousMonthSetOnly: previousMonthDetailsMap.get(norm)?.setOnly || 0,
           previousMonthSelfGen: previousMonthDetailsMap.get(norm)?.selfGen || 0,
           previousMonthSets: previousMonthDetailsMap.get(norm)?.sets || 0,
@@ -1237,55 +1199,28 @@
     return rows;
   }
   
-  function getUniqueDealCountFromRows(rows) {
-    const ids = new Set();
-    rows.forEach(row => row.dealIds.forEach(id => ids.add(id)));
-    return ids.size;
-  }
-  
-  function getPreviousYearUniqueDealCountFromRows(rows) {
-    const ids = new Set();
-    const map = useMomColumn() ? previousMonthMap : previousYearMap;
+  function getCreditTotalsFromDeals(deals, rows, year = "current") {
+    const visibleNames = new Set(rows.map(row => normalizeName(row.name)));
 
-    rows.forEach(row => {
-      const norm = normalizeName(row.name);
-      const repDeals = map.get(norm);
-      if (!repDeals) return;
+    let sets = 0;
+    let cs = 0;
 
-      repDeals.forEach(id => ids.add(id));
+    deals.forEach(deal => {
+      const setterNorm = normalizeName(deal.setter);
+      const expertNorm = normalizeName(deal.expert);
+      if (visibleNames.has(setterNorm) && repInOfficeUmbrella(setterNorm, year)) sets += 1;
+      if (visibleNames.has(expertNorm) && repInOfficeUmbrella(expertNorm, year)) cs += 1;
     });
 
-    return ids.size;
+    return { sets, cs };
   }
-  
+
   function previousYearHadClose(normName) {
     return previousYearDeals.some(deal =>
       normalizeName(deal.expert) === normName
     );
   }
-    
-  function shouldUseCurrentUniqueTotal() {
-    return !isSubsetMode && (!isComparisonMode() || includeNewReps);
-  }
 
-  function shouldUsePreviousYearUniqueTotal() {
-    return !isSubsetMode && (!isComparisonMode() || includeOldReps);
-  }
-  
-  function getCreditTotalsFromDeals(deals, rows) {
-    const visibleNames = new Set(rows.map(row => normalizeName(row.name)));
-  
-    let sets = 0;
-    let cs = 0;
-  
-    deals.forEach(deal => {
-      if (visibleNames.has(normalizeName(deal.setter))) sets += 1;
-      if (visibleNames.has(normalizeName(deal.expert))) cs += 1;
-    });
-  
-    return { sets, cs };
-  }
-  
   function getComparisonPercent(current, previous) {
     if (!previous) return null;
     if (current === 0) return null;
@@ -1502,11 +1437,10 @@
   
   function buildPreviousYearCell(row) {
     const notes = [];
-    const previousCs = getRowPreviousCs(row);
     const previousSetOnly = getRowPreviousSetOnly(row);
     const previousSelfGen = getRowPreviousSelfGen(row);
 
-    if (previousCs > previousSetOnly && previousSetOnly > 0) {
+    if (previousSetOnly > 0) {
       notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
     }
 
@@ -1521,7 +1455,7 @@
     return `
       <div class="cs-cell">
         ${noteHtml}
-        <span class="cs-main">${previousCs}</span>
+        <span class="cs-main">${getRowPreviousCs(row)}</span>
       </div>
     `;
   }
@@ -1677,17 +1611,22 @@
       return a.name.localeCompare(b.name);
     });
   
-    const visibleUniqueDeals = getUniqueDealCountFromRows(rows);
     const totalSelfGen = rows.reduce((sum, row) => sum + row.selfGen, 0);
     const totalTableauValue = getTableauTotal(rows, activeTableauMetric);
-  
-    const useCurrentUniqueTotal = shouldUseCurrentUniqueTotal();
-    const usePreviousYearUniqueTotal = shouldUsePreviousYearUniqueTotal();
+
     const previousComparisonDeals = useMomColumn()
       ? getMomPreviousDeals()
-      : filterPreviousYearDeals(previousYearDeals);
-    const currentCreditTotals = getCreditTotalsFromDeals(useMomColumn() ? getMomCurrentDeals() : filteredDeals, rows);
-    const previousYearCreditTotals = getCreditTotalsFromDeals(previousComparisonDeals, rows);
+      : previousYearDeals;
+    const currentCreditTotals = getCreditTotalsFromDeals(
+      useMomColumn() ? getMomCurrentDeals() : filteredDeals,
+      rows,
+      "current"
+    );
+    const previousYearCreditTotals = getCreditTotalsFromDeals(
+      previousComparisonDeals,
+      rows,
+      "previous"
+    );
    
     const title = useMomColumn() && activeView !== "groups"
       ? `${activeTitle || "Proven Leaderboard V2"} - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
@@ -1711,7 +1650,7 @@
 
       if (activeSortMode === "previousContribution") {
         if (b.previousTotal !== a.previousTotal) return b.previousTotal - a.previousTotal;
-        if (b.previousDealIds.size !== a.previousDealIds.size) return b.previousDealIds.size - a.previousDealIds.size;
+        if (b.previousSets !== a.previousSets) return b.previousSets - a.previousSets;
         return a.name.localeCompare(b.name);
       }
 
@@ -1723,12 +1662,12 @@
 
         if (bValue !== aValue) return bValue - aValue;
         if (b.total !== a.total) return b.total - a.total;
-        if (b.dealIds.size !== a.dealIds.size) return b.dealIds.size - a.dealIds.size;
+        if (b.sets !== a.sets) return b.sets - a.sets;
         return a.name.localeCompare(b.name);
       }
 
       if (b.total !== a.total) return b.total - a.total;
-      if (b.dealIds.size !== a.dealIds.size) return b.dealIds.size - a.dealIds.size;
+      if (b.sets !== a.sets) return b.sets - a.sets;
       return a.name.localeCompare(b.name);
     });
 
@@ -1766,16 +1705,6 @@
       </div>
     `;
 
-    const useGroupsUnique2026 = !useGroupsComparison || includeNewReps;
-    const useGroupsUnique2025 = !useGroupsComparison || includeOldReps;
-
-    const total2026 = useGroupsUnique2026
-      ? totalStats.current.dealIds.size
-      : totalStats.current.total;
-    const total2025 = useGroupsUnique2025
-      ? totalStats.previous.dealIds.size
-      : totalStats.previous.total;
-
     bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div></div>
@@ -1784,14 +1713,18 @@
           ? buildGroupTotalCell({
             sets: totalStats.current.sets,
             cs: totalStats.current.cs,
-            total: total2026,
-            previousTotal: total2025
+            total: totalStats.current.total,
+            previousTotal: totalStats.previous.total
           }, useGroupsComparison)
-          : totalStats.current.dealIds.size}</div>
+          : buildGroupTotalCell({
+            sets: totalStats.current.sets,
+            cs: totalStats.current.cs,
+            total: totalStats.current.total
+          }, false)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
           previousSets: totalStats.previous.sets,
           previousCs: totalStats.previous.cs,
-          previousTotal: total2025
+          previousTotal: totalStats.previous.total
         })}</div>` : ""}
       </div>
     `);
@@ -1922,13 +1855,9 @@
         </div>
       `;
 
-      const currentTotalValue = useCurrentUniqueTotal
-        ? visibleUniqueDeals
-        : (currentCreditTotals.sets + currentCreditTotals.cs) / 2;
+      const currentTotalValue = (currentCreditTotals.sets + currentCreditTotals.cs) / 2;
       const previousTotalValue = comparisonActive
-        ? (usePreviousYearUniqueTotal
-          ? getPreviousYearUniqueDealCountFromRows(rows)
-          : (previousYearCreditTotals.sets + previousYearCreditTotals.cs) / 2)
+        ? (previousYearCreditTotals.sets + previousYearCreditTotals.cs) / 2
         : 0;
       const totalComparisonPct = comparisonActive
         ? getComparisonPercent(currentTotalValue, previousTotalValue)
@@ -1938,12 +1867,8 @@
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
           <div></div>
           <div>TOTAL</div>
-         <div>${useCurrentUniqueTotal
-          ? buildUniqueTotalCell(visibleUniqueDeals, totalComparisonPct)
-          : buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
-         ${comparisonActive ? `<div>${usePreviousYearUniqueTotal
-          ? getPreviousYearUniqueDealCountFromRows(rows)
-          : buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
+         <div>${buildCreditTotalCell(currentCreditTotals, totalComparisonPct)}</div>
+         ${comparisonActive ? `<div>${buildCreditTotalCell(previousYearCreditTotals)}</div>` : ""}
           ${useTableauColumn ? `<div>${totalTableauValue}</div>` : ""}
         </div>
       `);
