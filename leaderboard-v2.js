@@ -326,6 +326,13 @@
     return false;
   }
 
+  function isOnlyPlataOfficeSelected() {
+    return includePlata &&
+      canUsePlataToggle() &&
+      !includeIceCollective &&
+      !includeRiot;
+  }
+
   function shouldShowPlataRows(useTableauColumn) {
     return useTableauColumn && includePlata && canUsePlataToggle();
   }
@@ -1064,6 +1071,14 @@
     tableauBtn.id = "tableau-toggle";
     tableauBtn.textContent = "Tableau";
     tableauBtn.addEventListener("click", () => {
+      const turningTableauOff = showTableau;
+
+      if (turningTableauOff && isOnlyPlataOfficeSelected()) {
+        includeIceCollective = true;
+        includeRiot = true;
+        rebuildComparisonMapsForOffice();
+      }
+
       showTableau = !showTableau;
       if (showTableau) activeSortMode = "tableau";
       renderLeaderboard();
