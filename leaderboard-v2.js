@@ -925,7 +925,7 @@
 
     if (showYoy) {
       showMom = false;
-      activeSortMode = activeView === "groups" ? "currentContribution" : "previousContribution";
+      activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
     }
