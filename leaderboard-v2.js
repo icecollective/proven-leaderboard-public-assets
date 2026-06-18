@@ -312,6 +312,11 @@
       dataset.rows.length > 0;
   }
 
+  function setShowTableau(value) {
+    showTableau = value;
+    if (!value) includePlata = false;
+  }
+
   function canUsePlataToggle() {
     return activeView === "general" && canShowTableauButton();
   }
@@ -983,7 +988,7 @@
         btn.classList.toggle("active", office.get());
 
         if (office.id === "plata-toggle" && turningOn) {
-          showTableau = true;
+          setShowTableau(true);
           activeSortMode = "tableau";
         }
 
@@ -1020,7 +1025,7 @@
         }
         
         if (activeView === "selfgen" || activeView === "groups") {
-          showTableau = false;
+          setShowTableau(false);
 
           if (activeSortMode === "tableau") {
             activeSortMode = "currentContribution";
@@ -1058,7 +1063,7 @@
     rebuildTableauMap();
   
     if (!["ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) {
-      showTableau = false;
+      setShowTableau(false);
     }
   
     renderLeaderboard();
@@ -1079,7 +1084,7 @@
         rebuildComparisonMapsForOffice();
       }
 
-      showTableau = !showTableau;
+      setShowTableau(!showTableau);
       if (showTableau) activeSortMode = "tableau";
       renderLeaderboard();
     });
@@ -1184,7 +1189,7 @@
     }
 
     if (!shouldShowTableau) {
-      showTableau = false;
+      setShowTableau(false);
     } else {
       const labelDate = formatShortDate(dataset.lastUpdated);
       btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
