@@ -1,0 +1,246 @@
+  html, body { background:#fff !important; }
+  
+  .leaderboard-tabs {
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  
+  .leaderboard-tabs button,
+  #apply-custom {
+    padding:10px 12px;
+    border-radius:12px;
+    border:none;
+    background:#e0e7ff;
+    font-weight:700;
+    cursor:pointer;
+    font-size:14px;
+    color:#1f2937;
+    white-space:nowrap;
+  }
+  
+  .leaderboard-tabs button.active,
+  #apply-custom {
+    background:#102c57;
+    color:white;
+  }
+  
+  #custom-date-wrapper input {
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #d1d5db;
+    font-size:14px;
+  }
+  
+  .leaderboard-grid {
+    display:flex;
+    justify-content:center;
+  }
+  
+  .leaderboard-column {
+    width:100%;
+    max-width:860px;
+    background:white;
+    border-radius:16px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+    overflow:visible;
+  }
+  
+  .leaderboard-title {
+    background:#e9efff;
+    padding:12px;
+    text-align:center;
+    font-size:16px;
+    font-weight:700;
+  
+    position:sticky;
+    top:0;
+    z-index:50;
+  }
+  
+  .leaderboard-header-row,
+  .leaderboard-row {
+    display:grid;
+    grid-template-columns:.7fr 2fr 1fr;
+    text-align:center;
+    align-items:center;
+  }
+  
+  .leaderboard-header-row {
+    background:#102c57;
+    color:white;
+    font-weight:700;
+    padding:9px 0;
+  
+    position:sticky;
+    top:43px;
+    z-index:49;
+  }
+  
+  .leaderboard-row {
+    padding:9px 0;
+    border-bottom:1px solid #e5e7eb;
+    font-size:13.5px;
+  }
+  
+  .total-row {
+    font-weight:700;
+    background:#e0edff;
+  }
+  
+  .even-row { background:#f5f8ff; }
+  .odd-row { background:#fff; }
+  
+  .cs-cell {
+    position:relative;
+    width:100%;
+    min-height:26px;
+  }
+  
+  .cs-notes-stack {
+    position:absolute;
+    right:calc(50% + 22px);
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    line-height:1.05;
+  }
+  
+  .cs-note-left {
+    font-size:9px;
+    color:#9ca3af;
+    font-weight:500;
+    white-space:nowrap;
+    text-align:center;
+  }
+  
+  .cs-main {
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%, -50%);
+    font-weight:600;
+    text-align:center;
+  }
+  
+  .cs-notes-right {
+    position:absolute;
+    left:calc(50% + 22px);
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    line-height:1.05;
+  }
+  
+  .sort-header-button,
+  .tableau-select {
+    background:transparent;
+    color:white;
+    border:1px solid rgba(255,255,255,.35);
+    border-radius:8px;
+    font-weight:700;
+    font-size:inherit;
+    text-align:center;
+    outline:none;
+    cursor:pointer;
+    max-width:100%;
+    padding:4px 6px;
+  }
+  
+  .sort-header-button.active-sort,
+  .tableau-select.active-sort {
+    background:#061a33;
+    border-color:#061a33;
+    color:white;
+  }
+  
+  .sort-header-button:hover,
+  .tableau-select:hover {
+    background:rgba(255,255,255,.12);
+  }
+  
+  .tableau-header-cell {
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+  
+  .tableau-cell {
+    position:relative;
+    width:100%;
+    min-height:26px;
+  }
+  
+  .tableau-notes-stack {
+    position:absolute;
+    right:calc(50% + 24px);
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    line-height:1.05;
+  }
+  
+  .tableau-note-left {
+    font-size:9px;
+    color:#9ca3af;
+    font-weight:500;
+    white-space:nowrap;
+    text-align:center;
+  }
+  
+  .tableau-main {
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%, -50%);
+    font-weight:600;
+    text-align:center;
+  }
+  
+  #scope-title:empty {
+    display:none;
+  }
+  
+  @media (max-width:768px) {
+    .leaderboard-header-row,
+    .leaderboard-row {
+      font-size:12px;
+    }
+  
+    .leaderboard-tabs button {
+      font-size:12px;
+      padding:10px 8px;
+    }
+  
+    .cs-notes-stack {
+      right:calc(50% + 18px);
+    }
+  
+    .cs-note-left {
+      font-size:8px;
+    }
+  
+    .tableau-select {
+      font-size:12px;
+    }
+  
+    .tableau-notes-stack {
+      right:calc(50% + 20px);
+    }
+  
+    .tableau-note-left {
+      font-size:8px;
+    }
+  }
+  
