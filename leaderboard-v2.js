@@ -901,8 +901,14 @@
       btn.addEventListener("click", () => {
         if (office.id === "plata-toggle" && !canShowTableauButton()) return;
 
-        office.set(!office.get());
+        const turningOn = !office.get();
+        office.set(turningOn);
         btn.classList.toggle("active", office.get());
+
+        if (office.id === "plata-toggle" && turningOn) {
+          showTableau = true;
+          activeSortMode = "tableau";
+        }
 
         if (office.id !== "plata-toggle") {
           rebuildComparisonMapsForOffice();
