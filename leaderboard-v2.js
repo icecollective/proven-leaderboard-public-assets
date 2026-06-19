@@ -1505,6 +1505,7 @@
   }
 
   function shouldShowPreviousTotalNotes() {
+    if (isComparisonMode() && (!includeIceCollective || !includeRiot)) return true;
     if (isComparisonMode() && !includeOldReps) return true;
     return false;
   }
