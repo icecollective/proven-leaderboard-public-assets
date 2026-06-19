@@ -67,6 +67,13 @@
   let activeTitle = "";
   let activeGroupDrillLeader = null;
   let isLeaderboardReady = false;
+  // Name of the rep whose card is currently open (last opened).
+  let currentRepCardName = null;
+  // When a group drill-down is entered by clicking the group link inside a rep
+  // card, this holds { rep, state }: the rep's name plus a full snapshot of the
+  // view state from before the drill, so "← Back" can restore that exact view
+  // and reopen the card on top of it.
+  let groupDrillReturn = null;
 
   const OFFICE_GROUP_LABELS = new Set(["ice collective", "riot"]);
   const EXCLUDED_GROUP_LEADERS = new Set([
@@ -785,6 +792,7 @@
 
   function navigateToGeneralFromOfficeGroup(office) {
     activeGroupDrillLeader = null;
+    groupDrillReturn = null;
 
     if (office === "ice") {
       includeIceCollective = true;
@@ -1430,6 +1438,7 @@
     content.innerHTML = renderRepCard(data);
     overlay.hidden = false;
     document.body.classList.add("rep-card-open");
+    currentRepCardName = repName;
   }
 
   function handleRepCardOfficeClick(officeKey) {
@@ -1458,7 +1467,59 @@
     renderLeaderboard();
   }
 
+  // Snapshot of all view-state toggles/filters that define what the leaderboard
+  // is currently showing.
+  function captureViewState() {
+    return {
+      activeView,
+      activeDateMode,
+      showTableau,
+      showYoy,
+      showMom,
+      includeOldReps,
+      includeNewReps,
+      includeIceCollective,
+      includeRiot,
+      includePlata,
+      activeSortMode,
+      activeTableauMetric,
+      activeGroupDrillLeader,
+      isSubsetMode,
+      activeDownlineNames,
+      activePreviousYearDownlineNames,
+      activeTitle
+    };
+  }
+
+  function restoreViewState(state) {
+    if (!state) return;
+    activeView = state.activeView;
+    activeDateMode = state.activeDateMode;
+    showTableau = state.showTableau;
+    showYoy = state.showYoy;
+    showMom = state.showMom;
+    includeOldReps = state.includeOldReps;
+    includeNewReps = state.includeNewReps;
+    includeIceCollective = state.includeIceCollective;
+    includeRiot = state.includeRiot;
+    includePlata = state.includePlata;
+    activeSortMode = state.activeSortMode;
+    activeTableauMetric = state.activeTableauMetric;
+    activeGroupDrillLeader = state.activeGroupDrillLeader;
+    isSubsetMode = state.isSubsetMode;
+    activeDownlineNames = state.activeDownlineNames;
+    activePreviousYearDownlineNames = state.activePreviousYearDownlineNames;
+    activeTitle = state.activeTitle;
+
+    rebuildComparisonMapsForOffice();
+    setActiveViewTab(activeView);
+    renderLeaderboard();
+  }
+
   function handleRepCardGroupClick(groupLeader) {
+    // Remember the rep card we came from AND the full view state behind it, so
+    // the group's Back button can restore that exact view and reopen the card.
+    groupDrillReturn = { rep: currentRepCardName, state: captureViewState() };
     closeRepCard();
 
     activeView = "groups";
@@ -2171,6 +2232,16 @@
     groupDrillBack.className = "group-drill-back";
     groupDrillBack.textContent = "← Back";
     groupDrillBack.addEventListener("click", () => {
+      // If we drilled in from a rep card, Back restores the exact view that was
+      // behind the card and reopens the card on top of it. Otherwise it just
+      // returns to the top-level Groups list.
+      if (groupDrillReturn) {
+        const returnRep = groupDrillReturn.rep;
+        restoreViewState(groupDrillReturn.state);
+        groupDrillReturn = null;
+        if (returnRep) openRepCard(returnRep);
+        return;
+      }
       activeGroupDrillLeader = null;
       updateGroupDrillNav();
       renderLeaderboard();
@@ -2201,6 +2272,7 @@
       btn.addEventListener("click", () => {
         if (activeView !== view.key) {
           activeGroupDrillLeader = null;
+          groupDrillReturn = null;
         }
 
         activeView = view.key;
@@ -2354,6 +2426,8 @@
       const leaderButton = event.target.closest("[data-group-leader]");
       if (!leaderButton || activeView !== "groups" || activeGroupDrillLeader) return;
 
+      // Manual drill-in from the Groups list: Back should go to that list.
+      groupDrillReturn = null;
       activeGroupDrillLeader = leaderButton.getAttribute("data-group-leader");
       updateGroupDrillNav();
       renderLeaderboard();
