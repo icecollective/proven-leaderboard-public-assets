@@ -45,6 +45,7 @@
   let tableauMap = new Map();
   let recruitingRows = [];
   let recruiting2025Rows = [];
+  let repProfiles = {}; // approved rep card info keyed by normalized name
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -1242,6 +1243,8 @@
       groupLeader = groupOverride.groupLeader;
     }
 
+    const submitted = repProfiles[norm] || {};
+
     return {
       name: displayName || "—",
       role,
@@ -1250,8 +1253,9 @@
       groupLabel,
       groupLeader,
       isPlata,
-      phone: "123456789",
-      instagram: "@person.person"
+      phone: submitted.phone || "",
+      instagram: submitted.instagram || "",
+      photoUrl: submitted.photoUrl || ""
     };
   }
 
@@ -1385,12 +1389,16 @@
 
     return `
       <div class="rep-card-profile">
-        <div class="rep-card-avatar" aria-hidden="true">?</div>
+        <div class="rep-card-avatar" aria-hidden="true" style="overflow:hidden">${
+          profile.photoUrl
+            ? `<img src="${escapeHtml(profile.photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`
+            : "?"
+        }</div>
         <div>
           <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
           ${renderRepCardProfileMeta(profile)}
-          <div class="rep-card-contact">Phone: ${escapeHtml(profile.phone)}</div>
-          <div class="rep-card-contact">Instagram: ${escapeHtml(profile.instagram)}</div>
+          ${profile.phone ? `<div class="rep-card-contact">Phone: ${escapeHtml(profile.phone)}</div>` : ""}
+          ${profile.instagram ? `<div class="rep-card-contact">Instagram: @${escapeHtml(profile.instagram)}</div>` : ""}
         </div>
       </div>
       <div class="rep-card-stat-grid">
@@ -1971,10 +1979,16 @@
   }
 
   function getUrlMode() {
+    // ?rep= / ?office= sub-leaderboard deep links are disabled — office/group
+    // filtering is now built into the site UI, so these always resolve to the
+    // full leaderboard (no subset mode).
+    return { isSubset: false, lookupSlug: "", title: "" };
+
+    // eslint-disable-next-line no-unreachable
     const params = new URLSearchParams(window.location.search);
     const officeSlug = makeSlug(params.get("office") || "");
     const repSlug = makeSlug(params.get("rep") || "");
-  
+
     if (officeSlug && officeMap[officeSlug]) {
       return {
         isSubset: true,
@@ -1982,7 +1996,7 @@
         title: officeMap[officeSlug].title
       };
     }
-  
+
     if (repSlug) {
       return {
         isSubset: true,
@@ -2013,6 +2027,8 @@
     payload.recruiting && Array.isArray(payload.recruiting.rows) ? payload.recruiting.rows : [];
 
   recruiting2025Rows = payload.recruiting2025 && Array.isArray(payload.recruiting2025.rows) ? payload.recruiting2025.rows : [];
+
+    repProfiles = payload.repProfiles && typeof payload.repProfiles === "object" ? payload.repProfiles : {};
 
     rebuildOfficeNameSets();
     rebuildPreviousYearMap();
