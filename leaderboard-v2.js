@@ -2994,11 +2994,20 @@
     if (showNotes) {
       if (activeView === "setters") {
         // Setter rows do not show Sets/SG subscripts.
-      } else if (activeView === "experts" || activeView === "general") {
+      } else if (activeView === "experts") {
         if (row.selfGen > 0) {
           leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
         }
         if (row.setOnly > 0) {
+          leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
+        }
+      } else if (activeView === "general") {
+        // General mixes setters and experts. Only experts (reps with at least
+        // one close) show Sets/SG subscripts; pure setters get none.
+        if (row.closes > 0 && row.selfGen > 0) {
+          leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
+        }
+        if (row.closes > 0 && row.setOnly > 0) {
           leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
         }
       } else {
@@ -3039,11 +3048,20 @@
 
     if (activeView === "setters") {
       // Setter rows do not show Sets/SG subscripts.
-    } else if (activeView === "experts" || activeView === "general") {
+    } else if (activeView === "experts") {
       if (previousSelfGen > 0) {
         notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
       }
       if (previousSetOnly > 0) {
+        notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
+      }
+    } else if (activeView === "general") {
+      // General mixes setters and experts. Only experts (reps with at least
+      // one close) show Sets/SG subscripts; pure setters get none.
+      if (previousCloses > 0 && previousSelfGen > 0) {
+        notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
+      }
+      if (previousCloses > 0 && previousSetOnly > 0) {
         notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
       }
     } else {
