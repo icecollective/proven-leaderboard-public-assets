@@ -521,13 +521,20 @@
     min-width:0;
   }
 
-  .rep-card-stat-label {
+  .rep-card-stat-label,
+  .rep-card-stat-plata-period .rep-card-stat-label {
     font-size:11px;
     font-weight:700;
     color:#6b7280;
+    opacity:1;
     text-transform:uppercase;
     letter-spacing:0.03em;
+    line-height:1.2;
     margin-bottom:6px;
+  }
+
+  .rep-card-stat-plata-period .rep-card-stat-label {
+    flex:0 0 auto;
   }
 
   .rep-card-stat-value {
@@ -579,10 +586,6 @@
     display:flex;
     flex-direction:column;
     height:100%;
-  }
-
-  .rep-card-stat-plata-period .rep-card-stat-label {
-    flex:0 0 auto;
   }
 
   .rep-card-stat-plata-tableau {
