@@ -2768,6 +2768,25 @@
   function getTableauValue(row, metric) {
     return Number(row.tableau?.[metric]) || 0;
   }
+
+  function getTableauSortRowValues(row) {
+    const data = row.tableau || {};
+    return {
+      name: String(row.name || "").trim(),
+      cs: Number(data.cs) || 0,
+      sra: Number(data.sra) || 0,
+      cap: Number(data.cap) || 0,
+      ic: Number(data.ic) || 0
+    };
+  }
+
+  function compareTableauLeaderboardRows(a, b, metric) {
+    return compareTableauRankRows(
+      getTableauSortRowValues(a),
+      getTableauSortRowValues(b),
+      metric
+    );
+  }
   
   function setInternalSort() {
     activeSortMode = "internal";
@@ -3127,8 +3146,8 @@
   }
   
     if (useTableauSort) {
-        const diff = getTableauValue(b, activeTableauMetric) - getTableauValue(a, activeTableauMetric);
-        if (diff !== 0) return diff;
+        const tableauDiff = compareTableauLeaderboardRows(a, b, activeTableauMetric);
+        if (tableauDiff !== 0) return tableauDiff;
       }
   
       if (activeView === "selfgen") {
@@ -3219,8 +3238,8 @@
             }
 
             if (drillUseTableau && activeSortMode === "tableau") {
-              const diff = getTableauValue(b, activeTableauMetric) - getTableauValue(a, activeTableauMetric);
-              if (diff !== 0) return diff;
+              const tableauDiff = compareTableauLeaderboardRows(a, b, activeTableauMetric);
+              if (tableauDiff !== 0) return tableauDiff;
             }
 
             const aValue = getRowDisplayCs(a);
