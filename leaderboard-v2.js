@@ -891,14 +891,18 @@
       return `<div class="rep-card-tableau-block"><div class="rep-card-tableau-heading">Tableau Data</div><div>—</div></div>`;
     }
 
-    const line = [
+    const metrics = [
       `CS: ${formatRepCardStatValue(stats.cs)}`,
       `SRA: ${formatRepCardStatValue(stats.sra)}`,
       `CAP: ${formatRepCardStatValue(stats.cap)}`,
       `IC: ${formatRepCardStatValue(stats.ic)}`
-    ].join(" · ");
+    ];
 
-    return `<div class="rep-card-tableau-block"><div class="rep-card-tableau-heading">Tableau Data</div><div>${line}</div></div>`;
+    const metricsHtml = metrics
+      .map(metric => `<span class="rep-card-tableau-metric">${escapeHtml(metric)}</span>`)
+      .join("");
+
+    return `<div class="rep-card-tableau-block"><div class="rep-card-tableau-heading">Tableau Data</div><div class="rep-card-tableau-metrics">${metricsHtml}</div></div>`;
   }
 
   function getRepYtdDiscordCs(repName) {
