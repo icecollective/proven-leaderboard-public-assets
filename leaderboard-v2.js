@@ -1136,6 +1136,42 @@
     return "—";
   }
 
+  function applyTemporaryRepCardGroupOverride(repName, groupLabel, groupLeader, isPlata) {
+    // TEMPORARY BASEBALL-CARD GROUP OVERRIDE START
+    // This group-display override is intentionally isolated to baseball cards only.
+    // The reporting structure for Adam/Ruan/Justin/Kelton downlines is not finalized.
+    // In particular, there is an unresolved conversation about whether Justin Wall group reps
+    // should be treated as directly under Adam/Ruan in all aspects or only in certain reporting views.
+    // This should be corrected later when the final reporting hierarchy is decided.
+
+    let resultLabel = groupLabel;
+    let resultLeader = groupLeader;
+
+    if (!isPlata && groupLeader) {
+      const leaderNorm = normalizeName(groupLeader);
+
+      if (leaderNorm === "adam lloyd") {
+        resultLabel = null;
+        resultLeader = null;
+      } else if (
+        leaderNorm === "justin wall" ||
+        leaderNorm === "ruan meyer" ||
+        leaderNorm === "kelton higgins"
+      ) {
+        if (leaderQualifiesForGroup(repName)) {
+          resultLabel = `${repName} Group`;
+          resultLeader = repName;
+        } else {
+          resultLabel = null;
+          resultLeader = null;
+        }
+      }
+    }
+
+    // TEMPORARY BASEBALL-CARD GROUP OVERRIDE END
+    return { groupLabel: resultLabel, groupLeader: resultLeader };
+  }
+
   function getRepProfileInfo(repName) {
     const displayName = String(repName || "").trim();
     const norm = normalizeName(repName);
@@ -1189,21 +1225,9 @@
         groupLabel = managementGroup;
         groupLeader = managementGroup.replace(/\s+Group$/i, "").trim();
       }
-    }
-
-    // Temporary baseball-card rule:
-    // We are intentionally hiding Adam Lloyd, Ruan Meyer, and Justin Wall group buttons for now.
-    // There is an unresolved conversation about whether Justin Wall group reps should be placed
-    // directly under Adam/Ruan in all aspects or only in certain reporting views.
-    // Keeping this hidden until that structure is finalized.
-    const hiddenRepCardGroups = new Set([
-      "adam lloyd group",
-      "ruan meyer group",
-      "justin wall group"
-    ]);
-    if (groupLabel && hiddenRepCardGroups.has(normalizeName(groupLabel))) {
-      groupLabel = null;
-      groupLeader = null;
+      const groupOverride = applyTemporaryRepCardGroupOverride(displayName, groupLabel, groupLeader, isPlata);
+      groupLabel = groupOverride.groupLabel;
+      groupLeader = groupOverride.groupLeader;
     }
 
     return {
