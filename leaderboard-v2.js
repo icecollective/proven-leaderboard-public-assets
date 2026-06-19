@@ -75,6 +75,12 @@
     "ruan meyer",
     "luke sanders"
   ]);
+
+  const MARKET_LEADER_NAMES = new Set([
+    "adam lloyd",
+    "ruan meyer",
+    "parker stevens"
+  ]);
   
   function makeSlug(value) {
     return String(value || "")
@@ -881,8 +887,48 @@
   }
 
   function formatRepCardTableauSub(stats) {
-    if (!stats) return "TBL: —";
-    return `TBL CS: ${formatRepCardStatValue(stats.cs)} · SRA: ${formatRepCardStatValue(stats.sra)} · CAP: ${formatRepCardStatValue(stats.cap)} · IC: ${formatRepCardStatValue(stats.ic)}`;
+    if (!stats) {
+      return `<div class="rep-card-tableau-block"><div class="rep-card-tableau-heading">Tableau Data</div><div>—</div></div>`;
+    }
+
+    const line = [
+      `CS: ${formatRepCardStatValue(stats.cs)}`,
+      `SRA: ${formatRepCardStatValue(stats.sra)}`,
+      `CAP: ${formatRepCardStatValue(stats.cap)}`,
+      `IC: ${formatRepCardStatValue(stats.ic)}`
+    ].join(" · ");
+
+    return `<div class="rep-card-tableau-block"><div class="rep-card-tableau-heading">Tableau Data</div><div>${line}</div></div>`;
+  }
+
+  function getRepYtdDiscordCs(repName) {
+    return getRepDiscordCsForRange(repName, "ytd");
+  }
+
+  function getRepYtdContribution(repName) {
+    const repNorm = normalizeName(repName);
+    if (!repNorm) return 0;
+
+    const range = getDateRange("ytd");
+    let sets = 0;
+    let closes = 0;
+
+    allDeals.forEach(deal => {
+      if (!dealInDateRange(deal, range)) return;
+      if (isValidSetterName(deal.setter) && normalizeName(deal.setter) === repNorm) sets += 1;
+      if (normalizeName(deal.expert) === repNorm) closes += 1;
+    });
+
+    return (sets + closes) / 2;
+  }
+
+  function getRepTableauMetricValue(repName, metric) {
+    const row = getTableauRowForDateMode(normalizeName(repName), "ytd");
+    if (!row) return null;
+
+    const value = row[metric];
+    if (value === null || value === undefined || value === "") return null;
+    return value;
   }
 
   function getRepBestMonthCs(repName) {
@@ -968,11 +1014,18 @@
     const scored = getEligibleRepNamesForRank()
       .map(name => ({
         norm: normalizeName(name),
-        value: getRepDiscordCsForRange(name, "ytd")
+        name: String(name).trim(),
+        discordCs: getRepYtdDiscordCs(name),
+        contribution: getRepYtdContribution(name)
       }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => {
+        if (b.discordCs !== a.discordCs) return b.discordCs - a.discordCs;
+        if (b.contribution !== a.contribution) return b.contribution - a.contribution;
+        return a.name.localeCompare(b.name);
+      });
 
-    return getCompetitionRank(scored, targetNorm, item => item.norm);
+    const index = scored.findIndex(item => item.norm === targetNorm);
+    return index >= 0 ? index + 1 : null;
   }
 
   function getTableauMetricRank(repName, metric) {
@@ -1052,39 +1105,67 @@
 
   function getRepProfileInfo(repName) {
     const displayName = String(repName || "").trim();
+    const norm = normalizeName(repName);
     const row = getRecruitingRowForRep(repName);
+    const isPlata = isPlataRep(norm);
     const ytdRange = getDateRange("ytd");
     let hasClose = false;
     let hasSet = false;
 
     allDeals.forEach(deal => {
       if (!dealInDateRange(deal, ytdRange)) return;
-      const norm = normalizeName(repName);
       if (normalizeName(deal.expert) === norm) hasClose = true;
       if (isValidSetterName(deal.setter) && normalizeName(deal.setter) === norm) hasSet = true;
     });
 
     let role = row?.role || row?.title || "";
-    if (!role) {
+    if (MARKET_LEADER_NAMES.has(norm)) {
+      role = "Market Leader";
+    } else if (isPlata) {
+      role = "Plata";
+    } else if (!role) {
       if (hasClose) role = "Expert";
       else if (hasSet) role = "Setter";
       else role = "Rep";
     }
 
     let office = row?.office || "";
-    if (!office) {
+    if (isPlata) {
+      office = "Plata";
+    } else if (!office) {
       ensureOfficeNameSets();
-      const norm = normalizeName(repName);
       if (iceCollectiveNames.has(norm)) office = "Ice Collective";
       else if (riotNames.has(norm)) office = "Riot";
       else office = "—";
+    }
+
+    let officeKey = "";
+    if (isPlata) {
+      officeKey = "plata";
+    } else if (normalizeName(office) === "ice collective") {
+      officeKey = "ice-collective";
+    } else if (normalizeName(office) === "riot") {
+      officeKey = "riot";
+    }
+
+    let groupLabel = null;
+    let groupLeader = null;
+    if (!isPlata) {
+      const managementGroup = getLowestQualifyingGroup(repName);
+      if (managementGroup && managementGroup !== "—") {
+        groupLabel = managementGroup;
+        groupLeader = managementGroup.replace(/\s+Group$/i, "").trim();
+      }
     }
 
     return {
       name: displayName || "—",
       role,
       office,
-      managementGroup: getLowestQualifyingGroup(repName),
+      officeKey,
+      groupLabel,
+      groupLeader,
+      isPlata,
       phone: "123456789",
       instagram: "@person.person"
     };
@@ -1093,22 +1174,23 @@
   function buildRepCardData(repName) {
     const profile = getRepProfileInfo(repName);
     const ytdTableauRank = getTableauMetricRank(repName, "cs");
+    const ytdDiscordCs = getRepYtdDiscordCs(repName);
 
     return {
       profile,
       periods: {
         ytd: {
-          label: "YTD",
-          discordCs: getRepDiscordCsForRange(repName, "ytd"),
+          label: "YTD CS",
+          discordCs: ytdDiscordCs,
           tableau: getRepTableauStatsForPeriod(repName, "ytd")
         },
         mtd: {
-          label: "MTD",
+          label: "MTD CS",
           discordCs: getRepDiscordCsForRange(repName, "mtd"),
           tableau: getRepTableauStatsForPeriod(repName, "mtd")
         },
         wtd: {
-          label: "WTD",
+          label: "WTD CS",
           discordCs: getRepDiscordCsForRange(repName, "wtd"),
           tableau: getRepTableauStatsForPeriod(repName, "wtd")
         }
@@ -1116,20 +1198,58 @@
       bestMonth: getRepBestMonthCs(repName),
       bestWeek: getRepBestWeekCs(repName),
       ytdDiscordRank: getRepYtdDiscordRank(repName),
+      ytdDiscordCs,
       ytdTableauCsRank: ytdTableauRank,
       ytdSraRank: getTableauMetricRank(repName, "sra"),
       ytdCapRank: getTableauMetricRank(repName, "cap"),
-      ytdInstallRank: getTableauMetricRank(repName, "ic")
+      ytdInstallRank: getTableauMetricRank(repName, "ic"),
+      ytdSraValue: getRepTableauMetricValue(repName, "sra"),
+      ytdCapValue: getRepTableauMetricValue(repName, "cap"),
+      ytdIcValue: getRepTableauMetricValue(repName, "ic")
     };
   }
 
-  function renderRepCardStat(label, value, sub = "") {
+  function renderRepCardStat(label, value, options = {}) {
+    const opts = typeof options === "string" ? { sub: options } : options;
+    const sub = opts.sub || "";
+    const subIsHtml = !!opts.subIsHtml;
+    const valueNote = opts.valueNote || "";
+    const displayValue = value === null || value === undefined ? "—" : value;
+
+    const valueNoteHtml = valueNote
+      ? `<span class="rep-card-stat-side-note">${escapeHtml(valueNote)}</span>`
+      : "";
+
     return `
       <div class="rep-card-stat">
         <div class="rep-card-stat-label">${escapeHtml(label)}</div>
-        <div class="rep-card-stat-value">${escapeHtml(value)}</div>
-        ${sub ? `<div class="rep-card-stat-sub">${escapeHtml(sub)}</div>` : ""}
+        <div class="rep-card-stat-value-wrap">
+          ${valueNoteHtml}
+          <div class="rep-card-stat-value">${escapeHtml(String(displayValue))}</div>
+        </div>
+        ${sub ? `<div class="rep-card-stat-sub">${subIsHtml ? sub : escapeHtml(sub)}</div>` : ""}
       </div>
+    `;
+  }
+
+  function renderRepCardProfileMeta(profile) {
+    const officeHtml = profile.officeKey
+      ? `<button type="button" class="rep-card-action-button" data-rep-card-office="${escapeAttr(profile.officeKey)}">${escapeHtml(profile.office)}</button>`
+      : `<span>${escapeHtml(profile.office)}</span>`;
+
+    const groupHtml = profile.groupLabel && profile.groupLeader
+      ? `<div class="rep-card-meta rep-card-meta-actions">
+          <button type="button" class="rep-card-action-button" data-rep-card-group="${escapeAttr(profile.groupLeader)}">${escapeHtml(profile.groupLabel)}</button>
+        </div>`
+      : "";
+
+    return `
+      <div class="rep-card-meta rep-card-meta-row">
+        <span>${escapeHtml(profile.role)}</span>
+        <span class="rep-card-meta-sep">·</span>
+        ${officeHtml}
+      </div>
+      ${groupHtml}
     `;
   }
 
@@ -1141,26 +1261,30 @@
         <div class="rep-card-avatar" aria-hidden="true">?</div>
         <div>
           <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
-          <div class="rep-card-meta">${escapeHtml(profile.role)} · ${escapeHtml(profile.office)}</div>
-          <div class="rep-card-meta">Management Group: ${escapeHtml(profile.managementGroup)}</div>
+          ${renderRepCardProfileMeta(profile)}
           <div class="rep-card-contact">Phone: ${escapeHtml(profile.phone)}</div>
           <div class="rep-card-contact">Instagram: ${escapeHtml(profile.instagram)}</div>
         </div>
       </div>
       <div class="rep-card-stat-grid">
-        ${renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, formatRepCardTableauSub(periods.ytd.tableau))}
-        ${renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, formatRepCardTableauSub(periods.mtd.tableau))}
-        ${renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, formatRepCardTableauSub(periods.wtd.tableau))}
-        ${renderRepCardStat("Best Month", data.bestMonth)}
-        ${renderRepCardStat("Best Week", data.bestWeek)}
-        ${renderRepCardStat(
-          "YTD CS Rank",
-          data.ytdDiscordRank ?? "—",
-          data.ytdTableauCsRank ? `TBL CS Rank: ${data.ytdTableauCsRank}` : "TBL CS Rank: —"
-        )}
-        ${renderRepCardStat("YTD SRA Rank", data.ytdSraRank ?? "—")}
-        ${renderRepCardStat("YTD CAP Rank", data.ytdCapRank ?? "—")}
-        ${renderRepCardStat("YTD Install Rank", data.ytdInstallRank ?? "—")}
+        ${renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, { sub: formatRepCardTableauSub(periods.ytd.tableau), subIsHtml: true })}
+        ${renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, { sub: formatRepCardTableauSub(periods.mtd.tableau), subIsHtml: true })}
+        ${renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, { sub: formatRepCardTableauSub(periods.wtd.tableau), subIsHtml: true })}
+        ${renderRepCardStat("Best Month CS", data.bestMonth)}
+        ${renderRepCardStat("Best Week CS", data.bestWeek)}
+        ${renderRepCardStat("YTD CS Rank", data.ytdDiscordRank ?? "—", {
+          valueNote: data.ytdDiscordRank != null ? `CS: ${data.ytdDiscordCs}` : "",
+          sub: data.ytdTableauCsRank ? `Tableau Rank: ${data.ytdTableauCsRank}` : "Tableau Rank: —"
+        })}
+        ${renderRepCardStat("YTD SRA Rank", data.ytdSraRank ?? "—", {
+          valueNote: data.ytdSraValue != null ? `SRA: ${data.ytdSraValue}` : ""
+        })}
+        ${renderRepCardStat("YTD CAP Rank", data.ytdCapRank ?? "—", {
+          valueNote: data.ytdCapValue != null ? `CAP: ${data.ytdCapValue}` : ""
+        })}
+        ${renderRepCardStat("YTD IC Rank", data.ytdInstallRank ?? "—", {
+          valueNote: data.ytdIcValue != null ? `IC: ${data.ytdIcValue}` : ""
+        })}
       </div>
     `;
   }
@@ -1194,6 +1318,49 @@
     document.body.classList.add("rep-card-open");
   }
 
+  function handleRepCardOfficeClick(officeKey) {
+    closeRepCard();
+
+    if (officeKey === "plata") {
+      includePlata = true;
+      setShowTableau(true);
+      rebuildComparisonMapsForOffice();
+      renderLeaderboard();
+      return;
+    }
+
+    if (officeKey === "ice-collective") {
+      includeIceCollective = true;
+      includeRiot = false;
+    } else if (officeKey === "riot") {
+      includeRiot = true;
+      includeIceCollective = false;
+    }
+
+    includePlata = false;
+    rebuildComparisonMapsForOffice();
+    renderLeaderboard();
+  }
+
+  function handleRepCardGroupClick(groupLeader) {
+    closeRepCard();
+
+    activeView = "groups";
+    activeGroupDrillLeader = String(groupLeader || "").trim();
+    includePlata = false;
+
+    if (showTableau) {
+      setShowTableau(false);
+    }
+    if (activeSortMode === "tableau") {
+      activeSortMode = "currentContribution";
+    }
+
+    setActiveViewTab("groups");
+    updateGroupDrillNav();
+    renderLeaderboard();
+  }
+
   function closeRepCard() {
     const overlay = document.getElementById("rep-card-overlay");
     if (!overlay) return;
@@ -1221,6 +1388,19 @@
 
     document.addEventListener("keydown", event => {
       if (event.key === "Escape") closeRepCard();
+    });
+
+    document.addEventListener("click", event => {
+      const officeButton = event.target.closest("[data-rep-card-office]");
+      if (officeButton) {
+        handleRepCardOfficeClick(officeButton.getAttribute("data-rep-card-office"));
+        return;
+      }
+
+      const groupButton = event.target.closest("[data-rep-card-group]");
+      if (groupButton) {
+        handleRepCardGroupClick(groupButton.getAttribute("data-rep-card-group"));
+      }
     });
 
     const overlay = document.getElementById("rep-card-overlay");
