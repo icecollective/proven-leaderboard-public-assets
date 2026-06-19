@@ -575,6 +575,32 @@
     margin-bottom:3px;
   }
 
+  .rep-card-stat-plata-period {
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-height:72px;
+  }
+
+  .rep-card-stat-plata-tableau {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex:1;
+    margin-top:2px;
+  }
+
+  .rep-card-stat-plata-tableau .rep-card-tableau-block {
+    margin-top:0;
+  }
+
+  .rep-card-stat-plata-tableau .rep-card-stat-sub,
+  .rep-card-stat-plata-tableau .rep-card-tableau-block > div:last-child {
+    font-size:10px;
+    line-height:1.35;
+    color:#6b7280;
+  }
+
   @media (max-width:768px) {
     .rep-card-modal {
       max-width:calc(100vw - 24px);

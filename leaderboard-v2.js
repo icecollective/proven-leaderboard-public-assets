@@ -1272,6 +1272,7 @@
       ytdDiscordRank: getRepYtdDiscordRank(repName),
       ytdDiscordCs,
       ytdTableauCsRank: ytdTableauRank,
+      ytdTableauCsValue: getRepTableauMetricValue(repName, "cs"),
       ytdSraRank: getTableauMetricRank(repName, "sra"),
       ytdCapRank: getTableauMetricRank(repName, "cap"),
       ytdInstallRank: getTableauMetricRank(repName, "ic"),
@@ -1279,6 +1280,17 @@
       ytdCapValue: getRepTableauMetricValue(repName, "cap"),
       ytdIcValue: getRepTableauMetricValue(repName, "ic")
     };
+  }
+
+  function renderRepCardPlataPeriodStat(label, tableauStats) {
+    const tableauHtml = formatRepCardTableauSub(tableauStats);
+
+    return `
+      <div class="rep-card-stat rep-card-stat-plata-period">
+        <div class="rep-card-stat-label">${escapeHtml(label)}</div>
+        <div class="rep-card-stat-plata-tableau">${tableauHtml}</div>
+      </div>
+    `;
   }
 
   function renderRepCardStat(label, value, options = {}) {
@@ -1315,6 +1327,15 @@
         </div>`
       : "";
 
+    if (profile.isPlata) {
+      return `
+        <div class="rep-card-meta rep-card-meta-row">
+          ${officeHtml}
+        </div>
+        ${groupHtml}
+      `;
+    }
+
     return `
       <div class="rep-card-meta rep-card-meta-row">
         <span>${escapeHtml(profile.role)}</span>
@@ -1327,6 +1348,28 @@
 
   function renderRepCard(data) {
     const { profile, periods } = data;
+    const isPlata = profile.isPlata;
+
+    const periodStatsHtml = isPlata
+      ? [
+          renderRepCardPlataPeriodStat(periods.ytd.label, periods.ytd.tableau),
+          renderRepCardPlataPeriodStat(periods.mtd.label, periods.mtd.tableau),
+          renderRepCardPlataPeriodStat(periods.wtd.label, periods.wtd.tableau)
+        ].join("")
+      : [
+          renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, { sub: formatRepCardTableauSub(periods.ytd.tableau), subIsHtml: true }),
+          renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, { sub: formatRepCardTableauSub(periods.mtd.tableau), subIsHtml: true }),
+          renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, { sub: formatRepCardTableauSub(periods.wtd.tableau), subIsHtml: true })
+        ].join("");
+
+    const ytdCsRankHtml = isPlata
+      ? renderRepCardStat("YTD CS Rank", data.ytdTableauCsRank ?? "—", {
+          valueNote: data.ytdTableauCsValue != null ? `CS: ${data.ytdTableauCsValue}` : ""
+        })
+      : renderRepCardStat("YTD CS Rank", data.ytdDiscordRank ?? "—", {
+          valueNote: data.ytdDiscordRank != null ? `CS: ${data.ytdDiscordCs}` : "",
+          sub: data.ytdTableauCsRank ? `Tableau Rank: ${data.ytdTableauCsRank}` : "Tableau Rank: —"
+        });
 
     return `
       <div class="rep-card-profile">
@@ -1339,15 +1382,10 @@
         </div>
       </div>
       <div class="rep-card-stat-grid">
-        ${renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, { sub: formatRepCardTableauSub(periods.ytd.tableau), subIsHtml: true })}
-        ${renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, { sub: formatRepCardTableauSub(periods.mtd.tableau), subIsHtml: true })}
-        ${renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, { sub: formatRepCardTableauSub(periods.wtd.tableau), subIsHtml: true })}
-        ${renderRepCardStat("Best Month CS", data.bestMonth)}
-        ${renderRepCardStat("Best Week CS", data.bestWeek)}
-        ${renderRepCardStat("YTD CS Rank", data.ytdDiscordRank ?? "—", {
-          valueNote: data.ytdDiscordRank != null ? `CS: ${data.ytdDiscordCs}` : "",
-          sub: data.ytdTableauCsRank ? `Tableau Rank: ${data.ytdTableauCsRank}` : "Tableau Rank: —"
-        })}
+        ${periodStatsHtml}
+        ${renderRepCardStat("Best Month CS", isPlata ? "na" : data.bestMonth)}
+        ${renderRepCardStat("Best Week CS", isPlata ? "na" : data.bestWeek)}
+        ${ytdCsRankHtml}
         ${renderRepCardStat("YTD SRA Rank", data.ytdSraRank ?? "—", {
           valueNote: data.ytdSraValue != null ? `SRA: ${data.ytdSraValue}` : ""
         })}
@@ -1395,6 +1433,8 @@
 
     if (officeKey === "plata") {
       includePlata = true;
+      includeIceCollective = false;
+      includeRiot = false;
       setShowTableau(true);
       rebuildComparisonMapsForOffice();
       renderLeaderboard();
