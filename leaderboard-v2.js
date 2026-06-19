@@ -1028,6 +1028,34 @@
     return index >= 0 ? index + 1 : null;
   }
 
+  function compareTableauRankRows(a, b, metric) {
+    if (metric === "sra") {
+      if (b.sra !== a.sra) return b.sra - a.sra;
+      if (b.cap !== a.cap) return b.cap - a.cap;
+      if (b.ic !== a.ic) return b.ic - a.ic;
+      return a.name.localeCompare(b.name);
+    }
+
+    if (metric === "cap") {
+      if (b.cap !== a.cap) return b.cap - a.cap;
+      if (b.ic !== a.ic) return b.ic - a.ic;
+      if (b.sra !== a.sra) return b.sra - a.sra;
+      return a.name.localeCompare(b.name);
+    }
+
+    if (metric === "ic") {
+      if (b.ic !== a.ic) return b.ic - a.ic;
+      if (b.cap !== a.cap) return b.cap - a.cap;
+      if (b.sra !== a.sra) return b.sra - a.sra;
+      return a.name.localeCompare(b.name);
+    }
+
+    const aValue = Number(a[metric]) || 0;
+    const bValue = Number(b[metric]) || 0;
+    if (bValue !== aValue) return bValue - aValue;
+    return a.name.localeCompare(b.name);
+  }
+
   function getTableauMetricRank(repName, metric) {
     const dataset = tableauData.ytd;
     if (!dataset || !Array.isArray(dataset.rows)) return null;
@@ -1036,12 +1064,17 @@
     const scored = dataset.rows
       .map(row => ({
         norm: normalizeName(row.name),
-        value: Number(row[metric]) || 0
+        name: String(row.name || "").trim(),
+        cs: Number(row.cs) || 0,
+        sra: Number(row.sra) || 0,
+        cap: Number(row.cap) || 0,
+        ic: Number(row.ic) || 0
       }))
       .filter(row => row.norm)
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => compareTableauRankRows(a, b, metric));
 
-    return getCompetitionRank(scored, targetNorm, item => item.norm);
+    const index = scored.findIndex(item => item.norm === targetNorm);
+    return index >= 0 ? index + 1 : null;
   }
 
   function getGroupLeaderYtdTotal(leaderName) {
@@ -1156,6 +1189,21 @@
         groupLabel = managementGroup;
         groupLeader = managementGroup.replace(/\s+Group$/i, "").trim();
       }
+    }
+
+    // Temporary baseball-card rule:
+    // We are intentionally hiding Adam Lloyd, Ruan Meyer, and Justin Wall group buttons for now.
+    // There is an unresolved conversation about whether Justin Wall group reps should be placed
+    // directly under Adam/Ruan in all aspects or only in certain reporting views.
+    // Keeping this hidden until that structure is finalized.
+    const hiddenRepCardGroups = new Set([
+      "adam lloyd group",
+      "ruan meyer group",
+      "justin wall group"
+    ]);
+    if (groupLabel && hiddenRepCardGroups.has(normalizeName(groupLabel))) {
+      groupLabel = null;
+      groupLeader = null;
     }
 
     return {
