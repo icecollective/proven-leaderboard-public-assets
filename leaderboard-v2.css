@@ -578,16 +578,20 @@
   .rep-card-stat-plata-period {
     display:flex;
     flex-direction:column;
-    justify-content:center;
-    min-height:72px;
+    height:100%;
+  }
+
+  .rep-card-stat-plata-period .rep-card-stat-label {
+    flex:0 0 auto;
   }
 
   .rep-card-stat-plata-tableau {
+    flex:1 1 auto;
     display:flex;
     align-items:center;
     justify-content:center;
-    flex:1;
-    margin-top:2px;
+    min-height:66px;
+    margin-top:0;
   }
 
   .rep-card-stat-plata-tableau .rep-card-tableau-block {
