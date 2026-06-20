@@ -87,7 +87,8 @@
   const MARKET_LEADER_NAMES = new Set([
     "adam lloyd",
     "ruan meyer",
-    "parker stevens"
+    "parker stevens",
+    "mason lehman"
   ]);
   
   function makeSlug(value) {
@@ -349,7 +350,7 @@
   }
 
   function getTotalRowLabel() {
-    return "Total";
+    return "";
   }
 
   function formatTitleWithOptionalDateRange(label, range) {
@@ -840,9 +841,40 @@
     return true;
   }
 
+  // Lightweight role + office for the row subtitle (no group computation).
+  function repRoleOffice(repName) {
+    const norm = normalizeName(repName);
+    const row = getRecruitingRowForRep(repName);
+    const isPlata = isPlataRep(norm);
+    let role = row?.role || row?.title || "";
+    if (MARKET_LEADER_NAMES.has(norm)) role = "Market Leader";
+    else if (isPlata) role = "Plata";
+    else if (!role) {
+      let hasClose = false, hasSet = false;
+      const ytd = getDateRange("ytd");
+      allDeals.forEach(d => {
+        if (!dealInDateRange(d, ytd)) return;
+        if (normalizeName(d.expert) === norm) hasClose = true;
+        if (isValidSetterName(d.setter) && normalizeName(d.setter) === norm) hasSet = true;
+      });
+      role = hasClose ? "Expert" : (hasSet ? "Setter" : "Rep");
+    }
+    let office = row?.office || "";
+    if (isPlata) office = "Plata";
+    else if (!office) {
+      ensureOfficeNameSets();
+      if (iceCollectiveNames.has(norm)) office = "Ice Collective";
+      else if (riotNames.has(norm)) office = "Riot";
+      else office = "";
+    }
+    if (office && normalizeName(office) !== normalizeName(role)) return `${role} · ${office}`;
+    return role;
+  }
+
   function buildRepNameCell(name) {
     const displayName = String(name || "").trim();
-    return `<button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>`;
+    const sub = repRoleOffice(displayName);
+    return `<div class="rep-name-cell"><button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
   }
 
   function getRecruitingRowForRep(repName) {
@@ -1375,59 +1407,88 @@
     return d ? "+" + d : "";
   }
 
+  function repCardInitials(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    return (parts[0][0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
+  }
+
+  function repCardMetrics(t) {
+    if (!t || (t.cs == null && t.sra == null && t.cap == null && t.ic == null)) {
+      return `<div class="rc-metrics rc-empty">—</div>`;
+    }
+    const n = v => (v == null ? 0 : v);
+    return `<div class="rc-metrics"><span>CS ${n(t.cs)}</span><span>SRA ${n(t.sra)}</span><span>CAP ${n(t.cap)}</span><span>IC ${n(t.ic)}</span></div>`;
+  }
+
+  function repCardChips(profile) {
+    const office = profile.officeKey
+      ? `<button type="button" class="rep-card-action-button" data-rep-card-office="${escapeAttr(profile.officeKey)}">${escapeHtml(profile.office)}</button>`
+      : (profile.office && profile.office !== "—" ? `<span class="rep-card-action-button">${escapeHtml(profile.office)}</span>` : "");
+    const group = (profile.groupLabel && profile.groupLeader)
+      ? `<button type="button" class="rep-card-action-button" data-rep-card-group="${escapeAttr(profile.groupLeader)}">${escapeHtml(profile.groupLabel)}</button>`
+      : "";
+    return `<div class="rep-card-meta-row">${office}${group}</div>`;
+  }
+
+  function repCardPeriodTile(p, isPlata) {
+    const val = isPlata ? (p.tableau && p.tableau.cs != null ? p.tableau.cs : "—") : (p.discordCs != null ? p.discordCs : "—");
+    return `<div class="rep-card-stat is-period"><div class="rep-card-stat-label">${escapeHtml(p.label)}</div><div class="rep-card-stat-value">${escapeHtml(String(val))}</div>${repCardMetrics(p.tableau)}</div>`;
+  }
+
+  function repCardSimpleTile(label, value) {
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div></div>`;
+  }
+
+  function repCardRankTile(label, rank, metricLabel, metricVal) {
+    const sub = metricVal != null ? `<div class="rep-card-stat-sub">${escapeHtml(metricLabel)} ${escapeHtml(String(metricVal))}</div>` : "";
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-value">#${escapeHtml(String(rank == null ? "—" : rank))}</div>${sub}</div>`;
+  }
+
   function renderRepCard(data) {
     const { profile, periods } = data;
     const isPlata = profile.isPlata;
 
-    const periodStatsHtml = isPlata
-      ? [
-          renderRepCardPlataPeriodStat(periods.ytd.label, periods.ytd.tableau),
-          renderRepCardPlataPeriodStat(periods.mtd.label, periods.mtd.tableau),
-          renderRepCardPlataPeriodStat(periods.wtd.label, periods.wtd.tableau)
-        ].join("")
-      : [
-          renderRepCardStat(periods.ytd.label, periods.ytd.discordCs, { sub: formatRepCardTableauSub(periods.ytd.tableau), subIsHtml: true }),
-          renderRepCardStat(periods.mtd.label, periods.mtd.discordCs, { sub: formatRepCardTableauSub(periods.mtd.tableau), subIsHtml: true }),
-          renderRepCardStat(periods.wtd.label, periods.wtd.discordCs, { sub: formatRepCardTableauSub(periods.wtd.tableau), subIsHtml: true })
-        ].join("");
-
+    // YTD CS Rank: internal rank + internal CS, then Tableau rank · CS on one line.
     const ytdCsRankHtml = isPlata
-      ? renderRepCardStat("YTD CS Rank", data.ytdTableauCsRank ?? "—", {
-          valueNote: data.ytdTableauCsValue != null ? `CS: ${data.ytdTableauCsValue}` : ""
-        })
-      : renderRepCardStat("YTD CS Rank", data.ytdDiscordRank ?? "—", {
-          valueNote: data.ytdDiscordRank != null ? `CS: ${data.ytdDiscordCs}` : "",
-          sub: data.ytdTableauCsRank ? `Tableau Rank: ${data.ytdTableauCsRank}` : "Tableau Rank: —"
-        });
+      ? repCardRankTile("YTD CS Rank", data.ytdTableauCsRank, "CS", data.ytdTableauCsValue)
+      : `<div class="rep-card-stat"><div class="rep-card-stat-label">YTD CS Rank</div>
+          <div class="rc-valrow"><span class="rep-card-stat-value">#${escapeHtml(String(data.ytdDiscordRank == null ? "—" : data.ytdDiscordRank))}</span>${data.ytdDiscordCs != null ? `<span class="rc-iv">${escapeHtml(String(data.ytdDiscordCs))}</span>` : ""}</div>
+          <div class="rc-trk">Tab Rk #${escapeHtml(String(data.ytdTableauCsRank == null ? "—" : data.ytdTableauCsRank))}${data.ytdTableauCsValue != null ? ` · CS ${escapeHtml(String(data.ytdTableauCsValue))}` : ""}</div>
+        </div>`;
+
+    const phoneIcon = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.3.2 2.5.58 3.6a1 1 0 0 1-.25 1l-2.2 2.2z"/></svg>';
+    const igIcon = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg>';
+    const contact = `<div class="rep-card-contact">${
+      profile.phone ? `<a class="rep-card-link" href="tel:${escapeHtml(repCardPhoneTel(profile.phone))}">${phoneIcon} ${escapeHtml(formatRepCardPhone(profile.phone))}</a>` : ""
+    }${
+      profile.instagram ? `<a class="rep-card-link" href="https://instagram.com/${escapeHtml(profile.instagram)}" target="_blank" rel="noopener">${igIcon} @${escapeHtml(profile.instagram)}</a>` : ""
+    }</div>`;
 
     return `
       <div class="rep-card-profile">
         <div class="rep-card-avatar" aria-hidden="true" style="overflow:hidden">${
           profile.photoUrl
             ? `<img src="${escapeHtml(profile.photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`
-            : "?"
+            : escapeHtml(repCardInitials(profile.name))
         }</div>
         <div>
           <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
-          ${renderRepCardProfileMeta(profile)}
-          ${profile.phone ? `<div class="rep-card-contact">Phone: <a class="rep-card-link" href="tel:${escapeHtml(repCardPhoneTel(profile.phone))}">${escapeHtml(formatRepCardPhone(profile.phone))}</a></div>` : ""}
-          ${profile.instagram ? `<div class="rep-card-contact">Instagram: <a class="rep-card-link" href="https://instagram.com/${escapeHtml(profile.instagram)}" target="_blank" rel="noopener">@${escapeHtml(profile.instagram)}</a></div>` : ""}
+          ${isPlata ? "" : `<div class="rep-card-role">${escapeHtml(profile.role)}</div>`}
+          ${repCardChips(profile)}
+          ${(profile.phone || profile.instagram) ? contact : ""}
         </div>
       </div>
       <div class="rep-card-stat-grid">
-        ${periodStatsHtml}
-        ${renderRepCardStat("Best Month CS", isPlata ? "na" : data.bestMonth)}
-        ${renderRepCardStat("Best Week CS", isPlata ? "na" : data.bestWeek)}
+        ${repCardPeriodTile(periods.ytd, isPlata)}
+        ${repCardPeriodTile(periods.mtd, isPlata)}
+        ${repCardPeriodTile(periods.wtd, isPlata)}
+        ${repCardSimpleTile("Best Month CS", isPlata ? "na" : data.bestMonth)}
+        ${repCardSimpleTile("Best Week CS", isPlata ? "na" : data.bestWeek)}
         ${ytdCsRankHtml}
-        ${renderRepCardStat("YTD SRA Rank", data.ytdSraRank ?? "—", {
-          valueNote: data.ytdSraValue != null ? `SRA: ${data.ytdSraValue}` : ""
-        })}
-        ${renderRepCardStat("YTD CAP Rank", data.ytdCapRank ?? "—", {
-          valueNote: data.ytdCapValue != null ? `CAP: ${data.ytdCapValue}` : ""
-        })}
-        ${renderRepCardStat("YTD IC Rank", data.ytdInstallRank ?? "—", {
-          valueNote: data.ytdIcValue != null ? `IC: ${data.ytdIcValue}` : ""
-        })}
+        ${repCardRankTile("YTD SRA Rank", data.ytdSraRank, "SRA", data.ytdSraValue)}
+        ${repCardRankTile("YTD CAP Rank", data.ytdCapRank, "CAP", data.ytdCapValue)}
+        ${repCardRankTile("YTD IC Rank", data.ytdInstallRank, "IC", data.ytdIcValue)}
       </div>
     `;
   }
@@ -2289,10 +2350,10 @@
   
     [
       { key: "general", label: "General" },
+      { key: "groups", label: "Groups" },
       { key: "setters", label: "Setters" },
       { key: "experts", label: "Experts" },
-      { key: "selfgen", label: "SelfGen" },
-      { key: "groups", label: "Groups" }
+      { key: "selfgen", label: "SelfGen" }
     ].forEach(view => {
       const btn = document.createElement("button");
       btn.textContent = view.label;
@@ -2462,6 +2523,56 @@
       renderLeaderboard();
     });
   }
+
+  applyProvenLayout();
+  }
+
+  // One-time DOM reshuffle to match the Proven design: All Offices button,
+  // Tableau as a top-right corner toggle, and the date controls as a T-island
+  // with YOY/MOM tucked into the bottom-right. All buttons keep their existing
+  // event listeners (moving an element preserves them), so functionality is
+  // unchanged; updateTableauToggle() re-syncs active/visibility every render.
+  function applyProvenLayout() {
+    // Tableau toggle -> top-right corner bar
+    var app = document.getElementById("leaderboard-app");
+    var tabBtn = document.getElementById("tableau-toggle");
+    if (app && tabBtn && !document.getElementById("pv-topbar")) {
+      var bar = document.createElement("div");
+      bar.id = "pv-topbar";
+      var logo = document.createElement("div");
+      logo.id = "pv-logo";
+      logo.innerHTML = 'PROVEN<span>LEADERBOARD</span>';
+      var spacer = document.createElement("div");
+      spacer.className = "pv-topspacer";
+      bar.appendChild(logo);
+      bar.appendChild(spacer);
+      bar.appendChild(tabBtn);
+      app.insertBefore(bar, app.firstChild);
+    }
+
+    // 3) Date controls -> T-island; YOY/MOM tucked into the bottom-right
+    var dateTabs = document.getElementById("date-tabs");
+    if (dateTabs && !dateTabs.querySelector(".pv-island")) {
+      var byLabel = {};
+      Array.prototype.slice.call(dateTabs.querySelectorAll("button")).forEach(function (b) {
+        byLabel[b.textContent.trim()] = b;
+      });
+      var island = document.createElement("div"); island.className = "pv-island";
+      var tpill = document.createElement("div"); tpill.className = "pv-tpill";
+      ["Today", "WTD", "MTD", "YTD"].forEach(function (l) { if (byLabel[l]) tpill.appendChild(byLabel[l]); });
+      var brow = document.createElement("div"); brow.className = "pv-brow";
+      var sp = document.createElement("span");
+      var bpill = document.createElement("div"); bpill.className = "pv-bpill";
+      ["Last Week", "Custom"].forEach(function (l) { if (byLabel[l]) bpill.appendChild(byLabel[l]); });
+      var cmp = document.createElement("div"); cmp.className = "pv-cmpcell";
+      var yoyB = document.getElementById("yoy-toggle");
+      var momB = document.getElementById("mom-toggle");
+      if (yoyB) cmp.appendChild(yoyB);
+      if (momB) cmp.appendChild(momB);
+      brow.appendChild(sp); brow.appendChild(bpill); brow.appendChild(cmp);
+      island.appendChild(tpill); island.appendChild(brow);
+      dateTabs.appendChild(island);
+    }
   }
 
   function updateGroupDrillNav() {
@@ -2518,9 +2629,16 @@
       activeDateMode === "mtd" &&
       previousYearDeals.length > 0;
 
-    wrapper.style.display = shouldShowTableau || shouldShowYoy || shouldShowMom ? "flex" : "none";
+    // The Tableau toggle and YOY/MOM were relocated (topbar / date island), so this
+    // wrapper now only holds the old-reps/new-reps toggles. Only give it space when
+    // those are actually visible (comparison mode); otherwise it's an empty box that
+    // shifts the board up/down as date modes change.
+    wrapper.style.display = isComparisonMode() ? "flex" : "none";
 
-    btn.style.display = shouldShowTableau ? "inline-block" : "none";
+    // Keep the Tableau toggle in place; fade + disable it (like Plata) instead of hiding.
+    btn.style.display = "inline-block";
+    btn.disabled = !shouldShowTableau;
+    btn.classList.toggle("disabled", !shouldShowTableau);
 
     if (plataBtn) {
       plataBtn.classList.toggle("active", includePlata && canSelectPlata);
@@ -2528,11 +2646,13 @@
       plataBtn.classList.toggle("disabled", !canSelectPlata);
     }
 
+    // Keep the same label (incl. the date) so the button never changes size — just fade it.
+    const labelDate = dataset ? formatShortDate(dataset.lastUpdated) : "";
+    btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
     if (!shouldShowTableau) {
       setShowTableau(false);
+      btn.classList.remove("active");
     } else {
-      const labelDate = formatShortDate(dataset.lastUpdated);
-      btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
       btn.classList.toggle("active", showTableau);
     }
 
@@ -3025,7 +3145,7 @@
   
     return `
       <div class="tableau-header-cell">
-        <select class="tableau-select ${activeSortMode === "tableau" ? "active-sort" : ""}" onclick="setTableauSortAndRender()" onchange="setTableauMetric(this.value)">
+        <select class="tableau-select ${activeSortMode === "tableau" ? "active-sort" : ""}" onmousedown="setTableauSortAndRender()" onchange="setTableauMetric(this.value)">
           ${options}
         </select>
       </div>
@@ -3570,7 +3690,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${getCurrentComparisonLabel("Total")}
+      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : "CS"}
     </button>
     ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
@@ -3640,7 +3760,7 @@
   }
   
     if (activeView === "selfgen") {
-      const cols = comparisonActive ? ".55fr 1.45fr 1.4fr 1.4fr" : ".55fr 1.65fr 1.8fr";
+      const cols = comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
@@ -3649,14 +3769,14 @@
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
       onclick="setNameSort()">
-      Name
+      Rep
     </button>
   </div>
           <div>
     <button
     class="sort-header-button ${activeSortMode === "selfGen" ? "active-sort" : ""}"
     onclick="setSelfGenSort()">
-    ${getCurrentComparisonLabel("SG")}
+    ${comparisonActive ? getCurrentComparisonLabel("SG") : "SG"}
   </button>
   </div>
           ${comparisonActive ? `
@@ -3701,7 +3821,7 @@
         `);
       });
     } else {
-      const cols = useTableauColumn && comparisonActive ? ".45fr 1.55fr 1.1fr 1.1fr .9fr" : useTableauColumn ? ".55fr 1.85fr 1.35fr .95fr" : comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".6fr 1.7fr 1.7fr";
+      const cols = useTableauColumn && comparisonActive ? ".45fr 1.55fr 1.1fr 1.1fr .9fr" : useTableauColumn ? ".55fr 1.85fr 1.35fr .95fr" : comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
@@ -3710,14 +3830,14 @@
     <button
       class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
       onclick="setNameSort()">
-      Name
+      Rep
     </button>
   </div>
           <div style="display:flex;gap:4px;justify-content:center;">
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${getCurrentComparisonLabel("CS")}
+      ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
     </button>
 
     ${comparisonActive ? `
