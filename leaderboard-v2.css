@@ -470,6 +470,15 @@
     line-height:1.45;
   }
 
+  .rep-card-link {
+    color:#2563eb;
+    text-decoration:none;
+    font-weight:600;
+  }
+  .rep-card-link:hover {
+    text-decoration:underline;
+  }
+
   .rep-card-meta-row {
     display:flex;
     flex-wrap:wrap;

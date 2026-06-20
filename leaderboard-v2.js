@@ -1362,6 +1362,19 @@
     `;
   }
 
+  function formatRepCardPhone(raw) {
+    let d = String(raw || "").replace(/\D/g, "");
+    if (d.length === 11 && d.charAt(0) === "1") d = d.slice(1);
+    if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+    return String(raw || "");
+  }
+
+  function repCardPhoneTel(raw) {
+    let d = String(raw || "").replace(/\D/g, "");
+    if (d.length === 10) d = "1" + d;
+    return d ? "+" + d : "";
+  }
+
   function renderRepCard(data) {
     const { profile, periods } = data;
     const isPlata = profile.isPlata;
@@ -1397,8 +1410,8 @@
         <div>
           <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
           ${renderRepCardProfileMeta(profile)}
-          ${profile.phone ? `<div class="rep-card-contact">Phone: ${escapeHtml(profile.phone)}</div>` : ""}
-          ${profile.instagram ? `<div class="rep-card-contact">Instagram: @${escapeHtml(profile.instagram)}</div>` : ""}
+          ${profile.phone ? `<div class="rep-card-contact">Phone: <a class="rep-card-link" href="tel:${escapeHtml(repCardPhoneTel(profile.phone))}">${escapeHtml(formatRepCardPhone(profile.phone))}</a></div>` : ""}
+          ${profile.instagram ? `<div class="rep-card-contact">Instagram: <a class="rep-card-link" href="https://instagram.com/${escapeHtml(profile.instagram)}" target="_blank" rel="noopener">@${escapeHtml(profile.instagram)}</a></div>` : ""}
         </div>
       </div>
       <div class="rep-card-stat-grid">
