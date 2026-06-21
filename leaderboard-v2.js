@@ -2587,7 +2587,6 @@
 
     var app = document.getElementById("leaderboard-app");
     var ids = ["office-tabs", "view-tabs", "date-tabs"];
-    var FADE = 16; // px over which a row fades right before it reaches the bar
 
     function onScroll() {
       var y = window.pageYOffset || document.documentElement.scrollTop || 0;
@@ -2601,8 +2600,13 @@
         var el = document.getElementById(id);
         if (!el) return;
         if (!mobile) { el.style.opacity = ""; el.style.pointerEvents = ""; return; }
-        var top = el.getBoundingClientRect().top;
-        var op = (top - barBottom) / FADE;
+        var rect = el.getBoundingClientRect();
+        var h = rect.height || 1;
+        // Fraction of the row still BELOW the bar: 1 when fully below (i.e. at
+        // rest, the whole page top), fading to 0 as it slides up under the bar.
+        // Guarantees the selectors are fully visible on load no matter how close
+        // they sit to the bar.
+        var op = (rect.bottom - barBottom) / h;
         op = op < 0 ? 0 : (op > 1 ? 1 : op);
         el.style.opacity = String(op);
         el.style.pointerEvents = op < 0.12 ? "none" : "";
@@ -2611,7 +2615,11 @@
 
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
+    window.addEventListener("load", onScroll);
     onScroll();
+    // re-run after layout/fonts settle so initial opacities are correct
+    setTimeout(onScroll, 60);
+    setTimeout(onScroll, 300);
   }
 
   function updateGroupDrillNav() {
