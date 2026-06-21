@@ -2596,16 +2596,19 @@
       var bar = document.getElementById("pv-topbar");
       var barBottom = bar ? bar.getBoundingClientRect().bottom : 52;
 
+      // At/near the top of the page, never fade — just keep the selectors fully
+      // visible. This avoids the load-time bug where the fade ran before layout
+      // settled and left the selectors hidden until the first touch/scroll.
+      var atTop = y < 4;
+
       ids.forEach(function (id) {
         var el = document.getElementById(id);
         if (!el) return;
-        if (!mobile) { el.style.opacity = ""; el.style.pointerEvents = ""; return; }
+        if (!mobile || atTop) { el.style.opacity = ""; el.style.pointerEvents = ""; return; }
         var rect = el.getBoundingClientRect();
         var h = rect.height || 1;
-        // Fraction of the row still BELOW the bar: 1 when fully below (i.e. at
-        // rest, the whole page top), fading to 0 as it slides up under the bar.
-        // Guarantees the selectors are fully visible on load no matter how close
-        // they sit to the bar.
+        // Fraction of the row still BELOW the bar: 1 when fully below, fading to 0
+        // as it slides up under the bar.
         var op = (rect.bottom - barBottom) / h;
         op = op < 0 ? 0 : (op > 1 ? 1 : op);
         el.style.opacity = String(op);
