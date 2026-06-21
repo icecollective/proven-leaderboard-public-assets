@@ -3979,7 +3979,25 @@
     finishLeaderboardRender();
   }
   
+  function showLoadingOverlay() {
+    if (document.getElementById("pv-loading")) return;
+    var o = document.createElement("div");
+    o.id = "pv-loading";
+    o.innerHTML =
+      '<div class="pv-load-logo">PROVEN<span>LEADERBOARD</span></div>' +
+      '<div class="pv-spinner"></div>';
+    document.body.appendChild(o);
+  }
+
+  function hideLoadingOverlay() {
+    var o = document.getElementById("pv-loading");
+    if (!o) return;
+    o.classList.add("pv-hide");
+    setTimeout(function () { if (o && o.parentNode) o.parentNode.removeChild(o); }, 450);
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
+    showLoadingOverlay();
     try {
       createButtons();
       setupRepCardEvents();
@@ -3991,6 +4009,8 @@
       console.error(error);
       document.querySelector(".leaderboard-grid").innerHTML =
         `<div style="text-align:center;color:red;">Error loading Leaderboard V2. Check console.</div>`;
+    } finally {
+      hideLoadingOverlay();
     }
 
     window.addEventListener("resize", updateLeaderboardStickyOffsets);
