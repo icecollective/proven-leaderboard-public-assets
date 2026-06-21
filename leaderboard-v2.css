@@ -878,9 +878,13 @@
      reveal clean background (not scrolling rows) — no blocky/hard edge */
   /* Soft page-colored fade below the bar: filter pills dissolve into the page as
      they scroll up under it, instead of getting hard-clipped at a cut line. */
-  #pv-topbar::after { content:""; position:absolute; left:0; right:0; top:100%; height:72px;
-                      background:linear-gradient(to bottom,#eef1f6 0%,#eef1f6 72%,rgba(238,241,246,0) 100%);
-                      pointer-events:none; }
+  /* Corner-reveal backdrop, shown ONLY once scrolled (JS toggles .pv-scrolled) so
+     it never covers the filter pills at rest. The pills themselves fade out via JS
+     as they scroll up to the bar - see setupControlScrollFade(). */
+  #pv-topbar::after { content:""; position:absolute; left:0; right:0; top:100%; height:44px;
+                      background:linear-gradient(to bottom,#eef1f6 55%,rgba(238,241,246,0) 100%);
+                      opacity:0; transition:opacity .12s ease; pointer-events:none; }
+  #leaderboard-app.pv-scrolled #pv-topbar::after { opacity:1; }
   /* tighten vertical whitespace — shift everything up */
   #leaderboard-app { padding-top:4px !important; padding-bottom:32px !important; }
   .leaderboard-tabs { margin-bottom:8px; }
@@ -890,7 +894,9 @@
   #office-tabs, #view-tabs, #date-tabs, #tableau-tabs { position:relative; z-index:61; }
   #office-tabs { margin-top:-20px; }
   @media (max-width:760px) {
-    #office-tabs { margin-top:8px; }
+    /* small rest-gap so the first pill row isn't touching the bar (lets it fade
+       cleanly as it scrolls up rather than starting already at the bar) */
+    #office-tabs { margin-top:18px; }
     /* On mobile the filter pills scroll UNDER the sticky top bar + locked header
        (which are opaque and higher) instead of riding over them. Prevents the
        buttons from visually crashing into the PROVEN/Tableau bar and each other. */

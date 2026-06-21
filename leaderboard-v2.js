@@ -2573,6 +2573,45 @@
       island.appendChild(tpill); island.appendChild(brow);
       dateTabs.appendChild(island);
     }
+
+    setupControlScrollFade();
+  }
+
+  // Mobile: fade each filter-pill row out exactly as it scrolls up to the sticky
+  // top bar, so it tucks away cleanly (no hard "half pill" clip, no lingering
+  // ghost, and fully visible at rest). Driven by each row's live distance to the
+  // bar rather than a fixed CSS backdrop, which can't tell "at rest" from "scrolled".
+  function setupControlScrollFade() {
+    if (window.__pvScrollFade) return;
+    window.__pvScrollFade = true;
+
+    var app = document.getElementById("leaderboard-app");
+    var ids = ["office-tabs", "view-tabs", "date-tabs"];
+    var FADE = 16; // px over which a row fades right before it reaches the bar
+
+    function onScroll() {
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      if (app) app.classList.toggle("pv-scrolled", y > 24);
+
+      var mobile = window.innerWidth <= 760;
+      var bar = document.getElementById("pv-topbar");
+      var barBottom = bar ? bar.getBoundingClientRect().bottom : 52;
+
+      ids.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (!mobile) { el.style.opacity = ""; el.style.pointerEvents = ""; return; }
+        var top = el.getBoundingClientRect().top;
+        var op = (top - barBottom) / FADE;
+        op = op < 0 ? 0 : (op > 1 ? 1 : op);
+        el.style.opacity = String(op);
+        el.style.pointerEvents = op < 0.12 ? "none" : "";
+      });
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    onScroll();
   }
 
   function updateGroupDrillNav() {
