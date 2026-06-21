@@ -880,7 +880,13 @@
   /* all selectors slide OVER the sticky top bar (in front) so it's seamless */
   #office-tabs, #view-tabs, #date-tabs, #tableau-tabs { position:relative; z-index:61; }
   #office-tabs { margin-top:-20px; }
-  @media (max-width:760px) { #office-tabs { margin-top:8px; } }
+  @media (max-width:760px) {
+    #office-tabs { margin-top:8px; }
+    /* On mobile the filter pills scroll UNDER the sticky top bar + locked header
+       (which are opaque and higher) instead of riding over them. Prevents the
+       buttons from visually crashing into the PROVEN/Tableau bar and each other. */
+    #office-tabs, #view-tabs, #date-tabs, #tableau-tabs { z-index:1; }
+  }
   /* on scroll: header locks below the sticky top bar, and the totals strip
      locks just below the header */
   /* header sits ON TOP of the bar's bottom edge (z above topbar) to seal the gap,
