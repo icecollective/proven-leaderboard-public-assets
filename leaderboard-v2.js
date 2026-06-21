@@ -2590,7 +2590,7 @@
 
     function onScroll() {
       var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-      if (app) app.classList.toggle("pv-scrolled", y > 24);
+      if (app) app.classList.toggle("pv-scrolled", y > 6);
 
       var mobile = window.innerWidth <= 760;
       var bar = document.getElementById("pv-topbar");

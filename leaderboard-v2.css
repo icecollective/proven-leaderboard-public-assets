@@ -878,11 +878,12 @@
      reveal clean background (not scrolling rows) — no blocky/hard edge */
   /* Soft page-colored fade below the bar: filter pills dissolve into the page as
      they scroll up under it, instead of getting hard-clipped at a cut line. */
-  /* Corner-reveal backdrop, shown ONLY once scrolled (JS toggles .pv-scrolled) so
-     it never covers the filter pills at rest. The pills themselves fade out via JS
-     as they scroll up to the bar - see setupControlScrollFade(). */
+  /* Solid page-colored mask below the bar, shown ONLY once scrolled (JS toggles
+     .pv-scrolled) so it never covers the filter pills at rest. Being solid (not a
+     fade) it cleanly cuts off the toggle/board shadows right at the PROVEN/Tableau
+     line instead of letting them ghost through. */
   #pv-topbar::after { content:""; position:absolute; left:0; right:0; top:100%; height:44px;
-                      background:linear-gradient(to bottom,#eef1f6 55%,rgba(238,241,246,0) 100%);
+                      background:#eef1f6;
                       opacity:0; transition:opacity .12s ease; pointer-events:none; }
   #leaderboard-app.pv-scrolled #pv-topbar::after { opacity:1; }
 
