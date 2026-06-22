@@ -1544,10 +1544,7 @@
     const valueHtml = extras
       ? repCardCsValue(value, extras)
       : `<div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div>`;
-    // invisible sub line so the value centers at the same height as the YTD CS
-    // Rank tile (which has a real sub line below its number)
-    const spacer = `<div class="rc-trk rc-trk-spacer">.</div>`;
-    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}${spacer}</div></div>`;
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}</div></div>`;
   }
 
   function repCardRankTile(label, rank, metricLabel, metricVal) {
