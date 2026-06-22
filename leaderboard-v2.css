@@ -886,10 +886,12 @@
   }
   .rep-card-stat-body { flex:1; display:flex; flex-direction:column; align-items:center;
                         justify-content:center; gap:4px; width:100%; }
-  /* CS value with SG/Sets stacked to its left */
-  .rc-valwrap { display:flex; align-items:center; justify-content:center; gap:6px; }
-  .rc-sgsets { display:flex; flex-direction:column; align-items:flex-end; line-height:1.15; }
-  .rc-sgsets span { font-size:8.5px; font-weight:700; color:#9ca3af; white-space:nowrap; }
+  /* CS value stays centered in the tile; SG/Sets float to its left (absolute) so
+     they don't shift the number's horizontal centering. */
+  .rc-valwrap { position:relative; width:100%; display:flex; align-items:center; justify-content:center; }
+  .rc-sgsets { position:absolute; right:calc(50% + 16px); top:50%; transform:translateY(-50%);
+               display:flex; flex-direction:column; align-items:flex-end; line-height:1.15; }
+  .rc-sgsets span { font-size:6.4px; font-weight:700; color:#9ca3af; white-space:nowrap; }
   /* 2x2 tableau metrics: CS/SRA on top, CAP/IC below */
   .rc-metrics.rc-metrics-grid { display:grid; grid-template-columns:auto auto; gap:1px 10px; justify-content:center; }
   /* (removed the top accent bar on period tiles — looked clunky over the corners) */
