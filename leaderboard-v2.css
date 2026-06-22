@@ -806,8 +806,8 @@
      centered-and-lowered within the cell. */
   .leaderboard-row > div:has(.rep-name-cell.has-goal) { align-self:stretch; }
   .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
-                            justify-content:center; align-items:flex-start; height:100%;
-                            padding-top:20px; }
+                            justify-content:flex-end; align-items:flex-start; height:100%;
+                            padding-bottom:18px; }
   .rep-goal-track { position:absolute; left:16px; bottom:9px; width:200px; max-width:calc(100% - 16px);
                     height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
