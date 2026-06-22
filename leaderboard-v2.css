@@ -837,7 +837,7 @@
   .total-row { background:#f1f4fb; color:#0f172a; }
   /* rows aren't selectable — no hover/tap highlight on the row itself */
   .leaderboard-row { -webkit-tap-highlight-color:transparent; }
-  .cs-main, .tableau-main { font-weight:800; color:#0f172a; font-size:18px; }
+  .cs-main, .tableau-main { font-weight:800; color:#0f172a; font-size:17px; }
 
   /* rep name -> clean dark text (drop the pill) */
   .rep-card-name-button {
