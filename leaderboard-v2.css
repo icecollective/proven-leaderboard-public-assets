@@ -877,22 +877,18 @@
   .rep-card-link { color:#0f172a; font-weight:700; }
   .rep-card-stat-grid { padding:18px 20px 22px; gap:10px; }
   .rep-card-stat {
-    position:relative;
     background:linear-gradient(180deg,#ffffff,#f1f4fb); border:1px solid #e9edf4; border-radius:13px;
     box-shadow:0 1px 2px rgba(15,23,42,.05), inset 0 1px 0 #fff;
     /* title pinned to the top (so titles line up across a row), body centered
        in the remaining space */
     display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:96px;
-    padding-top:14px; padding-bottom:24px;
+    padding-top:14px;
   }
   .rep-card-stat-body { flex:1; display:flex; flex-direction:column; align-items:center;
                         justify-content:center; gap:4px; width:100%; }
-  /* Sub-content (metrics / tab-rank line / metric labels) pins to the bottom so
-     the primary number stays centered at the SAME height in every tile across a
-     row — including the taller YTD CS Rank tile. */
-  .rep-card-stat .rc-metrics,
-  .rep-card-stat .rc-trk,
-  .rep-card-stat .rep-card-stat-sub { position:absolute; left:8px; right:8px; bottom:9px; text-align:center; }
+  /* Best Month/Week tiles carry an invisible sub line so their value centers at
+     the same height as the YTD CS Rank tile's number (which has a sub below it). */
+  .rep-card-stat .rc-trk-spacer { visibility:hidden; }
   /* CS value stays centered in the tile; SG/Sets float to its left (absolute) so
      they don't shift the number's horizontal centering. */
   .rc-valwrap { position:relative; width:100%; display:flex; align-items:center; justify-content:center; }
