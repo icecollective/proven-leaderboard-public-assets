@@ -1526,9 +1526,9 @@
       // Grow/shrink the number to fit the circle based on its character count.
       const len = numText.length;
       const numSize = len <= 3 ? 12 : len === 4 ? 10.5 : len === 5 ? 9 : len === 6 ? 8 : 7;
-      // Keep the metric subscript a consistent gap directly under the number,
-      // shifting it as the number grows/shrinks.
-      const metricY = (26 + numSize / 2 + 3).toFixed(1);
+      // Keep the metric subscript clear of the number, shifting it down as the
+      // number grows so they never overlap.
+      const metricY = (26 + numSize / 2 + 6).toFixed(1);
       // rotate(-90) starts the arc at the top; default sweep is clockwise.
       return `<div class="rc-ring">
           <svg viewBox="0 0 52 52" class="rc-ring-svg">
