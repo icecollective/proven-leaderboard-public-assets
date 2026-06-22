@@ -409,7 +409,8 @@
   .rep-card-modal {
     position:relative;
     width:100%;
-    max-width:720px;
+    max-width:420px; /* locked to a mobile-like width on all screens so the card
+                        (incl. the goal rings) keeps the same spacing everywhere */
     max-height:calc(100vh - 24px);
     overflow:auto;
     background:#fff;
