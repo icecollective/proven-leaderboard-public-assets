@@ -1522,13 +1522,17 @@
       const done = hasGoal && pct >= 1;
       const dash = `${(C * pct).toFixed(1)} ${C.toFixed(1)}`;
       const denom = hasGoal ? String(r.goal) : "–";
+      const numText = `${r.cur}/${denom}`;
+      // Grow/shrink the number to fit the circle based on its character count.
+      const len = numText.length;
+      const numSize = len <= 3 ? 12 : len === 4 ? 10.5 : len === 5 ? 9 : len === 6 ? 8 : 7;
       // rotate(-90) starts the arc at the top; default sweep is clockwise.
       return `<div class="rc-ring">
           <svg viewBox="0 0 52 52" class="rc-ring-svg">
             <circle cx="26" cy="26" r="${R}" class="rc-ring-bg"></circle>
             <circle cx="26" cy="26" r="${R}" class="rc-ring-fg${done ? " done" : ""}"
               stroke-dasharray="${dash}" transform="rotate(-90 26 26)"></circle>
-            <text x="26" y="26" class="rc-ring-num">${escapeHtml(String(r.cur))}/${escapeHtml(denom)}</text>
+            <text x="26" y="26" class="rc-ring-num" style="font-size:${numSize}px">${escapeHtml(numText)}</text>
             <text x="26" y="35" class="rc-ring-metric">${escapeHtml(r.metric)}</text>
           </svg>
           <div class="rc-ring-label">${escapeHtml(r.label)}</div>
