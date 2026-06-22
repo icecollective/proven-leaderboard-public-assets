@@ -879,7 +879,10 @@
   .rep-card-stat {
     background:linear-gradient(180deg,#ffffff,#f1f4fb); border:1px solid #e9edf4; border-radius:13px;
     box-shadow:0 1px 2px rgba(15,23,42,.05), inset 0 1px 0 #fff;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:96px;
+    /* top-align content so every tile title lines up across a row (incl. the
+       taller YTD CS Rank tile) */
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:96px;
+    padding-top:14px;
   }
   /* (removed the top accent bar on period tiles — looked clunky over the corners) */
   .rep-card-stat-value { color:#0f172a; font-size:24px; line-height:1; margin-top:4px; }
