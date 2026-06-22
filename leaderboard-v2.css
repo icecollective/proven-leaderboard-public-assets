@@ -838,6 +838,13 @@
   /* rows aren't selectable — no hover/tap highlight on the row itself */
   .leaderboard-row { -webkit-tap-highlight-color:transparent; }
   .cs-main, .tableau-main { font-weight:800; color:#0f172a; font-size:17px; }
+  /* Value cell as a 3-col grid (notes | number | notes) so the side notes stay a
+     CONSISTENT distance from the number regardless of how wide the number is.
+     (Replaces the old absolute offsets from center, which varied with width.) */
+  .cs-cell { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+  .cs-cell .cs-notes-stack { position:static; transform:none; grid-column:1; justify-self:end; padding-right:7px; }
+  .cs-cell .cs-main, .cs-cell .cs-placeholder { position:static; transform:none; grid-column:2; }
+  .cs-cell .cs-notes-right { position:static; transform:none; grid-column:3; justify-self:start; padding-left:7px; }
 
   /* rep name -> clean dark text (drop the pill) */
   .rep-card-name-button {
