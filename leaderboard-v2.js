@@ -1344,6 +1344,39 @@
     };
   }
 
+  // CS breakdown (self-gen + set-only) for a rep over any deal filter.
+  function repCsBreakdown(repName, filterFn) {
+    const norm = normalizeName(repName);
+    const sgIds = new Set(), setIds = new Set();
+    allDeals.forEach(d => {
+      if (!filterFn(d)) return;
+      const s = normalizeName(d.setter), e = normalizeName(d.expert), id = getDealId(d);
+      const validS = isValidSetterName(d.setter);
+      if (e === norm && s === norm && validS) sgIds.add(id);          // self-gen
+      else if (s === norm && e !== norm && validS) setIds.add(id);    // set only
+    });
+    return { selfGen: sgIds.size, setOnly: setIds.size };
+  }
+  function repExtrasForRange(repName, mode) {
+    const range = getDateRange(mode);
+    return repCsBreakdown(repName, d => dealInDateRange(d, range));
+  }
+  // Best calendar month/week CS, plus the SG/Sets breakdown for that period.
+  function repBestPeriodInfo(repName, keyFn) {
+    const norm = normalizeName(repName);
+    const buckets = new Map();
+    allDeals.forEach(d => {
+      if (!d.date || !repContributesToDeal(d, norm)) return;
+      const k = keyFn(d);
+      if (!buckets.has(k)) buckets.set(k, new Set());
+      buckets.get(k).add(getDealId(d));
+    });
+    let bestK = null, best = 0;
+    buckets.forEach((ids, k) => { if (ids.size > best) { best = ids.size; bestK = k; } });
+    const extras = bestK ? repCsBreakdown(repName, d => d.date && keyFn(d) === bestK) : { selfGen: 0, setOnly: 0 };
+    return { cs: best, selfGen: extras.selfGen, setOnly: extras.setOnly };
+  }
+
   function buildRepCardData(repName) {
     const profile = getRepProfileInfo(repName);
     const ytdTableauRank = getTableauMetricRank(repName, "cs");
@@ -1355,21 +1388,24 @@
         ytd: {
           label: "YTD CS",
           discordCs: ytdDiscordCs,
-          tableau: getRepTableauStatsForPeriod(repName, "ytd")
+          tableau: getRepTableauStatsForPeriod(repName, "ytd"),
+          extras: repExtrasForRange(repName, "ytd")
         },
         mtd: {
           label: "MTD CS",
           discordCs: getRepDiscordCsForRange(repName, "mtd"),
-          tableau: getRepTableauStatsForPeriod(repName, "mtd")
+          tableau: getRepTableauStatsForPeriod(repName, "mtd"),
+          extras: repExtrasForRange(repName, "mtd")
         },
         wtd: {
           label: "WTD CS",
           discordCs: getRepDiscordCsForRange(repName, "wtd"),
-          tableau: getRepTableauStatsForPeriod(repName, "wtd")
+          tableau: getRepTableauStatsForPeriod(repName, "wtd"),
+          extras: repExtrasForRange(repName, "wtd")
         }
       },
-      bestMonth: getRepBestMonthCs(repName),
-      bestWeek: getRepBestWeekCs(repName),
+      bestMonth: repBestPeriodInfo(repName, d => d.date.slice(0, 7)),
+      bestWeek: repBestPeriodInfo(repName, d => formatDate(getMondayOfWeek(new Date(`${d.date}T12:00:00`)))),
       ytdDiscordRank: getRepYtdDiscordRank(repName),
       ytdDiscordCs,
       ytdTableauCsRank: ytdTableauRank,
@@ -1471,7 +1507,8 @@
       return `<div class="rc-metrics rc-empty">—</div>`;
     }
     const n = v => (v == null ? 0 : v);
-    return `<div class="rc-metrics"><span>CS ${n(t.cs)}</span><span>SRA ${n(t.sra)}</span><span>CAP ${n(t.cap)}</span><span>IC ${n(t.ic)}</span></div>`;
+    // 2x2 grid: CS / SRA on top, CAP / IC below.
+    return `<div class="rc-metrics rc-metrics-grid"><span>CS ${n(t.cs)}</span><span>SRA ${n(t.sra)}</span><span>CAP ${n(t.cap)}</span><span>IC ${n(t.ic)}</span></div>`;
   }
 
   function repCardChips(profile) {
@@ -1484,18 +1521,35 @@
     return `<div class="rep-card-meta-row">${office}${group}</div>`;
   }
 
-  function repCardPeriodTile(p, isPlata) {
-    const val = isPlata ? (p.tableau && p.tableau.cs != null ? p.tableau.cs : "—") : (p.discordCs != null ? p.discordCs : "—");
-    return `<div class="rep-card-stat is-period"><div class="rep-card-stat-label">${escapeHtml(p.label)}</div><div class="rep-card-stat-value">${escapeHtml(String(val))}</div>${repCardMetrics(p.tableau)}</div>`;
+  // A CS value with SG / Sets shown stacked to its left (when relevant).
+  function repCardCsValue(val, extras) {
+    const notes = [];
+    if (extras) {
+      if (extras.selfGen > 0) notes.push(`<span>SG ${extras.selfGen}</span>`);
+      if (extras.setOnly > 0) notes.push(`<span>Sets ${extras.setOnly}</span>`);
+    }
+    const left = notes.length ? `<div class="rc-sgsets">${notes.join("")}</div>` : "";
+    return `<div class="rc-valwrap">${left}<div class="rep-card-stat-value">${escapeHtml(String(val == null ? "—" : val))}</div></div>`;
   }
 
-  function repCardSimpleTile(label, value) {
-    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div></div>`;
+  function repCardPeriodTile(p, isPlata) {
+    const val = isPlata ? (p.tableau && p.tableau.cs != null ? p.tableau.cs : "—") : (p.discordCs != null ? p.discordCs : "—");
+    const valueHtml = isPlata
+      ? `<div class="rep-card-stat-value">${escapeHtml(String(val))}</div>`
+      : repCardCsValue(val, p.extras);
+    return `<div class="rep-card-stat is-period"><div class="rep-card-stat-label">${escapeHtml(p.label)}</div><div class="rep-card-stat-body">${valueHtml}${repCardMetrics(p.tableau)}</div></div>`;
+  }
+
+  function repCardSimpleTile(label, value, extras) {
+    const valueHtml = extras
+      ? repCardCsValue(value, extras)
+      : `<div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div>`;
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}</div></div>`;
   }
 
   function repCardRankTile(label, rank, metricLabel, metricVal) {
     const sub = metricVal != null ? `<div class="rep-card-stat-sub">${escapeHtml(metricLabel)} ${escapeHtml(String(metricVal))}</div>` : "";
-    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-value">#${escapeHtml(String(rank == null ? "—" : rank))}</div>${sub}</div>`;
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body"><div class="rep-card-stat-value">#${escapeHtml(String(rank == null ? "—" : rank))}</div>${sub}</div></div>`;
   }
 
   // Three stacked goal rings (WTD / MTD / YTD) for the rep card. Each shows
@@ -1528,7 +1582,7 @@
       const numSize = len <= 3 ? 12 : len === 4 ? 10.5 : len === 5 ? 9 : len === 6 ? 8 : 7;
       // Keep the metric subscript clear of the number, shifting it down as the
       // number grows so they never overlap.
-      const metricY = (26 + numSize / 2 + 6).toFixed(1);
+      const metricY = (26 + numSize / 2 + 8).toFixed(1);
       // rotate(-90) starts the arc at the top; default sweep is clockwise.
       return `<div class="rc-ring">
           <svg viewBox="0 0 52 52" class="rc-ring-svg">
@@ -1555,8 +1609,10 @@
     const ytdCsRankHtml = isPlata
       ? repCardRankTile("YTD CS Rank", data.ytdTableauCsRank, "CS", data.ytdTableauCsValue)
       : `<div class="rep-card-stat"><div class="rep-card-stat-label">YTD CS Rank</div>
+          <div class="rep-card-stat-body">
           <div class="rc-valrow"><span class="rep-card-stat-value">#${escapeHtml(String(data.ytdDiscordRank == null ? "—" : data.ytdDiscordRank))}</span>${data.ytdDiscordCs != null ? `<span class="rc-iv">${escapeHtml(String(data.ytdDiscordCs))}</span>` : ""}</div>
           <div class="rc-trk">Tab Rk #${escapeHtml(String(data.ytdTableauCsRank == null ? "—" : data.ytdTableauCsRank))}${data.ytdTableauCsValue != null ? ` · CS ${escapeHtml(String(data.ytdTableauCsValue))}` : ""}</div>
+          </div>
         </div>`;
 
     const phoneIcon = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.3.2 2.5.58 3.6a1 1 0 0 1-.25 1l-2.2 2.2z"/></svg>';
@@ -1586,8 +1642,8 @@
         ${repCardPeriodTile(periods.ytd, isPlata)}
         ${repCardPeriodTile(periods.mtd, isPlata)}
         ${repCardPeriodTile(periods.wtd, isPlata)}
-        ${repCardSimpleTile("Best Month CS", isPlata ? "na" : data.bestMonth)}
-        ${repCardSimpleTile("Best Week CS", isPlata ? "na" : data.bestWeek)}
+        ${repCardSimpleTile("Best Month CS", isPlata ? "na" : data.bestMonth.cs, isPlata ? null : data.bestMonth)}
+        ${repCardSimpleTile("Best Week CS", isPlata ? "na" : data.bestWeek.cs, isPlata ? null : data.bestWeek)}
         ${ytdCsRankHtml}
         ${repCardRankTile("YTD SRA Rank", data.ytdSraRank, "SRA", data.ytdSraValue)}
         ${repCardRankTile("YTD CAP Rank", data.ytdCapRank, "CAP", data.ytdCapValue)}

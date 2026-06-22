@@ -879,11 +879,19 @@
   .rep-card-stat {
     background:linear-gradient(180deg,#ffffff,#f1f4fb); border:1px solid #e9edf4; border-radius:13px;
     box-shadow:0 1px 2px rgba(15,23,42,.05), inset 0 1px 0 #fff;
-    /* top-align content so every tile title lines up across a row (incl. the
-       taller YTD CS Rank tile) */
+    /* title pinned to the top (so titles line up across a row), body centered
+       in the remaining space */
     display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:96px;
     padding-top:14px;
   }
+  .rep-card-stat-body { flex:1; display:flex; flex-direction:column; align-items:center;
+                        justify-content:center; gap:4px; width:100%; }
+  /* CS value with SG/Sets stacked to its left */
+  .rc-valwrap { display:flex; align-items:center; justify-content:center; gap:6px; }
+  .rc-sgsets { display:flex; flex-direction:column; align-items:flex-end; line-height:1.15; }
+  .rc-sgsets span { font-size:8.5px; font-weight:700; color:#9ca3af; white-space:nowrap; }
+  /* 2x2 tableau metrics: CS/SRA on top, CAP/IC below */
+  .rc-metrics.rc-metrics-grid { display:grid; grid-template-columns:auto auto; gap:1px 10px; justify-content:center; }
   /* (removed the top accent bar on period tiles — looked clunky over the corners) */
   .rep-card-stat-value { color:#0f172a; font-size:24px; line-height:1; margin-top:4px; }
   .rep-card-stat-label { white-space:nowrap; }
