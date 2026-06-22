@@ -798,9 +798,11 @@
      [office · goal] underneath it is pinned toward the bottom of the row as one
      connected piece. Reps with no goal still show the bar + "No Goal" so every
      row stays the exact same height. The name button stays sized to its text. */
-  /* Name + title stay in their normal centered position; the goal bar is just
-     added directly under the title line. The goal number joins the title via a
+  /* Name + title read as one unit, vertically centered in the row; the goal bar
+     is added directly under the title line. The goal number joins the title via a
      dot. "No Goal" shows for reps without a goal so rows stay uniform. */
+  .rep-name-cell.has-goal { display:flex; flex-direction:column; justify-content:center;
+                            align-items:flex-start; min-height:64px; }
   .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
                     background:#eef1f6; overflow:hidden; margin:5px 0 0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
