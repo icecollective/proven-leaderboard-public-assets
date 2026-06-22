@@ -794,16 +794,19 @@
   .leaderboard-header-row > div:nth-child(2) { text-align:left; }
   .leaderboard-header-row > div:nth-child(2) .sort-header-button { margin-left:10px; }
   .rep-row-sub { font-size:11px; color:#6b7280; font-weight:500; margin-top:1px; white-space:nowrap; }
-  /* Goal layout (goal tabs only): name on top, bar under it, then office (left)
-     + goal "20/5 SRA" (right) beneath the bar. Reps with no goal show an empty
-     bar + "No Goal", so every row stays the exact same height. */
-  .rep-name-cell.has-goal { display:flex; flex-direction:column; }
+  /* Goal layout (goal tabs only): name sits vertically centered; the bar with
+     [office · goal] underneath it is pinned toward the bottom of the row as one
+     connected piece. Reps with no goal still show the bar + "No Goal" so every
+     row stays the exact same height. The name button stays sized to its text. */
+  .rep-name-cell.has-goal { display:flex; flex-direction:column; justify-content:center;
+                            align-items:flex-start; min-height:62px; padding-top:4px; padding-bottom:6px; }
+  .rep-name-top { flex:1 1 auto; display:flex; align-items:center; }
+  .rep-goal-wrap { flex:0 0 auto; }
   .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
-                    background:#eef1f6; overflow:hidden; margin:7px 0 5px; }
+                    background:#eef1f6; overflow:hidden; margin:0 0 3px; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
-  .rep-goal-meta { display:flex; align-items:baseline; justify-content:space-between;
-                   gap:10px; width:200px; max-width:100%; }
+  .rep-goal-meta { display:flex; align-items:baseline; gap:5px; }
   .rep-goal-meta .rep-row-sub { margin-top:0; }
   .rep-goal-label { font-size:9.5px; font-weight:800; color:#0f172a; letter-spacing:.01em;
                     line-height:1; white-space:nowrap; flex:0 0 auto; }
@@ -814,7 +817,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track, .rep-goal-meta { width:150px; }
+    .rep-goal-track { width:150px; }
     .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */
