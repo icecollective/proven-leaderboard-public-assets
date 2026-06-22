@@ -1526,6 +1526,9 @@
       // Grow/shrink the number to fit the circle based on its character count.
       const len = numText.length;
       const numSize = len <= 3 ? 12 : len === 4 ? 10.5 : len === 5 ? 9 : len === 6 ? 8 : 7;
+      // Keep the metric subscript a consistent gap directly under the number,
+      // shifting it as the number grows/shrinks.
+      const metricY = (26 + numSize / 2 + 3).toFixed(1);
       // rotate(-90) starts the arc at the top; default sweep is clockwise.
       return `<div class="rc-ring">
           <svg viewBox="0 0 52 52" class="rc-ring-svg">
@@ -1533,7 +1536,7 @@
             <circle cx="26" cy="26" r="${R}" class="rc-ring-fg${done ? " done" : ""}"
               stroke-dasharray="${dash}" transform="rotate(-90 26 26)"></circle>
             <text x="26" y="26" class="rc-ring-num" style="font-size:${numSize}px">${escapeHtml(numText)}</text>
-            <text x="26" y="35" class="rc-ring-metric">${escapeHtml(r.metric)}</text>
+            <text x="26" y="${metricY}" class="rc-ring-metric">${escapeHtml(r.metric)}</text>
           </svg>
           <div class="rc-ring-label">${escapeHtml(r.label)}</div>
         </div>`;
