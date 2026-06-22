@@ -1544,7 +1544,7 @@
     const valueHtml = extras
       ? repCardCsValue(value, extras)
       : `<div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div>`;
-    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}</div></div>`;
+    return `<div class="rep-card-stat rep-card-stat--simple"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}</div></div>`;
   }
 
   function repCardRankTile(label, rank, metricLabel, metricVal) {
