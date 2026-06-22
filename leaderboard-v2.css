@@ -801,8 +801,11 @@
   /* Name + title read as one unit, vertically centered in the row; the goal bar
      is added directly under the title line. The goal number joins the title via a
      dot. "No Goal" shows for reps without a goal so rows stay uniform. */
+  /* Stretch the rep cell to the full row height, then dead-center the whole
+     name+title+bar unit inside it. */
+  .leaderboard-row > div:has(.rep-name-cell.has-goal) { align-self:stretch; }
   .rep-name-cell.has-goal { display:flex; flex-direction:column; justify-content:center;
-                            align-items:flex-start; min-height:64px; }
+                            align-items:flex-start; height:100%; }
   .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
                     background:#eef1f6; overflow:hidden; margin:5px 0 0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
