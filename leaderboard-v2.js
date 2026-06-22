@@ -911,8 +911,12 @@
   }
 
   function buildRepGoalBar(name, row) {
+    // Only the goal timeframes get a bar area at all.
+    if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) return "";
     const p = getRepGoalProgress(name, row);
-    if (!p) return "";
+    // Reserve the same vertical space for reps without a goal so every row in
+    // the view stays the exact same height.
+    if (!p) return `<div class="rep-goal rep-goal-empty"></div>`;
     const done = p.pct >= 100;
     return `<div class="rep-goal" title="${p.label} goal">` +
       `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${p.pct}%"></div></div>` +
