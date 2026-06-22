@@ -810,7 +810,7 @@
                             justify-content:flex-end; align-items:flex-start; height:100%;
                             padding-bottom:14px; }
   .rep-goal-track { position:absolute; left:16px; bottom:9px; width:320px; max-width:none;
-                    height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; margin:0; }
+                    height:4px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
   .rep-goal-label { font-weight:700; color:#0f172a; white-space:nowrap; }
