@@ -46,6 +46,7 @@
   let recruitingRows = [];
   let recruiting2025Rows = [];
   let repProfiles = {}; // approved rep card info keyed by normalized name
+  let repGoals = {};    // per-rep goals (weekly CS / monthly / yearly) keyed by normalized name
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -871,10 +872,52 @@
     return role;
   }
 
-  function buildRepNameCell(name) {
+  function buildRepNameCell(name, row) {
     const displayName = String(name || "").trim();
     const sub = repRoleOffice(displayName);
-    return `<div class="rep-name-cell"><button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+    const bar = buildRepGoalBar(displayName, row);
+    return `<div class="rep-name-cell"><button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}${bar}</div>`;
+  }
+
+  // Per-rep goal progress for the active timeframe:
+  //   WTD -> this week's internal CS vs weekly CS goal
+  //   MTD -> Tableau month (SRA setters / CAP experts) vs monthly goal
+  //   YTD -> Tableau year  (SRA setters / CAP experts) vs yearly goal
+  // Returns null when there's no goal for the active timeframe (or an off mode).
+  function getRepGoalProgress(repName, row) {
+    const norm = normalizeName(repName);
+    const goal = repGoals[norm];
+    if (!goal) return null;
+
+    let target = null, current = 0, label = "";
+    if (activeDateMode === "wtd") {
+      target = goal.weeklyCs;
+      label = "CS";
+      current = Number(row && row.cs) || 0; // internal CS for the active (WTD) range
+    } else if (activeDateMode === "mtd" || activeDateMode === "ytd") {
+      target = activeDateMode === "mtd" ? goal.monthly : goal.yearly;
+      const metric = (goal.metric || "SRA").toLowerCase(); // sra | cap
+      label = (goal.metric || "SRA").toUpperCase();
+      const trow = getTableauRowForDateMode(norm, activeDateMode);
+      current = trow ? (Number(trow[metric]) || 0) : 0;
+    } else {
+      return null; // today / lastWeek / custom -> no bar
+    }
+
+    if (target == null || target === "" || Number(target) <= 0) return null;
+    target = Number(target);
+    const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+    return { label: label, current: current, target: target, pct: pct };
+  }
+
+  function buildRepGoalBar(name, row) {
+    const p = getRepGoalProgress(name, row);
+    if (!p) return "";
+    const done = p.pct >= 100;
+    return `<div class="rep-goal" title="${p.label} goal">` +
+      `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${p.pct}%"></div></div>` +
+      `<div class="rep-goal-label">${p.current}<span>/${p.target} ${escapeHtml(p.label)}</span></div>` +
+      `</div>`;
   }
 
   function getRecruitingRowForRep(repName) {
@@ -2103,6 +2146,7 @@
   recruiting2025Rows = payload.recruiting2025 && Array.isArray(payload.recruiting2025.rows) ? payload.recruiting2025.rows : [];
 
     repProfiles = payload.repProfiles && typeof payload.repProfiles === "object" ? payload.repProfiles : {};
+    repGoals = payload.repGoals && typeof payload.repGoals === "object" ? payload.repGoals : {};
 
     rebuildOfficeNameSets();
     rebuildPreviousYearMap();
@@ -2590,7 +2634,7 @@
 
     function onScroll() {
       var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-      if (app) app.classList.toggle("pv-scrolled", y > 6);
+      if (app) app.classList.toggle("pv-scrolled", y > 24);
 
       var mobile = window.innerWidth <= 760;
       var bar = document.getElementById("pv-topbar");
@@ -3673,7 +3717,7 @@
           bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
           <div>${index + 1}</div>
-          <div>${buildRepNameCell(row.name)}</div>
+          <div>${buildRepNameCell(row.name, row)}</div>
           <div>${buildCsCell(row, true)}</div>
           ${useGroupsComparison ? buildPreviousYearCell(row) : ""}
           ${drillUseTableau ? buildTableauCell(row, activeTableauMetric) : ""}
@@ -3862,7 +3906,7 @@
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
-            <div>${buildRepNameCell(row.name)}</div>
+            <div>${buildRepNameCell(row.name, row)}</div>
             <div class="cs-cell">
     <span class="cs-main">${row.selfGen}</span>
   </div>
@@ -3968,7 +4012,7 @@
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
-            <div>${buildRepNameCell(row.name)}</div>
+            <div>${buildRepNameCell(row.name, row)}</div>
             ${buildCsCell(row, true)}
             ${comparisonActive ? buildPreviousYearCell(row) : ""}
             ${useTableauColumn ? buildTableauCell(row, activeTableauMetric) : ""}
