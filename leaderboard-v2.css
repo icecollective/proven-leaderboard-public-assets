@@ -794,20 +794,28 @@
   .leaderboard-header-row > div:nth-child(2) { text-align:left; }
   .leaderboard-header-row > div:nth-child(2) .sort-header-button { margin-left:10px; }
   .rep-row-sub { font-size:11px; color:#6b7280; font-weight:500; margin-top:1px; white-space:nowrap; }
-  /* per-rep goal progress bar (under the name) — Groups-style. Fixed height so
-     every row stays uniform; reps without a goal get an empty slot of the same size. */
-  .rep-goal { margin-top:6px; max-width:160px; height:19px; }
-  .rep-goal-track { height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; }
+  /* Goal layout (goal tabs only): name on top, bar under it, then office (left)
+     + goal "20/5 SRA" (right) beneath the bar. Reps with no goal show an empty
+     bar + "No Goal", so every row stays the exact same height. */
+  .rep-name-cell.has-goal { display:flex; flex-direction:column; }
+  .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
+                    background:#eef1f6; overflow:hidden; margin:7px 0 5px; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
-  .rep-goal-label { font-size:9px; font-weight:800; color:#0f172a; margin-top:3px; letter-spacing:.01em; line-height:1; }
+  .rep-goal-meta { display:flex; align-items:baseline; justify-content:space-between;
+                   gap:10px; width:200px; max-width:100%; }
+  .rep-goal-meta .rep-row-sub { margin-top:0; }
+  .rep-goal-label { font-size:9.5px; font-weight:800; color:#0f172a; letter-spacing:.01em;
+                    line-height:1; white-space:nowrap; flex:0 0 auto; }
   .rep-goal-label span { color:#94a3b8; font-weight:600; }
+  .rep-goal-none { color:#94a3b8; font-weight:700; }
   /* keep name + team on one line each, even when the column is tight on mobile */
   @media (max-width:760px) {
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal { max-width:130px; }
+    .rep-goal-track, .rep-goal-meta { width:150px; }
+    .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */
   .leaderboard-header-row { border-top-left-radius:18px; border-top-right-radius:18px; padding:0 6px; min-height:44px; align-items:center; }
@@ -820,7 +828,8 @@
   .leaderboard-row { border-bottom:1px solid #eef1f6; }
   .even-row { background:#f7f9fd; } .odd-row { background:#fff; }
   .total-row { background:#f1f4fb; color:#0f172a; }
-  .leaderboard-row:not(.total-row):hover { background:#eef3fb; }
+  /* rows aren't selectable — no hover/tap highlight on the row itself */
+  .leaderboard-row { -webkit-tap-highlight-color:transparent; }
   .cs-main, .tableau-main { font-weight:800; color:#0f172a; }
 
   /* rep name -> clean dark text (drop the pill) */

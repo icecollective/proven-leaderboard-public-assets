@@ -875,8 +875,25 @@
   function buildRepNameCell(name, row) {
     const displayName = String(name || "").trim();
     const sub = repRoleOffice(displayName);
-    const bar = buildRepGoalBar(displayName, row);
-    return `<div class="rep-name-cell"><button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}${bar}</div>`;
+    const btn = `<button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>`;
+
+    // Outside the goal tabs: original simple name + role/office stack.
+    if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) {
+      return `<div class="rep-name-cell">${btn}${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+    }
+
+    // Goal tabs: name -> bar -> [office (left) · goal (right)].
+    const p = getRepGoalProgress(displayName, row);
+    const pct = p ? p.pct : 0;
+    const done = p && p.pct >= 100;
+    const goalLabel = p
+      ? `${p.current}<span>/${p.target} ${escapeHtml(p.label)}</span>`
+      : `<span class="rep-goal-none">No Goal</span>`;
+    return `<div class="rep-name-cell has-goal">` +
+      btn +
+      `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>` +
+      `<div class="rep-goal-meta"><span class="rep-row-sub">${sub ? escapeHtml(sub) : ""}</span><span class="rep-goal-label">${goalLabel}</span></div>` +
+      `</div>`;
   }
 
   // Per-rep goal progress for the active timeframe:
@@ -908,20 +925,6 @@
     target = Number(target);
     const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
     return { label: label, current: current, target: target, pct: pct };
-  }
-
-  function buildRepGoalBar(name, row) {
-    // Only the goal timeframes get a bar area at all.
-    if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) return "";
-    const p = getRepGoalProgress(name, row);
-    // Reserve the same vertical space for reps without a goal so every row in
-    // the view stays the exact same height.
-    if (!p) return `<div class="rep-goal rep-goal-empty"></div>`;
-    const done = p.pct >= 100;
-    return `<div class="rep-goal" title="${p.label} goal">` +
-      `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${p.pct}%"></div></div>` +
-      `<div class="rep-goal-label">${p.current}<span>/${p.target} ${escapeHtml(p.label)}</span></div>` +
-      `</div>`;
   }
 
   function getRecruitingRowForRep(repName) {
