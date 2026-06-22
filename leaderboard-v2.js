@@ -1512,20 +1512,23 @@
       { label: "WTD", cur: getRepDiscordCsForRange(repName, "wtd") || 0, goal: goal.weeklyCs, metric: "CS" },
       { label: "MTD", cur: Number(mtdT[ml]) || 0, goal: goal.monthly, metric: metric },
       { label: "YTD", cur: Number(ytdT[ml]) || 0, goal: goal.yearly, metric: metric }
-    ].filter(r => r.goal != null && Number(r.goal) > 0);
-    if (!rings.length) return "";
+    ];
+    if (!rings.some(r => r.goal != null && Number(r.goal) > 0)) return "";
 
     const R = 22, C = 2 * Math.PI * R;
     const ringsHtml = rings.map(r => {
-      const pct = Math.max(0, Math.min(1, r.cur / r.goal));
-      const done = pct >= 1;
+      const hasGoal = r.goal != null && Number(r.goal) > 0;
+      const pct = hasGoal ? Math.max(0, Math.min(1, r.cur / r.goal)) : 0;
+      const done = hasGoal && pct >= 1;
       const dash = `${(C * pct).toFixed(1)} ${C.toFixed(1)}`;
+      const denom = hasGoal ? String(r.goal) : "–";
+      // rotate(-90) starts the arc at the top; default sweep is clockwise.
       return `<div class="rc-ring">
           <svg viewBox="0 0 52 52" class="rc-ring-svg">
             <circle cx="26" cy="26" r="${R}" class="rc-ring-bg"></circle>
             <circle cx="26" cy="26" r="${R}" class="rc-ring-fg${done ? " done" : ""}"
-              stroke-dasharray="${dash}" transform="translate(26,0) scale(-1,1) translate(-26,0) rotate(-90 26 26)"></circle>
-            <text x="26" y="25" class="rc-ring-num">${escapeHtml(String(r.cur))}/${escapeHtml(String(r.goal))}</text>
+              stroke-dasharray="${dash}" transform="rotate(-90 26 26)"></circle>
+            <text x="26" y="26" class="rc-ring-num">${escapeHtml(String(r.cur))}/${escapeHtml(denom)}</text>
             <text x="26" y="35" class="rc-ring-metric">${escapeHtml(r.metric)}</text>
           </svg>
           <div class="rc-ring-label">${escapeHtml(r.label)}</div>

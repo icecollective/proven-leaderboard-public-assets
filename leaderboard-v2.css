@@ -887,17 +887,18 @@
   .rep-card-contact { display:flex; gap:18px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:10px; font-weight:700; }
   .rep-card-contact .rep-card-link { display:inline-flex; align-items:center; gap:6px; }
   .rep-card-contact .rep-card-link svg { flex:0 0 auto; }
-  /* Goal rings: 3 stacked circular progress meters to the right of the name area */
-  .rep-card-rings { position:absolute; top:92px; right:12px; display:flex; flex-direction:column;
-                    gap:8px; align-items:center; z-index:2; }
+  /* Goal rings: WTD/MTD/YTD circular meters in a horizontal row, vertically
+     centered in the band between the banner bottom and the divider line. */
+  .rep-card-rings { position:absolute; top:calc(50% + 20px); right:12px; transform:translateY(-50%);
+                    display:flex; flex-direction:row; gap:6px; align-items:center; z-index:2; }
   .rc-ring { display:flex; flex-direction:column; align-items:center; }
-  .rc-ring-svg { width:48px; height:48px; display:block; }
+  .rc-ring-svg { width:42px; height:42px; display:block; }
   .rc-ring-bg { fill:none; stroke:#eef1f6; stroke-width:5; }
   .rc-ring-fg { fill:none; stroke:#0f172a; stroke-width:5; stroke-linecap:round; }
   .rc-ring-fg.done { stroke:#16a34a; }
-  .rc-ring-num { fill:#0f172a; font-size:12px; font-weight:800; text-anchor:middle; }
-  .rc-ring-metric { fill:#94a3b8; font-size:7.5px; font-weight:700; text-anchor:middle; letter-spacing:.04em; }
-  .rc-ring-label { font-size:9px; font-weight:800; color:#64748b; margin-top:1px; letter-spacing:.04em; }
+  .rc-ring-num { fill:#0f172a; font-size:8.5px; font-weight:800; text-anchor:middle; dominant-baseline:central; }
+  .rc-ring-metric { fill:#94a3b8; font-size:6px; font-weight:700; text-anchor:middle; letter-spacing:.04em; }
+  .rc-ring-label { font-size:8.5px; font-weight:800; color:#64748b; margin-top:-1px; letter-spacing:.04em; }
   .rc-metrics { display:flex; flex-wrap:wrap; justify-content:center; gap:1px 8px; margin-top:5px;
                 font-size:9px; color:#9aa3b1; font-weight:600; line-height:1.4; }
   .rc-metrics span { white-space:nowrap; }
