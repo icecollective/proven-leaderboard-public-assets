@@ -868,8 +868,11 @@
       else if (riotNames.has(norm)) office = "Riot";
       else office = "";
     }
-    if (office && normalizeName(office) !== normalizeName(role)) return `${role} · ${office}`;
-    return role;
+    // Abbreviate "Market Leader" -> "ML" in the row subtitle only (the baseball
+    // card keeps the full label).
+    const rowRole = role === "Market Leader" ? "ML" : role;
+    if (office && normalizeName(office) !== normalizeName(role)) return `${rowRole} · ${office}`;
+    return rowRole;
   }
 
   function buildRepNameCell(name, row) {
