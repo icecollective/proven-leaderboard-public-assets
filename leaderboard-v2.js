@@ -882,24 +882,18 @@
       return `<div class="rep-name-cell">${btn}${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
     }
 
-    // Goal tabs: vertically-centered name, with bar + [office · goal] pinned to
-    // the bottom of the row as one connected piece.
+    // Goal tabs: SAME name + title row as the standard layout (position unchanged),
+    // with the goal number joined onto the title via a dot, and the bar added
+    // directly under the title row.
     const p = getRepGoalProgress(displayName, row);
     const pct = p ? p.pct : 0;
     const done = p && p.pct >= 100;
     const goalLabel = p
-      ? `${p.current}<span>/${p.target} ${escapeHtml(p.label)}</span>`
+      ? `<span class="rep-goal-label">${p.current}<span>/${p.target} ${escapeHtml(p.label)}</span></span>`
       : `<span class="rep-goal-none">No Goal</span>`;
-    return `<div class="rep-name-cell has-goal">` +
-      `<div class="rep-name-top">${btn}</div>` +
-      `<div class="rep-goal-wrap">` +
-        `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>` +
-        `<div class="rep-goal-meta">` +
-          (sub ? `<span class="rep-row-sub">${escapeHtml(sub)} ·</span>` : "") +
-          `<span class="rep-goal-label">${goalLabel}</span>` +
-        `</div>` +
-      `</div>` +
-    `</div>`;
+    const subLine = `<div class="rep-row-sub">${sub ? escapeHtml(sub) + " · " : ""}${goalLabel}</div>`;
+    const bar = `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>`;
+    return `<div class="rep-name-cell has-goal">${btn}${subLine}${bar}</div>`;
   }
 
   // Per-rep goal progress for the active timeframe:

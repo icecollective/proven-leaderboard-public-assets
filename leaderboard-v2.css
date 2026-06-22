@@ -798,18 +798,14 @@
      [office · goal] underneath it is pinned toward the bottom of the row as one
      connected piece. Reps with no goal still show the bar + "No Goal" so every
      row stays the exact same height. The name button stays sized to its text. */
-  .rep-name-cell.has-goal { display:flex; flex-direction:column; justify-content:center;
-                            align-items:flex-start; min-height:62px; padding-top:4px; padding-bottom:6px; }
-  .rep-name-top { flex:1 1 auto; display:flex; align-items:center; }
-  .rep-goal-wrap { flex:0 0 auto; }
+  /* Name + title stay in their normal centered position; the goal bar is just
+     added directly under the title line. The goal number joins the title via a
+     dot. "No Goal" shows for reps without a goal so rows stay uniform. */
   .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
-                    background:#eef1f6; overflow:hidden; margin:0 0 3px; }
+                    background:#eef1f6; overflow:hidden; margin:5px 0 0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
-  .rep-goal-meta { display:flex; align-items:baseline; gap:5px; }
-  .rep-goal-meta .rep-row-sub { margin-top:0; }
-  .rep-goal-label { font-size:9.5px; font-weight:800; color:#0f172a; letter-spacing:.01em;
-                    line-height:1; white-space:nowrap; flex:0 0 auto; }
+  .rep-goal-label { font-weight:700; color:#0f172a; white-space:nowrap; }
   .rep-goal-label span { color:#94a3b8; font-weight:600; }
   .rep-goal-none { color:#94a3b8; font-weight:700; }
   /* keep name + team on one line each, even when the column is tight on mobile */
