@@ -801,13 +801,15 @@
   /* Name + title read as one unit, vertically centered in the row; the goal bar
      is added directly under the title line. The goal number joins the title via a
      dot. "No Goal" shows for reps without a goal so rows stay uniform. */
-  /* Stretch the rep cell to the full row height, then dead-center the whole
-     name+title+bar unit inside it. */
+  /* Stretch the rep cell to the full row height. The bar is pinned to the bottom
+     (out of flow) so moving the name/title never moves it. The name+title are
+     centered-and-lowered within the cell. */
   .leaderboard-row > div:has(.rep-name-cell.has-goal) { align-self:stretch; }
-  .rep-name-cell.has-goal { display:flex; flex-direction:column; justify-content:center;
-                            align-items:flex-start; height:100%; }
-  .rep-goal-track { width:200px; max-width:100%; height:4px; border-radius:999px;
-                    background:#eef1f6; overflow:hidden; margin:5px 0 0; }
+  .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
+                            justify-content:center; align-items:flex-start; height:100%;
+                            padding-top:20px; }
+  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:200px; max-width:calc(100% - 16px);
+                    height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
   .rep-goal-label { font-weight:700; color:#0f172a; white-space:nowrap; }
@@ -818,7 +820,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { width:150px; }
+    .rep-goal-track { width:150px; left:8px; }
     .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */
