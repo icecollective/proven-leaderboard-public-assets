@@ -1498,9 +1498,46 @@
     return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-value">#${escapeHtml(String(rank == null ? "—" : rank))}</div>${sub}</div>`;
   }
 
+  // Three stacked goal rings (WTD / MTD / YTD) for the rep card. Each shows
+  // current/goal inside and fills counterclockwise. WTD tracks internal CS;
+  // MTD/YTD track the rep's Tableau metric (SRA setters / CAP experts).
+  function repCardGoalRings(repName) {
+    const goal = repGoals[normalizeName(repName)];
+    if (!goal) return "";
+    const metric = (goal.metric || "SRA").toUpperCase();
+    const ml = metric.toLowerCase();
+    const mtdT = getRepTableauStatsForPeriod(repName, "mtd") || {};
+    const ytdT = getRepTableauStatsForPeriod(repName, "ytd") || {};
+    const rings = [
+      { label: "WTD", cur: getRepDiscordCsForRange(repName, "wtd") || 0, goal: goal.weeklyCs, metric: "CS" },
+      { label: "MTD", cur: Number(mtdT[ml]) || 0, goal: goal.monthly, metric: metric },
+      { label: "YTD", cur: Number(ytdT[ml]) || 0, goal: goal.yearly, metric: metric }
+    ].filter(r => r.goal != null && Number(r.goal) > 0);
+    if (!rings.length) return "";
+
+    const R = 22, C = 2 * Math.PI * R;
+    const ringsHtml = rings.map(r => {
+      const pct = Math.max(0, Math.min(1, r.cur / r.goal));
+      const done = pct >= 1;
+      const dash = `${(C * pct).toFixed(1)} ${C.toFixed(1)}`;
+      return `<div class="rc-ring">
+          <svg viewBox="0 0 52 52" class="rc-ring-svg">
+            <circle cx="26" cy="26" r="${R}" class="rc-ring-bg"></circle>
+            <circle cx="26" cy="26" r="${R}" class="rc-ring-fg${done ? " done" : ""}"
+              stroke-dasharray="${dash}" transform="translate(26,0) scale(-1,1) translate(-26,0) rotate(-90 26 26)"></circle>
+            <text x="26" y="25" class="rc-ring-num">${escapeHtml(String(r.cur))}/${escapeHtml(String(r.goal))}</text>
+            <text x="26" y="35" class="rc-ring-metric">${escapeHtml(r.metric)}</text>
+          </svg>
+          <div class="rc-ring-label">${escapeHtml(r.label)}</div>
+        </div>`;
+    }).join("");
+    return `<div class="rep-card-rings">${ringsHtml}</div>`;
+  }
+
   function renderRepCard(data) {
     const { profile, periods } = data;
     const isPlata = profile.isPlata;
+    const goalRings = repCardGoalRings(profile.name);
 
     // YTD CS Rank: internal rank + internal CS, then Tableau rank · CS on one line.
     const ytdCsRankHtml = isPlata
@@ -1531,6 +1568,7 @@
           ${repCardChips(profile)}
           ${(profile.phone || profile.instagram) ? contact : ""}
         </div>
+        ${goalRings}
       </div>
       <div class="rep-card-stat-grid">
         ${repCardPeriodTile(periods.ytd, isPlata)}

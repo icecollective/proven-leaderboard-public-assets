@@ -807,7 +807,7 @@
   .leaderboard-row > div:has(.rep-name-cell.has-goal) { align-self:stretch; }
   .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
                             justify-content:flex-end; align-items:flex-start; height:100%;
-                            padding-bottom:18px; }
+                            padding-bottom:14px; }
   .rep-goal-track { position:absolute; left:16px; bottom:9px; width:200px; max-width:calc(100% - 16px);
                     height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
@@ -861,7 +861,7 @@
     text-align:center; gap:0; margin-top:-48px; padding:0 22px 16px;
     border-bottom:1px solid #eef1f6;
   }
-  .rep-card-profile > div:last-child { width:100%; }
+  .rep-card-profile > div:nth-child(2) { width:100%; }
   .rep-card-avatar {
     width:96px; height:96px; font-size:34px; border:4px solid #fff;
     background:linear-gradient(135deg,#374151,#111827); color:#fff;
@@ -887,6 +887,17 @@
   .rep-card-contact { display:flex; gap:18px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:10px; font-weight:700; }
   .rep-card-contact .rep-card-link { display:inline-flex; align-items:center; gap:6px; }
   .rep-card-contact .rep-card-link svg { flex:0 0 auto; }
+  /* Goal rings: 3 stacked circular progress meters to the right of the name area */
+  .rep-card-rings { position:absolute; top:92px; right:12px; display:flex; flex-direction:column;
+                    gap:8px; align-items:center; z-index:2; }
+  .rc-ring { display:flex; flex-direction:column; align-items:center; }
+  .rc-ring-svg { width:48px; height:48px; display:block; }
+  .rc-ring-bg { fill:none; stroke:#eef1f6; stroke-width:5; }
+  .rc-ring-fg { fill:none; stroke:#0f172a; stroke-width:5; stroke-linecap:round; }
+  .rc-ring-fg.done { stroke:#16a34a; }
+  .rc-ring-num { fill:#0f172a; font-size:12px; font-weight:800; text-anchor:middle; }
+  .rc-ring-metric { fill:#94a3b8; font-size:7.5px; font-weight:700; text-anchor:middle; letter-spacing:.04em; }
+  .rc-ring-label { font-size:9px; font-weight:800; color:#64748b; margin-top:1px; letter-spacing:.04em; }
   .rc-metrics { display:flex; flex-wrap:wrap; justify-content:center; gap:1px 8px; margin-top:5px;
                 font-size:9px; color:#9aa3b1; font-weight:600; line-height:1.4; }
   .rc-metrics span { white-space:nowrap; }
