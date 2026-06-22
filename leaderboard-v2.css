@@ -808,7 +808,7 @@
   .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
                             justify-content:flex-end; align-items:flex-start; height:100%;
                             padding-bottom:14px; }
-  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:200px; max-width:calc(100% - 16px);
+  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:400px; max-width:none;
                     height:4px; border-radius:999px; background:#eef1f6; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
@@ -820,7 +820,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { width:150px; left:8px; }
+    .rep-goal-track { width:300px; left:8px; }
     .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */
@@ -891,6 +891,7 @@
      centered in the band between the banner bottom and the divider line. */
   .rep-card-rings { position:absolute; top:calc(50% + 20px); right:12px; transform:translateY(-50%);
                     display:flex; flex-direction:row; gap:6px; align-items:center; z-index:2; }
+  .rc-ring-col { display:flex; flex-direction:column; gap:6px; }
   .rc-ring { display:flex; flex-direction:column; align-items:center; }
   .rc-ring-svg { width:42px; height:42px; display:block; }
   .rc-ring-bg { fill:none; stroke:#eef1f6; stroke-width:5; }

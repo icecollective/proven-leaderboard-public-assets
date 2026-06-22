@@ -1516,7 +1516,7 @@
     if (!rings.some(r => r.goal != null && Number(r.goal) > 0)) return "";
 
     const R = 22, C = 2 * Math.PI * R;
-    const ringsHtml = rings.map(r => {
+    const oneRing = r => {
       const hasGoal = r.goal != null && Number(r.goal) > 0;
       const pct = hasGoal ? Math.max(0, Math.min(1, r.cur / r.goal)) : 0;
       const done = hasGoal && pct >= 1;
@@ -1533,8 +1533,10 @@
           </svg>
           <div class="rc-ring-label">${escapeHtml(r.label)}</div>
         </div>`;
-    }).join("");
-    return `<div class="rep-card-rings">${ringsHtml}</div>`;
+    };
+    const [wtd, mtd, ytd] = rings;
+    // WTD on the left; MTD stacked over YTD on the right.
+    return `<div class="rep-card-rings">${oneRing(wtd)}<div class="rc-ring-col">${oneRing(mtd)}${oneRing(ytd)}</div></div>`;
   }
 
   function renderRepCard(data) {
