@@ -809,7 +809,9 @@
   .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
                             justify-content:flex-end; align-items:flex-start; height:100%;
                             padding-bottom:14px; }
-  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:256px; max-width:none;
+  /* Bar spans the Rep column (left..right) instead of a fixed width, so it never
+     overflows into the CS column. */
+  .rep-goal-track { position:absolute; left:16px; right:10px; bottom:9px; max-width:none;
                     height:4px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
@@ -821,7 +823,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { width:192px; left:8px; }
+    .rep-goal-track { left:8px; right:8px; }
     .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */

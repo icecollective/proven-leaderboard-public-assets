@@ -372,7 +372,7 @@
     // minmax(0,fr) on every track so columns DON'T resize to fit content (long
     // rep names were widening the Rep column and shifting the value columns,
     // misaligning the numbers). Fixed proportions => every row identical.
-    const RANK = 0.45, REP = 1.55, VALUE_TOTAL = 3.0;
+    const RANK = 0.45, REP = 1.85, VALUE_TOTAL = 3.0;
     const each = (VALUE_TOTAL / nValueCols).toFixed(3);
     let s = `minmax(0,${RANK}fr) minmax(0,${REP}fr)`;
     for (let i = 0; i < nValueCols; i++) s += ` minmax(0,${each}fr)`;
