@@ -847,6 +847,10 @@
   }
 
   function navigateToGeneralFromOfficeGroup(office) {
+    // Carry the active Groups lens (Setters/Experts/SelfGen) into the destination
+    // view — the lens names map 1:1 to the standalone view keys. Default General.
+    const targetView = (groupsRepType && groupsRepType !== "general") ? groupsRepType : "general";
+
     activeGroupDrillLeader = null;
     activeInactiveDrill = false;
     inactiveDrillLeader = null;
@@ -864,12 +868,10 @@
     includePlata = false;
     rebuildComparisonMapsForOffice();
 
-    activeView = "general";
-    if (activeSortMode === "selfGen") {
-      activeSortMode = "currentContribution";
-    }
+    activeView = targetView;
+    activeSortMode = targetView === "selfgen" ? "selfGen" : "currentContribution";
 
-    setActiveViewTab("general");
+    setActiveViewTab(targetView);
     updateGroupDrillNav();
     renderLeaderboard();
   }
@@ -2047,21 +2049,32 @@
     }
   }
 
+  // Memoized: downline sets are pure functions of (rows array, leader name) and
+  // get recomputed dozens of times per render (once per group, plus drills). The
+  // WeakMap is keyed by the rows array, so it auto-invalidates when a new dataset
+  // replaces recruitingRows/recruiting2025Rows. Returned sets are treated as
+  // read-only by all callers (verified), so sharing the cached instance is safe.
+  const _downlineCache = new WeakMap();
   function buildDownlineSetFromRows(rows, activeRepName) {
     const recruiterNorm = normalizeName(activeRepName);
+    let perRows = _downlineCache.get(rows);
+    if (!perRows) { perRows = new Map(); _downlineCache.set(rows, perRows); }
+    const cached = perRows.get(recruiterNorm);
+    if (cached) return cached;
+
     const downline = new Set();
-  
     rows.forEach(row => {
       const repName = row.name;
       const path = String(row.treePath || "");
       const pathParts = path.split(">").map(part => normalizeName(part));
       const isSelf = normalizeName(repName) === recruiterNorm;
-  
+
       if (pathParts.includes(recruiterNorm) && (INCLUDE_RECRUITER_SELF || !isSelf)) {
         downline.add(normalizeName(repName));
       }
     });
-  
+
+    perRows.set(recruiterNorm, downline);
     return downline;
   }
   
@@ -4253,8 +4266,8 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${buildGroupTotalCell(makeGroupStatRow(inCurrent, inPrevious), useGroupsComparison, showCurrentGroupTotalNotes)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(inCurrent, inPrevious), showPreviousGroupTotalNotes)}</div>` : ""}
+        <div>${buildGroupTotalCell(makeGroupStatRow(inCurrent, inPrevious), useGroupsComparison, true)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(inCurrent, inPrevious), true)}</div>` : ""}
         ${drillUseTableau ? `<div></div>` : ""}
       </div>
     `);
@@ -4383,8 +4396,8 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillDisplay.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${buildGroupTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), useGroupsComparison, showCurrentGroupTotalNotes)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), showPreviousGroupTotalNotes)}</div>` : ""}
+        <div>${buildGroupTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), useGroupsComparison, true)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), true)}</div>` : ""}
         ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
