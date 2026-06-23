@@ -931,7 +931,11 @@
                 font-size:9px; color:#9aa3b1; font-weight:600; line-height:1.4; }
   .rc-metrics span { white-space:nowrap; }
   .rc-empty { color:#9aa3b1; }
-  .rc-valrow { display:flex; align-items:baseline; justify-content:center; gap:5px; margin-top:4px; }
+  /* #8 stays centered in the cell; the internal-CS "41" floats to its right */
+  .rc-valrow { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+               align-items:baseline; width:100%; margin-top:4px; }
+  .rc-valrow .rep-card-stat-value { grid-column:2; }
+  .rc-valrow .rc-iv { grid-column:3; justify-self:start; padding-left:5px; }
   .rc-iv { font-size:12px; color:#6b7280; font-weight:700; }
   .rc-trk { font-size:9px; color:#9aa3b1; font-weight:600; margin-top:6px; white-space:nowrap; }
 
