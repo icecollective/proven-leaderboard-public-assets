@@ -365,6 +365,17 @@
     return "Rank";
   }
 
+  // Consistent grid columns: Rank + Rep are FIXED across every view (matching the
+  // densest tableau+comparison layout) so they never shift; only the value
+  // columns change. nValueCols = number of value columns (1-3).
+  function gridCols(nValueCols) {
+    const RANK = 0.45, REP = 1.55, VALUE_TOTAL = 3.0;
+    const each = (VALUE_TOTAL / nValueCols).toFixed(3);
+    let s = `${RANK}fr ${REP}fr`;
+    for (let i = 0; i < nValueCols; i++) s += ` ${each}fr`;
+    return s;
+  }
+
   function buildViewRepCountCell(count, label = "Reps") {
     return `<div class="view-rep-count">${count} ${label}</div>`;
   }
@@ -3793,7 +3804,7 @@
     const useGroupsComparison = useMomColumn() || (activeDateMode === "ytd" && showYoy);
     const groupContext = buildGroupContext();
     const { range: groupRange } = groupContext;
-    const cols = useGroupsComparison ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
+    const cols = gridCols(useGroupsComparison ? 2 : 1);
     const groupTitle = useMomColumn()
       ? `Groups - ${getMomDateRanges().current.label} vs ${getMomDateRanges().previous.label}`
       : formatTitleWithOptionalDateRange(`Groups - ${groupRange.label}`, groupRange);
@@ -3809,13 +3820,12 @@
         const visibleNames = getGroupDrillVisibleNames(activeGroupDrillLeader, groupContext);
         let drillRows = rows.filter(row => visibleNames.has(normalizeName(row.name)));
         const drillUseTableau = useTableauColumn;
-        const drillCols = drillUseTableau && useGroupsComparison
-          ? ".45fr 1.55fr 1.1fr 1.1fr .9fr"
-          : drillUseTableau
-          ? ".55fr 1.85fr 1.35fr .95fr"
-          : useGroupsComparison
-          ? ".55fr 1.65fr 1.2fr 1.2fr"
-          : ".6fr 1.7fr 1.7fr";
+        const drillCols = gridCols(
+          drillUseTableau && useGroupsComparison ? 3
+          : drillUseTableau ? 2
+          : useGroupsComparison ? 2
+          : 1
+        );
 
         const leaderNorm = normalizeName(activeGroupDrillLeader);
         if (!drillRows.some(row => normalizeName(row.name) === leaderNorm)) {
@@ -4052,7 +4062,7 @@
   }
   
     if (activeView === "selfgen") {
-      const cols = comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
+      const cols = gridCols(comparisonActive ? 2 : 1);
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
@@ -4113,7 +4123,7 @@
         `);
       });
     } else {
-      const cols = useTableauColumn && comparisonActive ? ".45fr 1.55fr 1.1fr 1.1fr .9fr" : useTableauColumn ? ".55fr 1.85fr 1.35fr .95fr" : comparisonActive ? ".55fr 1.65fr 1.2fr 1.2fr" : ".55fr 1.65fr 1.8fr";
+      const cols = gridCols(useTableauColumn && comparisonActive ? 3 : useTableauColumn ? 2 : comparisonActive ? 2 : 1);
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">

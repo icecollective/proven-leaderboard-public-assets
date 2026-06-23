@@ -993,6 +993,9 @@
     display:grid; min-height:32px; background:#f6f8fc;
     border-bottom:1px solid #e7ebf2; font-size:12.5px;
   }
+  /* desktop: give the total row more vertical breathing room (the office tableau
+     CS/CAP/IC stack felt cramped against the row edges) */
+  @media (min-width:761px) { .leaderboard-row.total-row { min-height:50px; } }
   .total-row > div { font-weight:800; color:#0f172a; }
   .total-row .view-rep-count { font-size:11px; color:#94a3b8; font-weight:700; white-space:nowrap; }
   #pv-topbar #tableau-toggle {
