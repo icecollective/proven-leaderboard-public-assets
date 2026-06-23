@@ -737,6 +737,13 @@
   #view-tabs button { flex:1 1 30%; padding-top:10px; padding-bottom:10px; }
   #view-tabs button:nth-child(1),
   #view-tabs button:nth-child(2) { flex:1 1 46%; }
+  /* "Half selected": the active rep-type lens while in the Groups view — clearly
+     selected but noticeably lighter than the near-black active tab. */
+  #view-tabs button.half-active {
+    background:linear-gradient(180deg,#8d9ab0,#64748b); color:#fff; border-color:#64748b;
+    box-shadow:0 2px 5px rgba(15,23,42,.14);
+  }
+  #view-tabs button.half-active:hover { border-color:#64748b; }
 
   /* ---- Date tabs: a floating island (rounded card, buttons wrap 4 + 2) ---- */
   #date-tabs {

@@ -66,6 +66,10 @@
   let activeTableauMetric = "sra";
   
   let activeView = "general";
+  // Rep-type "lens" applied to the Groups view (and group drill-downs):
+  // "general" (default blend), "setters", "experts", or "selfgen". Only meaningful
+  // while activeView === "groups".
+  let groupsRepType = "general";
   let activeDateMode = "ytd";
   let showTableau = true;
   
@@ -431,20 +435,33 @@
       : "";
   }
 
+  // The rep-type "role" governing per-rep display: normally the active view, but
+  // inside the Groups view a rep-type lens (Setters/Experts/SelfGen) overrides it
+  // so group drill-downs render each rep through that lens. "general" groups keeps
+  // the original group behavior (returns "groups").
+  function effectiveRoleView() {
+    if (activeView === "groups" && groupsRepType !== "general") return groupsRepType;
+    return activeView;
+  }
+
   function getRowPreviousCs(row) {
+    const view = effectiveRoleView();
+    if (view === "selfgen") return getRowPreviousSelfGen(row) || 0;
     const norm = normalizeName(row.name);
     const stats = useMomColumn()
       ? previousMonthDetailsMap.get(norm)
       : previousYearDetailsMap.get(norm);
     if (!stats) return 0;
-    if (activeView === "experts") return stats.expertDealIds?.size || 0;
-    if (activeView === "setters") return stats.setterDealIds?.size || 0;
+    if (view === "experts") return stats.expertDealIds?.size || 0;
+    if (view === "setters") return stats.setterDealIds?.size || 0;
     return stats.dealIds?.size || 0;
   }
 
   function getRowDisplayCs(row) {
-    if (activeView === "experts") return row.expertCs || 0;
-    if (activeView === "setters") return row.setterCs || 0;
+    const view = effectiveRoleView();
+    if (view === "experts") return row.expertCs || 0;
+    if (view === "setters") return row.setterCs || 0;
+    if (view === "selfgen") return row.selfGen || 0;
     return row.cs;
   }
 
@@ -815,13 +832,23 @@
       selfgen: "SelfGen",
       groups: "Groups"
     };
+    // In the Groups view the Groups tab is fully selected and the active rep-type
+    // lens (General/Setters/Experts/SelfGen) gets a "half" highlight. Otherwise
+    // the active view's tab is fully selected.
+    const inGroups = viewKey === "groups";
+    const lensLabel = inGroups ? labels[groupsRepType] : null;
     document.querySelectorAll("#view-tabs button").forEach(btn => {
-      btn.classList.toggle("active", btn.textContent === labels[viewKey]);
+      const isFull = btn.textContent === labels[viewKey];
+      const isHalf = inGroups && btn.textContent === lensLabel && btn.textContent !== labels.groups;
+      btn.classList.toggle("active", isFull);
+      btn.classList.toggle("half-active", isHalf);
     });
   }
 
   function navigateToGeneralFromOfficeGroup(office) {
     activeGroupDrillLeader = null;
+    activeInactiveDrill = false;
+    groupsRepType = "general";
     groupDrillReturn = null;
 
     if (office === "ice") {
@@ -1895,6 +1922,7 @@
       activeTableauMetric,
       activeGroupDrillLeader,
       activeInactiveDrill,
+      groupsRepType,
       isSubsetMode,
       activeDownlineNames,
       activePreviousYearDownlineNames,
@@ -1918,6 +1946,7 @@
     activeTableauMetric = state.activeTableauMetric;
     activeGroupDrillLeader = state.activeGroupDrillLeader;
     activeInactiveDrill = !!state.activeInactiveDrill;
+    groupsRepType = state.groupsRepType || "general";
     isSubsetMode = state.isSubsetMode;
     activeDownlineNames = state.activeDownlineNames;
     activePreviousYearDownlineNames = state.activePreviousYearDownlineNames;
@@ -1936,6 +1965,8 @@
     closeRepCard();
 
     activeView = "groups";
+    groupsRepType = "general";
+    activeInactiveDrill = false;
     activeGroupDrillLeader = String(groupLeader || "").trim();
     includePlata = false;
 
@@ -2090,6 +2121,7 @@
     function computeGroupStats(downlineNames, deals, year = "current") {
       let sets = 0;
       let cs = 0;
+      let selfGen = 0;
 
       deals.forEach(deal => {
         const setterNorm = normalizeName(deal.setter);
@@ -2099,9 +2131,11 @@
 
         if (setterInGroup) sets += 1;
         if (expertInGroup) cs += 1;
+        // Self-gen: the same rep set AND closed the deal, and is in the group.
+        if (setterNorm && setterNorm === expertNorm && setterInGroup) selfGen += 1;
       });
 
-      return { sets, cs, total: (sets + cs) / 2 };
+      return { sets, cs, selfGen, total: (sets + cs) / 2 };
     }
 
     function qualifiesByYtd(ytdCurrent, ytdPrevious) {
@@ -2114,9 +2148,11 @@
         name,
         sets: current.sets,
         cs: current.cs,
+        selfGen: current.selfGen || 0,
         total: current.total,
         previousSets: previous.sets,
         previousCs: previous.cs,
+        previousSelfGen: previous.selfGen || 0,
         previousTotal: previous.total
       };
     }
@@ -2333,11 +2369,46 @@
         </div>`;
   }
 
-  function getGroupYoyPercent(row) {
-    if (!row.previousTotal) return null;
-    if (!row.total) return null;
+  // The displayed group number for the active rep-type lens. General = the
+  // (Sets+CS)/2 blend; Setters = total sets; Experts = total closes (CS);
+  // SelfGen = total self-gen deals.
+  function groupRowValue(row) {
+    if (groupsRepType === "setters") return row.sets || 0;
+    if (groupsRepType === "experts") return row.cs || 0;
+    if (groupsRepType === "selfgen") return row.selfGen || 0;
+    return row.total;
+  }
+  function groupRowPrevValue(row) {
+    if (groupsRepType === "setters") return row.previousSets || 0;
+    if (groupsRepType === "experts") return row.previousCs || 0;
+    if (groupsRepType === "selfgen") return row.previousSelfGen || 0;
+    return row.previousTotal;
+  }
+  // Build a full group-stat row (with selfGen + previous fields) from a
+  // current/previous computeGroupStats pair — so total rows can use the same
+  // lens-aware cells as the per-group rows.
+  function makeGroupStatRow(current, previous) {
+    current = current || {};
+    previous = previous || {};
+    return {
+      sets: current.sets || 0, cs: current.cs || 0, selfGen: current.selfGen || 0, total: current.total || 0,
+      previousSets: previous.sets || 0, previousCs: previous.cs || 0,
+      previousSelfGen: previous.selfGen || 0, previousTotal: previous.total || 0
+    };
+  }
+  // Column label for the active lens.
+  function groupMetricLabel() {
+    if (groupsRepType === "setters") return "Sets";
+    if (groupsRepType === "experts") return "CS";
+    if (groupsRepType === "selfgen") return "SG";
+    return "CS";
+  }
 
-    return ((row.total - row.previousTotal) / row.previousTotal) * 100;
+  function getGroupYoyPercent(row) {
+    const prev = groupRowPrevValue(row);
+    const cur = groupRowValue(row);
+    if (!prev || !cur) return null;
+    return ((cur - prev) / prev) * 100;
   }
 
   function buildGroupTotalCell(row, showComparison, showNotes = true) {
@@ -2357,7 +2428,8 @@
       ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
       : "";
 
-    const leftHtml = showNotes
+    // CS/Sets breakdown notes only make sense for the General blend.
+    const leftHtml = (showNotes && groupsRepType === "general")
       ? buildSetsCsNotesStack(row.sets, row.cs)
       : `<div class="cs-notes-stack"></div>`;
 
@@ -2365,20 +2437,20 @@
       <div class="cs-cell">
         ${leftHtml}
         ${rightHtml}
-        <span class="cs-main">${row.total}</span>
+        <span class="cs-main">${groupRowValue(row)}</span>
       </div>
     `;
   }
 
   function buildGroupPreviousTotalCell(row, showNotes = true) {
-    const leftHtml = showNotes
+    const leftHtml = (showNotes && groupsRepType === "general")
       ? buildSetsCsNotesStack(row.previousSets, row.previousCs)
       : `<div class="cs-notes-stack"></div>`;
 
     return `
       <div class="cs-cell">
         ${leftHtml}
-        <span class="cs-main">${row.previousTotal}</span>
+        <span class="cs-main">${groupRowPrevValue(row)}</span>
       </div>
     `;
   }
@@ -2696,22 +2768,56 @@
       btn.classList.toggle("active", activeView === view.key);
   
       btn.addEventListener("click", () => {
+        // While in the Groups view, the General/Setters/Experts/SelfGen tabs act
+        // as rep-type LENSES on the group stats instead of switching to a
+        // standalone view. Groups stays selected; the lens gets a half-highlight.
+        if (activeView === "groups") {
+          if (view.key === "setters" || view.key === "experts" || view.key === "selfgen") {
+            groupsRepType = view.key;            // apply lens, stay in groups (+ any drill)
+            setActiveViewTab("groups");
+            renderLeaderboard();
+            return;
+          }
+          if (view.key === "groups") {
+            // Reset to the default (General) lens and the top-level groups list.
+            groupsRepType = "general";
+            activeGroupDrillLeader = null;
+            activeInactiveDrill = false;
+            groupDrillReturn = null;
+            activeSortMode = "currentContribution";
+            setShowTableau(false);
+            updateGroupDrillNav();
+            setActiveViewTab("groups");
+            renderLeaderboard();
+            return;
+          }
+          if (view.key === "general" && groupsRepType !== "general") {
+            // First General click only drops the lens back to General (stays in
+            // Groups). A second General click then leaves to the General view.
+            groupsRepType = "general";
+            setActiveViewTab("groups");
+            renderLeaderboard();
+            return;
+          }
+        }
+
+        // Normal view switch (including leaving Groups -> General).
         if (activeView !== view.key) {
           activeGroupDrillLeader = null;
           activeInactiveDrill = false;
           groupDrillReturn = null;
         }
-
+        groupsRepType = "general";
         activeView = view.key;
-  
+
         if (activeView === "selfgen") {
             activeSortMode = "selfGen";
         }
-  
+
         if (activeView === "groups") {
             activeSortMode = "currentContribution";
         }
-        
+
         if (activeView === "selfgen" || (activeView === "groups" && !isGroupDrillDownView())) {
           setShowTableau(false);
 
@@ -2720,11 +2826,11 @@
           }
         }
 
-        document.querySelectorAll("#view-tabs button").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
+        setActiveViewTab(activeView);
+        updateGroupDrillNav();
         renderLeaderboard();
       });
-  
+
       viewTabs.appendChild(btn);
     });
   
@@ -3649,16 +3755,17 @@
     }
   
     if (showNotes) {
-      if (activeView === "setters") {
-        // Setter rows do not show Sets/SG subscripts.
-      } else if (activeView === "experts") {
+      const roleView = effectiveRoleView();
+      if (roleView === "setters" || roleView === "selfgen") {
+        // Setter / self-gen rows do not show Sets/SG subscripts.
+      } else if (roleView === "experts") {
         if (row.selfGen > 0) {
           leftNotes.push(`<span class="cs-note-left">SG: ${row.selfGen}</span>`);
         }
         if (row.setOnly > 0) {
           leftNotes.push(`<span class="cs-note-left">Sets: ${row.setOnly}</span>`);
         }
-      } else if (activeView === "general") {
+      } else if (roleView === "general") {
         // General mixes setters and experts. Only experts (reps with at least
         // one close) show Sets/SG subscripts; pure setters get none.
         if (row.closes > 0 && row.selfGen > 0) {
@@ -3703,16 +3810,17 @@
     const previousSelfGen = getRowPreviousSelfGen(row);
     const previousCloses = getRowPreviousCloses(row);
 
-    if (activeView === "setters") {
-      // Setter rows do not show Sets/SG subscripts.
-    } else if (activeView === "experts") {
+    const roleView = effectiveRoleView();
+    if (roleView === "setters" || roleView === "selfgen") {
+      // Setter / self-gen rows do not show Sets/SG subscripts.
+    } else if (roleView === "experts") {
       if (previousSelfGen > 0) {
         notes.push(`<span class="cs-note-left">SG: ${previousSelfGen}</span>`);
       }
       if (previousSetOnly > 0) {
         notes.push(`<span class="cs-note-left">Sets: ${previousSetOnly}</span>`);
       }
-    } else if (activeView === "general") {
+    } else if (roleView === "general") {
       // General mixes setters and experts. Only experts (reps with at least
       // one close) show Sets/SG subscripts; pure setters get none.
       if (previousCloses > 0 && previousSelfGen > 0) {
@@ -4031,19 +4139,8 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${useGroupsComparison
-          ? buildGroupTotalCell({
-            sets: inCurrent.sets,
-            cs: inCurrent.cs,
-            total: inCurrent.total,
-            previousTotal: inPrevious.total
-          }, useGroupsComparison, showCurrentGroupTotalNotes)
-          : buildGroupTotalCell(inCurrent, false, showCurrentGroupTotalNotes)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
-          previousSets: inPrevious.sets,
-          previousCs: inPrevious.cs,
-          previousTotal: inPrevious.total
-        }, showPreviousGroupTotalNotes)}</div>` : ""}
+        <div>${buildGroupTotalCell(makeGroupStatRow(inCurrent, inPrevious), useGroupsComparison, showCurrentGroupTotalNotes)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(inCurrent, inPrevious), showPreviousGroupTotalNotes)}</div>` : ""}
         ${drillUseTableau ? `<div></div>` : ""}
       </div>
     `);
@@ -4166,19 +4263,8 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillDisplay.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${useGroupsComparison
-          ? buildGroupTotalCell({
-            sets: drillCurrent.sets,
-            cs: drillCurrent.cs,
-            total: drillCurrent.total,
-            previousTotal: drillPrevious.total
-          }, useGroupsComparison, showCurrentGroupTotalNotes)
-          : buildGroupTotalCell(drillCurrent, false, showCurrentGroupTotalNotes)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
-          previousSets: drillPrevious.sets,
-          previousCs: drillPrevious.cs,
-          previousTotal: drillPrevious.total
-        }, showPreviousGroupTotalNotes)}</div>` : ""}
+        <div>${buildGroupTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), useGroupsComparison, showCurrentGroupTotalNotes)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(drillCurrent, drillPrevious), showPreviousGroupTotalNotes)}</div>` : ""}
         ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
       </div>
     `);
@@ -4210,10 +4296,8 @@
         <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${drillCols};">
           <div>${buildViewRepCountCell(drillInactive.length)}</div>
           <div>${buildInactiveNameCell()}</div>
-          <div>${useGroupsComparison
-            ? buildGroupTotalCell({ sets: inCur.sets, cs: inCur.cs, total: inCur.total, previousTotal: inPrev.total }, useGroupsComparison, false)
-            : buildGroupTotalCell(inCur, false, false)}</div>
-          ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({ previousSets: inPrev.sets, previousCs: inPrev.cs, previousTotal: inPrev.total }, false)}</div>` : ""}
+          <div>${buildGroupTotalCell(makeGroupStatRow(inCur, inPrev), useGroupsComparison, false)}</div>
+          ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(inCur, inPrev), false)}</div>` : ""}
           ${drillUseTableau ? `<div></div>` : ""}
         </div>
       `);
@@ -4242,7 +4326,8 @@
       }
 
       if (activeSortMode === "previousContribution") {
-        if (b.previousTotal !== a.previousTotal) return b.previousTotal - a.previousTotal;
+        const aPrev = groupRowPrevValue(a), bPrev = groupRowPrevValue(b);
+        if (bPrev !== aPrev) return bPrev - aPrev;
         if (b.previousSets !== a.previousSets) return b.previousSets - a.previousSets;
         return a.name.localeCompare(b.name);
       }
@@ -4254,12 +4339,10 @@
         const bValue = bPct === null ? -Infinity : bPct;
 
         if (bValue !== aValue) return bValue - aValue;
-        if (b.total !== a.total) return b.total - a.total;
-        if (b.sets !== a.sets) return b.sets - a.sets;
-        return a.name.localeCompare(b.name);
       }
 
-      if (b.total !== a.total) return b.total - a.total;
+      const aVal = groupRowValue(a), bVal = groupRowValue(b);
+      if (bVal !== aVal) return bVal - aVal;
       if (b.sets !== a.sets) return b.sets - a.sets;
       return a.name.localeCompare(b.name);
     });
@@ -4272,7 +4355,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : "CS"}
+      ${useGroupsComparison ? getCurrentComparisonLabel("Total") : groupMetricLabel()}
     </button>
     ${useGroupsComparison ? `
       <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
@@ -4294,23 +4377,8 @@
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div>${buildViewRepCountCell(groupRows.length, "Groups")}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${useGroupsComparison
-          ? buildGroupTotalCell({
-            sets: totalStats.current.sets,
-            cs: totalStats.current.cs,
-            total: totalStats.current.total,
-            previousTotal: totalStats.previous.total
-          }, useGroupsComparison, showCurrentGroupTotalNotes)
-          : buildGroupTotalCell({
-            sets: totalStats.current.sets,
-            cs: totalStats.current.cs,
-            total: totalStats.current.total
-          }, false, showCurrentGroupTotalNotes)}</div>
-        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
-          previousSets: totalStats.previous.sets,
-          previousCs: totalStats.previous.cs,
-          previousTotal: totalStats.previous.total
-        }, showPreviousGroupTotalNotes)}</div>` : ""}
+        <div>${buildGroupTotalCell(makeGroupStatRow(totalStats.current, totalStats.previous), useGroupsComparison, showCurrentGroupTotalNotes)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(totalStats.current, totalStats.previous), showPreviousGroupTotalNotes)}</div>` : ""}
       </div>
     `);
 
@@ -4342,11 +4410,8 @@
         groupContext.filterDownlineForYear(inactiveNamesForGroup, "2025", groupContext.useComparison),
         groupContext.previousPeriodDeals, "previous"
       );
-      const inGroupRow = {
-        name: "Inactive Reps",
-        sets: inGroupCur.sets, cs: inGroupCur.cs, total: inGroupCur.total,
-        previousSets: inGroupPrev.sets, previousCs: inGroupPrev.cs, previousTotal: inGroupPrev.total
-      };
+      const inGroupRow = makeGroupStatRow(inGroupCur, inGroupPrev);
+      inGroupRow.name = "Inactive Reps";
       bodyRows.push(`
         <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
           <div>${buildViewRepCountCell(inactiveDisplayCount)}</div>
