@@ -42,6 +42,7 @@
   let recruitingNames = null;
   let activeSortMode = "tableau"; // "tableau", "internal", or "previousYear"
   let tableauData = {};
+  let tableauOffices = {}; // office-level tableau totals: {ytd:{ice,riot,plata},...}
   let tableauMap = new Map();
   let recruitingRows = [];
   let recruiting2025Rows = [];
@@ -2307,6 +2308,7 @@
     previousYearDeals = payload.previousYear && Array.isArray(payload.previousYear.deals) ? payload.previousYear.deals : [];
 
     tableauData = payload.tableau || {};
+    tableauOffices = payload.tableauOffices && typeof payload.tableauOffices === "object" ? payload.tableauOffices : {};
     recruitingRows =
     payload.recruiting && Array.isArray(payload.recruiting.rows) ? payload.recruiting.rows : [];
 
@@ -3315,7 +3317,35 @@
   }
   
   function getTableauTotal(rows, metric) {
-    return "";
+    // Office-level Tableau total for the active period, summing the SELECTED
+    // offices (Proven = all). Formatted like a tableau cell (main + left notes).
+    const key = getTableauKeyForDateMode();
+    const periodData = key ? tableauOffices[key] : null;
+    if (!periodData) return "";
+
+    const selected = [];
+    if (includeIceCollective && periodData.ice) selected.push(periodData.ice);
+    if (includeRiot && periodData.riot) selected.push(periodData.riot);
+    if (includePlata && periodData.plata) selected.push(periodData.plata);
+    if (!selected.length) return "";
+
+    const totals = {};
+    Object.keys(TABLEAU_METRICS).forEach(m => {
+      totals[m] = selected.reduce((sum, o) => sum + (Number(o[m]) || 0), 0);
+    });
+
+    const selectedValue = totals[metric] != null ? totals[metric] : "";
+    const notes = Object.keys(TABLEAU_METRICS)
+      .filter(m => m !== metric)
+      .map(m => `<span class="tableau-note-left">${TABLEAU_METRICS[m]}: ${totals[m]}</span>`)
+      .join("");
+
+    return `
+      <div class="tableau-cell">
+        <div class="tableau-notes-stack">${notes}</div>
+        <span class="tableau-main">${selectedValue}</span>
+      </div>
+    `;
   }
   
   function getTableauValue(row, metric) {
