@@ -372,7 +372,11 @@
     // minmax(0,fr) on every track so columns DON'T resize to fit content (long
     // rep names were widening the Rep column and shifting the value columns,
     // misaligning the numbers). Fixed proportions => every row identical.
-    const RANK = 0.45, REP = 1.85, VALUE_TOTAL = 3.0;
+    let RANK = 0.45, REP = 1.85, VALUE_TOTAL = 3.0;
+    // On mobile dense views (Tableau/YOY/MOM = 2-3 value columns), widen Rep so
+    // the CS column sits further to the right (more clearance from the left).
+    const mobile = typeof window !== "undefined" && window.innerWidth <= 760;
+    if (mobile && nValueCols >= 2) { REP = 2.6; VALUE_TOTAL = 2.5; }
     const each = (VALUE_TOTAL / nValueCols).toFixed(3);
     let s = `minmax(0,${RANK}fr) minmax(0,${REP}fr)`;
     for (let i = 0; i < nValueCols; i++) s += ` minmax(0,${each}fr)`;
