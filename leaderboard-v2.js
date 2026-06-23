@@ -1902,6 +1902,7 @@
 
     rebuildComparisonMapsForOffice();
     setActiveViewTab(activeView);
+    updateGroupDrillNav();
     renderLeaderboard();
   }
 
@@ -2824,7 +2825,12 @@
       // on a main view) -> open the Groups "Inactive Reps" drill-down.
       const inactiveDrillBtn = event.target.closest("[data-inactive-drill]");
       if (inactiveDrillBtn) {
-        groupDrillReturn = null;
+        // Coming from a main view (General/Setters/Experts/SelfGen): remember the
+        // exact view so Back returns there, not the Groups list. Coming from
+        // within Groups, Back should fall through to the Groups list.
+        groupDrillReturn = activeView === "groups"
+          ? null
+          : { rep: null, state: captureViewState() };
         activeView = "groups";
         activeInactiveDrill = true;
         activeGroupDrillLeader = null;
@@ -3461,23 +3467,6 @@
     `;
   }
 
-  // Row-based tableau total (sum of the given rows' tableau values) — used for the
-  // Inactive Reps summary row (the grand total uses office numbers instead).
-  function buildTableauTotalForRows(subsetRows, metric) {
-    const totals = {};
-    Object.keys(TABLEAU_METRICS).forEach(m => { totals[m] = 0; });
-    subsetRows.forEach(row => {
-      const t = row.tableau || {};
-      Object.keys(TABLEAU_METRICS).forEach(m => { totals[m] += Number(t[m]) || 0; });
-    });
-    const selectedValue = totals[metric] != null ? totals[metric] : "";
-    const notes = Object.keys(TABLEAU_METRICS)
-      .filter(m => m !== metric)
-      .map(m => `<span class="tableau-note-left">${TABLEAU_METRICS[m]}: ${totals[m]}</span>`)
-      .join("");
-    return `<div class="tableau-cell"><div class="tableau-notes-stack">${notes}</div><span class="tableau-main">${selectedValue}</span></div>`;
-  }
-
   function getTableauValue(row, metric) {
     return Number(row.tableau?.[metric]) || 0;
   }
@@ -4032,7 +4021,7 @@
           previousCs: inPrevious.cs,
           previousTotal: inPrevious.total
         }, showPreviousGroupTotalNotes)}</div>` : ""}
-        ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
+        ${drillUseTableau ? `<div></div>` : ""}
       </div>
     `);
 
@@ -4152,7 +4141,7 @@
 
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
-        <div>${buildViewRepCountCell(drillRows.length)}</div>
+        <div>${buildViewRepCountCell(drillDisplay.length)}</div>
         <div>${getTotalRowLabel()}</div>
         <div>${useGroupsComparison
           ? buildGroupTotalCell({
@@ -4196,13 +4185,13 @@
           );
           bodyRows.push(`
         <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${drillCols};">
-          <div></div>
+          <div>${buildViewRepCountCell(drillInactive.length)}</div>
           <div>${buildInactiveNameCell()}</div>
           <div>${useGroupsComparison
             ? buildGroupTotalCell({ sets: inCur.sets, cs: inCur.cs, total: inCur.total, previousTotal: inPrev.total }, useGroupsComparison, false)
             : buildGroupTotalCell(inCur, false, false)}</div>
           ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({ previousSets: inPrev.sets, previousCs: inPrev.cs, previousTotal: inPrev.total }, false)}</div>` : ""}
-          ${drillUseTableau ? `<div>${buildTableauTotalForRows(drillInactive, activeTableauMetric)}</div>` : ""}
+          ${drillUseTableau ? `<div></div>` : ""}
         </div>
       `);
         }
@@ -4317,7 +4306,10 @@
 
     // "Inactive Reps" pseudo-group row at the bottom: clicks through to the
     // inactive reps drill-down. Not numbered, not counted in the group count.
+    // Count reflects the reps the drill will actually list (those with a row),
+    // so the "N Reps" label matches the drill-down's rep count.
     const inactiveNamesForGroup = getInactiveSet();
+    const inactiveDisplayCount = rows.filter(isRowInactive).length;
     if (inactiveNamesForGroup.size) {
       const inGroupCur = groupContext.computeGroupStats(
         groupContext.filterDownlineForYear(inactiveNamesForGroup, "2026", groupContext.useComparison),
@@ -4334,7 +4326,7 @@
       };
       bodyRows.push(`
         <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
-          <div></div>
+          <div>${buildViewRepCountCell(inactiveDisplayCount)}</div>
           <div>${buildInactiveNameCell()}</div>
           <div>${buildGroupTotalCell(inGroupRow, useGroupsComparison)}</div>
           ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(inGroupRow)}</div>` : ""}
@@ -4387,7 +4379,7 @@
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-          <div>${buildViewRepCountCell(rows.length)}</div>
+          <div>${buildViewRepCountCell(displayRows.length)}</div>
           <div>${getTotalRowLabel()}</div>
           <div>${buildUniqueTotalCell(totalSelfGen, selfGenTotalComparisonPct)}</div>
           ${comparisonActive ? `
@@ -4416,7 +4408,7 @@
         const inPrevSg = inactiveRows.reduce((s, r) => s + getRowPreviousSelfGen(r), 0);
         bodyRows.push(`
           <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
-            <div></div>
+            <div>${buildViewRepCountCell(inactiveRows.length)}</div>
             <div>${buildInactiveNameCell()}</div>
             <div class="cs-cell"><span class="cs-main">${inSg}</span></div>
             ${comparisonActive ? `<div class="cs-cell"><span class="cs-main">${inPrevSg}</span></div>` : ""}
@@ -4482,7 +4474,7 @@
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
-          <div>${buildViewRepCountCell(rows.length)}</div>
+          <div>${buildViewRepCountCell(displayRows.length)}</div>
           <div>${getTotalRowLabel()}</div>
          <div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
@@ -4545,11 +4537,11 @@
           : "";
         bodyRows.push(`
           <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
-            <div></div>
+            <div>${buildViewRepCountCell(inactiveRows.length)}</div>
             <div>${buildInactiveNameCell()}</div>
             <div>${inValueCell}</div>
             ${comparisonActive ? `<div>${inPrevCell}</div>` : ""}
-            ${useTableauColumn ? `<div>${buildTableauTotalForRows(inactiveRows, activeTableauMetric)}</div>` : ""}
+            ${useTableauColumn ? `<div></div>` : ""}
           </div>
         `);
       }

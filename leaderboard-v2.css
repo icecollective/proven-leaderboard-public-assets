@@ -792,6 +792,7 @@
   /* "Inactive Reps" summary row + drill button */
   .inactive-summary-row { background:#eef1f6; border-top:1px solid #e2e7ef; }
   .inactive-reps-btn { font-style:italic; }
+  .inactive-summary-row .view-rep-count { font-size:11px; color:#94a3b8; font-weight:700; white-space:nowrap; }
   /* left-aligned rep cell + REP header aligned above the names */
   .leaderboard-row:not(.total-row) > div:nth-child(2) { text-align:left; }
   .rep-name-cell { text-align:left; padding-left:16px; }
