@@ -49,6 +49,9 @@
   let repProfiles = {}; // approved rep card info keyed by normalized name
   let repGoals = {};    // per-rep goals (weekly CS / monthly / yearly) keyed by normalized name
   let prStatsCache = null; // {bestMonth, bestWeek, cohort} for PR Month/Week ranking
+  let showInactive = false;     // "Inactive" toggle (default off)
+  let inactiveSetCache = null;  // Set of normalized names inactive THIS WEEK
+  let activeInactiveDrill = false; // viewing the Inactive Reps drill-down
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -526,7 +529,7 @@
   }
 
   function isGroupDrillDownView() {
-    return activeView === "groups" && !!activeGroupDrillLeader;
+    return activeView === "groups" && (!!activeGroupDrillLeader || activeInactiveDrill);
   }
 
   function isTableauViewRelevant() {
@@ -903,6 +906,13 @@
     // Outside the goal tabs: original simple name + role/office stack.
     if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) {
       return `<div class="rep-name-cell">${btn}${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+    }
+
+    // Inactive reps (shown inline when the toggle is on): "Not in Market" in
+    // place of the goal bar.
+    if (row && isRowInactive(row)) {
+      const subLine = `<div class="rep-row-sub">${sub ? escapeHtml(sub) + " · " : ""}<span class="rep-goal-none">Not in Market</span></div>`;
+      return `<div class="rep-name-cell has-goal">${btn}${subLine}</div>`;
     }
 
     // Goal tabs: SAME name + title row as the standard layout (position unchanged),
@@ -1441,6 +1451,72 @@
     return `1 of ${n} · Top ${pct}%`;
   }
 
+  // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
+  // Tableau CS/SRA/CAP this week, or a submitted weekly goal. (Plata excluded.)
+  // Always judged on the CURRENT WEEK regardless of the active date tab.
+  function getInactiveSet() {
+    if (inactiveSetCache) return inactiveSetCache;
+    const set = new Set();
+    const wtdRange = getDateRange("wtd");
+    const wtdContrib = {}; // norm -> Set(dealId) of this-week contributions
+    allDeals.forEach(d => {
+      if (!dealInDateRange(d, wtdRange)) return;
+      const id = getDealId(d);
+      if (!id) return;
+      const e = normalizeName(d.expert), s = normalizeName(d.setter);
+      if (e) (wtdContrib[e] || (wtdContrib[e] = new Set())).add(id);
+      if (s && isValidSetterName(d.setter)) (wtdContrib[s] || (wtdContrib[s] = new Set())).add(id);
+    });
+    const consider = {};
+    recruitingRows.forEach(r => { const n = normalizeName(r.name); if (n) consider[n] = true; });
+    Object.keys(wtdContrib).forEach(n => { consider[n] = true; });
+    Object.keys(consider).forEach(norm => {
+      if (!norm || HIDDEN_REPS.has(norm)) return;
+      if (isPlataRep(norm)) return;                        // Plata excluded for now
+      const goal = repGoals[norm];
+      if (goal && goal.weeklyCs != null && Number(goal.weeklyCs) > 0) return; // has weekly goal
+      if (wtdContrib[norm] && wtdContrib[norm].size > 0) return;              // weekly internal CS
+      const t = getTableauRowForDateMode(norm, "wtd");
+      if (t && ((Number(t.cs) || 0) > 0 || (Number(t.sra) || 0) > 0 || (Number(t.cap) || 0) > 0)) return; // weekly tableau
+      set.add(norm);
+    });
+    inactiveSetCache = set;
+    return set;
+  }
+  function isRowInactive(row) {
+    return getInactiveSet().has(normalizeName(row && row.name));
+  }
+  function toggleInactive() {
+    showInactive = !showInactive;
+    renderLeaderboard();
+  }
+  window.toggleInactive = toggleInactive;
+
+  // Name cell for the "Inactive Reps" summary row — a button that drills into the
+  // inactive reps (no role/office/goal). No baseball card.
+  function buildInactiveNameCell() {
+    return `<div class="rep-name-cell"><button type="button" class="rep-card-name-button inactive-reps-btn" data-inactive-drill="1">Inactive Reps</button></div>`;
+  }
+
+  // REP column header: the Rep (name) sort button + the Inactive toggle.
+  function buildRepHeaderCell() {
+    return `<div class="rep-header-controls">
+      <button class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}" onclick="setNameSort()">Rep</button>
+      <button class="inactive-toggle ${showInactive ? "active-sort" : ""}" onclick="toggleInactive()">Inactive</button>
+    </div>`;
+  }
+
+  // Group-list ("Group") and leader-drill ("Name") header variants of the Rep
+  // header: same Inactive toggle, different sort-button label.
+  function buildNameHeaderCell(label) {
+    return `<div class="rep-header-controls">
+      <button class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}" onclick="setNameSort()">${label}</button>
+      <button class="inactive-toggle ${showInactive ? "active-sort" : ""}" onclick="toggleInactive()">Inactive</button>
+    </div>`;
+  }
+  function buildDrillNameHeaderCell() { return buildNameHeaderCell("Name"); }
+  function buildGroupHeaderCell() { return buildNameHeaderCell("Group"); }
+
   function buildRepCardData(repName) {
     const profile = getRepProfileInfo(repName);
     const ytdTableauRank = getTableauMetricRank(repName, "cs");
@@ -1795,6 +1871,7 @@
       activeSortMode,
       activeTableauMetric,
       activeGroupDrillLeader,
+      activeInactiveDrill,
       isSubsetMode,
       activeDownlineNames,
       activePreviousYearDownlineNames,
@@ -1817,6 +1894,7 @@
     activeSortMode = state.activeSortMode;
     activeTableauMetric = state.activeTableauMetric;
     activeGroupDrillLeader = state.activeGroupDrillLeader;
+    activeInactiveDrill = !!state.activeInactiveDrill;
     isSubsetMode = state.isSubsetMode;
     activeDownlineNames = state.activeDownlineNames;
     activePreviousYearDownlineNames = state.activePreviousYearDownlineNames;
@@ -2335,6 +2413,7 @@
     repProfiles = payload.repProfiles && typeof payload.repProfiles === "object" ? payload.repProfiles : {};
     repGoals = payload.repGoals && typeof payload.repGoals === "object" ? payload.repGoals : {};
     prStatsCache = null;
+    inactiveSetCache = null;
 
     rebuildOfficeNameSets();
     rebuildPreviousYearMap();
@@ -2565,6 +2644,7 @@
         return;
       }
       activeGroupDrillLeader = null;
+      activeInactiveDrill = false;
       updateGroupDrillNav();
       renderLeaderboard();
     });
@@ -2594,6 +2674,7 @@
       btn.addEventListener("click", () => {
         if (activeView !== view.key) {
           activeGroupDrillLeader = null;
+          activeInactiveDrill = false;
           groupDrillReturn = null;
         }
 
@@ -2739,6 +2820,20 @@
   const leaderboardApp = document.getElementById("leaderboard-app");
   if (leaderboardApp) {
     leaderboardApp.addEventListener("click", event => {
+      // "Inactive Reps" button (group row in the Groups list, or the summary row
+      // on a main view) -> open the Groups "Inactive Reps" drill-down.
+      const inactiveDrillBtn = event.target.closest("[data-inactive-drill]");
+      if (inactiveDrillBtn) {
+        groupDrillReturn = null;
+        activeView = "groups";
+        activeInactiveDrill = true;
+        activeGroupDrillLeader = null;
+        setActiveViewTab("groups");
+        updateGroupDrillNav();
+        renderLeaderboard();
+        return;
+      }
+
       const officeButton = event.target.closest("[data-office-group]");
       if (officeButton && activeView === "groups" && !activeGroupDrillLeader) {
         navigateToGeneralFromOfficeGroup(officeButton.getAttribute("data-office-group"));
@@ -2870,13 +2965,13 @@
       return;
     }
 
-    const showDrillNav = activeView === "groups" && activeGroupDrillLeader;
+    const showDrillNav = activeView === "groups" && (activeGroupDrillLeader || activeInactiveDrill);
 
     officeTabs.style.display = "flex";
     if (toggleButtons) toggleButtons.style.display = showDrillNav ? "none" : "flex";
     if (drillNav) drillNav.style.display = showDrillNav ? "flex" : "none";
     if (showDrillNav && drillTitle) {
-      drillTitle.textContent = `${activeGroupDrillLeader} Group`;
+      drillTitle.textContent = activeInactiveDrill ? "Inactive Reps" : `${activeGroupDrillLeader} Group`;
     }
   }
   
@@ -3365,7 +3460,24 @@
       </div>
     `;
   }
-  
+
+  // Row-based tableau total (sum of the given rows' tableau values) — used for the
+  // Inactive Reps summary row (the grand total uses office numbers instead).
+  function buildTableauTotalForRows(subsetRows, metric) {
+    const totals = {};
+    Object.keys(TABLEAU_METRICS).forEach(m => { totals[m] = 0; });
+    subsetRows.forEach(row => {
+      const t = row.tableau || {};
+      Object.keys(TABLEAU_METRICS).forEach(m => { totals[m] += Number(t[m]) || 0; });
+    });
+    const selectedValue = totals[metric] != null ? totals[metric] : "";
+    const notes = Object.keys(TABLEAU_METRICS)
+      .filter(m => m !== metric)
+      .map(m => `<span class="tableau-note-left">${TABLEAU_METRICS[m]}: ${totals[m]}</span>`)
+      .join("");
+    return `<div class="tableau-cell"><div class="tableau-notes-stack">${notes}</div><span class="tableau-main">${selectedValue}</span></div>`;
+  }
+
   function getTableauValue(row, metric) {
     return Number(row.tableau?.[metric]) || 0;
   }
@@ -3782,6 +3894,12 @@
       return a.name.localeCompare(b.name);
     });
   
+    // Inactive split: `rows` stays the full set (totals + count include inactive
+    // reps); `displayRows` is what we actually list. When the toggle is off,
+    // inactive reps are collapsed into a single "Inactive Reps" summary row.
+    const inactiveRows = rows.filter(isRowInactive);
+    const displayRows = showInactive ? rows : rows.filter(r => !isRowInactive(r));
+
     const totalSelfGen = rows.reduce((sum, row) => sum + row.selfGen, 0);
     const totalTableauValue = getTableauTotal(rows, activeTableauMetric);
 
@@ -3817,6 +3935,133 @@
       : formatTitleWithOptionalDateRange(`Groups - ${groupRange.label}`, groupRange);
     const showCurrentGroupTotalNotes = shouldShowCurrentTotalNotes();
     const showPreviousGroupTotalNotes = shouldShowPreviousTotalNotes();
+
+    if (activeInactiveDrill) {
+      let drillRows = rows.filter(isRowInactive);
+      const drillUseTableau = useTableauColumn;
+      const drillCols = gridCols(
+        drillUseTableau && useGroupsComparison ? 3
+        : drillUseTableau ? 2
+        : useGroupsComparison ? 2
+        : 1
+      );
+
+      drillRows.sort((a, b) => {
+        if (activeSortMode === "name") return a.name.localeCompare(b.name);
+        if (activeSortMode === "previousContribution") {
+          const aPrev = getRowPreviousSets(a) + getRowPreviousCloses(a);
+          const bPrev = getRowPreviousSets(b) + getRowPreviousCloses(b);
+          if (bPrev !== aPrev) return bPrev - aPrev;
+          return a.name.localeCompare(b.name);
+        }
+        if (useGroupsComparison && activeSortMode === "yoyPercent") {
+          const aPct = useMomColumn() ? getMomPercent(a) : getYoyPercent(a);
+          const bPct = useMomColumn() ? getMomPercent(b) : getYoyPercent(b);
+          const aValue = aPct === null ? -Infinity : aPct;
+          const bValue = bPct === null ? -Infinity : bPct;
+          if (bValue !== aValue) return bValue - aValue;
+        }
+        if (drillUseTableau && activeSortMode === "tableau") {
+          const tableauDiff = compareTableauLeaderboardRows(a, b, activeTableauMetric);
+          if (tableauDiff !== 0) return tableauDiff;
+        }
+        const aValue = getRowDisplayCs(a);
+        const bValue = getRowDisplayCs(b);
+        if (bValue !== aValue) return bValue - aValue;
+        if (b.cs !== a.cs) return b.cs - a.cs;
+        return a.name.localeCompare(b.name);
+      });
+
+      const drillHeaderHtml = `
+      <div class="leaderboard-header-row" style="grid-template-columns:${drillCols};">
+        <div>${buildRankHeaderCell()}</div>
+        <div>
+    <button
+      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
+      onclick="setNameSort()">
+      Name
+    </button>
+  </div>
+        <div style="display:flex;gap:4px;justify-content:center;">
+    <button
+      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      onclick="setCurrentContributionSort()">
+      ${getCurrentComparisonLabel("CS")}
+    </button>
+    ${useGroupsComparison ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
+  </div>
+        ${useGroupsComparison ? `
+    <div>
+      <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
+        ${getPreviousComparisonLabel("CS")}
+      </button>
+    </div>
+  ` : ""}
+  ${drillUseTableau ? buildTableauHeader() : ""}
+      </div>
+    `;
+
+      const inactiveNames = getInactiveSet();
+      const inCurrent = groupContext.computeGroupStats(
+        groupContext.filterDownlineForYear(inactiveNames, "2026", groupContext.useComparison),
+        groupContext.currentPeriodDeals, "current"
+      );
+      const inPrevious = groupContext.computeGroupStats(
+        groupContext.filterDownlineForYear(inactiveNames, "2025", groupContext.useComparison),
+        groupContext.previousPeriodDeals, "previous"
+      );
+
+      bodyRows.push(`
+      <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
+        <div>${buildViewRepCountCell(drillRows.length)}</div>
+        <div>${getTotalRowLabel()}</div>
+        <div>${useGroupsComparison
+          ? buildGroupTotalCell({
+            sets: inCurrent.sets,
+            cs: inCurrent.cs,
+            total: inCurrent.total,
+            previousTotal: inPrevious.total
+          }, useGroupsComparison, showCurrentGroupTotalNotes)
+          : buildGroupTotalCell(inCurrent, false, showCurrentGroupTotalNotes)}</div>
+        ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({
+          previousSets: inPrevious.sets,
+          previousCs: inPrevious.cs,
+          previousTotal: inPrevious.total
+        }, showPreviousGroupTotalNotes)}</div>` : ""}
+        ${drillUseTableau ? `<div>${getTableauTotal(drillRows, activeTableauMetric)}</div>` : ""}
+      </div>
+    `);
+
+      drillRows.forEach((row, index) => {
+        const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+        bodyRows.push(`
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
+          <div>${index + 1}</div>
+          <div>${buildRepNameCell(row.name, row)}</div>
+          <div>${buildCsCell(row, true)}</div>
+          ${useGroupsComparison ? buildPreviousYearCell(row) : ""}
+          ${drillUseTableau ? buildTableauCell(row, activeTableauMetric) : ""}
+        </div>
+      `);
+      });
+
+      document.querySelector(".leaderboard-grid").innerHTML = `
+      <div class="leaderboard-column ${drillUseTableau ? "tableau-on" : ""}">
+        ${buildLeaderboardTitleHtml(`Inactive Reps - ${groupTitle.replace(/^Groups - /, "")}`)}
+        ${drillHeaderHtml}
+        <div class="leaderboard-body">
+          ${bodyRows.join("")}
+        </div>
+      </div>
+    `;
+
+      finishLeaderboardRender();
+      return;
+    }
 
     if (activeGroupDrillLeader) {
       const leaderDownline = buildDownlineSetFromRows(recruitingRows, activeGroupDrillLeader);
@@ -3871,13 +4116,7 @@
         const drillHeaderHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${drillCols};">
         <div>${buildRankHeaderCell()}</div>
-        <div>
-    <button
-      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
-      onclick="setNameSort()">
-      Name
-    </button>
-  </div>
+        <div>${buildDrillNameHeaderCell()}</div>
         <div style="display:flex;gap:4px;justify-content:center;">
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
@@ -3906,6 +4145,11 @@
           groupContext
         );
 
+        // Hide inactive reps in this leader's group unless the toggle is on, but
+        // always keep the leader visible in their own drill-down.
+        const drillInactive = drillRows.filter(r => isRowInactive(r) && normalizeName(r.name) !== leaderNorm);
+        const drillDisplay = showInactive ? drillRows : drillRows.filter(r => !drillInactive.includes(r));
+
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
@@ -3927,7 +4171,7 @@
       </div>
     `);
 
-        drillRows.forEach((row, index) => {
+        drillDisplay.forEach((row, index) => {
           const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
           bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
@@ -3939,6 +4183,29 @@
         </div>
       `);
         });
+
+        if (!showInactive && drillInactive.length) {
+          const inNames = new Set(drillInactive.map(r => normalizeName(r.name)));
+          const inCur = groupContext.computeGroupStats(
+            groupContext.filterDownlineForYear(inNames, "2026", groupContext.useComparison),
+            groupContext.currentPeriodDeals, "current"
+          );
+          const inPrev = groupContext.computeGroupStats(
+            groupContext.filterDownlineForYear(inNames, "2025", groupContext.useComparison),
+            groupContext.previousPeriodDeals, "previous"
+          );
+          bodyRows.push(`
+        <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${drillCols};">
+          <div></div>
+          <div>${buildInactiveNameCell()}</div>
+          <div>${useGroupsComparison
+            ? buildGroupTotalCell({ sets: inCur.sets, cs: inCur.cs, total: inCur.total, previousTotal: inPrev.total }, useGroupsComparison, false)
+            : buildGroupTotalCell(inCur, false, false)}</div>
+          ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell({ previousSets: inPrev.sets, previousCs: inPrev.cs, previousTotal: inPrev.total }, false)}</div>` : ""}
+          ${drillUseTableau ? `<div>${buildTableauTotalForRows(drillInactive, activeTableauMetric)}</div>` : ""}
+        </div>
+      `);
+        }
 
         document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column ${drillUseTableau ? "tableau-on" : ""}">
@@ -3988,13 +4255,7 @@
     const headerHtml = `
       <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
         <div>${buildRankHeaderCell()}</div>
-        <div>
-    <button
-      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
-      onclick="setNameSort()">
-      Group
-    </button>
-  </div>
+        <div>${buildGroupHeaderCell()}</div>
         <div style="display:flex;gap:4px;justify-content:center;">
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
@@ -4054,6 +4315,33 @@
       `);
     });
 
+    // "Inactive Reps" pseudo-group row at the bottom: clicks through to the
+    // inactive reps drill-down. Not numbered, not counted in the group count.
+    const inactiveNamesForGroup = getInactiveSet();
+    if (inactiveNamesForGroup.size) {
+      const inGroupCur = groupContext.computeGroupStats(
+        groupContext.filterDownlineForYear(inactiveNamesForGroup, "2026", groupContext.useComparison),
+        groupContext.currentPeriodDeals, "current"
+      );
+      const inGroupPrev = groupContext.computeGroupStats(
+        groupContext.filterDownlineForYear(inactiveNamesForGroup, "2025", groupContext.useComparison),
+        groupContext.previousPeriodDeals, "previous"
+      );
+      const inGroupRow = {
+        name: "Inactive Reps",
+        sets: inGroupCur.sets, cs: inGroupCur.cs, total: inGroupCur.total,
+        previousSets: inGroupPrev.sets, previousCs: inGroupPrev.cs, previousTotal: inGroupPrev.total
+      };
+      bodyRows.push(`
+        <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
+          <div></div>
+          <div>${buildInactiveNameCell()}</div>
+          <div>${buildGroupTotalCell(inGroupRow, useGroupsComparison)}</div>
+          ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(inGroupRow)}</div>` : ""}
+        </div>
+      `);
+    }
+
     document.querySelector(".leaderboard-grid").innerHTML = `
       <div class="leaderboard-column">
         ${buildLeaderboardTitleHtml(groupTitle)}
@@ -4074,13 +4362,7 @@
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
           <div>${buildRankHeaderCell()}</div>
-          <div>
-    <button
-      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
-      onclick="setNameSort()">
-      Rep
-    </button>
-  </div>
+          <div>${buildRepHeaderCell()}</div>
           <div>
     <button
     class="sort-header-button ${activeSortMode === "selfGen" ? "active-sort" : ""}"
@@ -4116,7 +4398,7 @@
         </div>
       `);
 
-      rows.forEach((row, index) => {
+      displayRows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
@@ -4129,19 +4411,25 @@
           </div>
         `);
       });
+      if (!showInactive && inactiveRows.length) {
+        const inSg = inactiveRows.reduce((s, r) => s + (r.selfGen || 0), 0);
+        const inPrevSg = inactiveRows.reduce((s, r) => s + getRowPreviousSelfGen(r), 0);
+        bodyRows.push(`
+          <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
+            <div></div>
+            <div>${buildInactiveNameCell()}</div>
+            <div class="cs-cell"><span class="cs-main">${inSg}</span></div>
+            ${comparisonActive ? `<div class="cs-cell"><span class="cs-main">${inPrevSg}</span></div>` : ""}
+          </div>
+        `);
+      }
     } else {
       const cols = gridCols(useTableauColumn && comparisonActive ? 3 : useTableauColumn ? 2 : comparisonActive ? 2 : 1);
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
           <div>${buildRankHeaderCell()}</div>
-          <div>
-    <button
-      class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}"
-      onclick="setNameSort()">
-      Rep
-    </button>
-  </div>
+          <div>${buildRepHeaderCell()}</div>
           <div style="display:flex;gap:4px;justify-content:center;">
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
@@ -4222,7 +4510,7 @@
         </div>
       `);
 
-      rows.forEach((row, index) => {
+      displayRows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
           <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
@@ -4234,6 +4522,37 @@
           </div>
         `);
       });
+      if (!showInactive && inactiveRows.length) {
+        const inCredit = getCreditTotalsFromDeals(currentUniqueDeals, inactiveRows, "current");
+        const inPrevCredit = getCreditTotalsFromDeals(previousComparisonDeals, inactiveRows, "previous");
+        const inUniqueCs = activeView === "experts"
+          ? getUniqueRoleDealTotal(currentUniqueDeals, inactiveRows, "expert")
+          : activeView === "setters"
+          ? getUniqueRoleDealTotal(currentUniqueDeals, inactiveRows, "setter")
+          : sumVisibleUniqueCs(inactiveRows, row => row.cs);
+        const inPrevUniqueCs = activeView === "experts"
+          ? getUniqueRoleDealTotal(previousComparisonDeals, inactiveRows, "expert", "previous")
+          : activeView === "setters"
+          ? getUniqueRoleDealTotal(previousComparisonDeals, inactiveRows, "setter", "previous")
+          : sumVisibleUniqueCs(inactiveRows, row => getRowPreviousCs(row), true);
+        const inValueCell = useUniqueCsTotals
+          ? buildUniqueTotalCell(inUniqueCs, null, buildCurrentTotalNotesForView(inactiveRows))
+          : buildUniqueTotalCell((inCredit.sets + inCredit.cs) / 2, null, buildCurrentTotalNotesForView(inactiveRows, inCredit));
+        const inPrevCell = comparisonActive
+          ? (useUniqueCsTotals
+            ? buildUniqueTotalCell(inPrevUniqueCs, null, buildPreviousTotalNotesForView(inactiveRows))
+            : buildUniqueTotalCell((inPrevCredit.sets + inPrevCredit.cs) / 2, null, buildPreviousTotalNotesForView(inactiveRows, inPrevCredit)))
+          : "";
+        bodyRows.push(`
+          <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
+            <div></div>
+            <div>${buildInactiveNameCell()}</div>
+            <div>${inValueCell}</div>
+            ${comparisonActive ? `<div>${inPrevCell}</div>` : ""}
+            ${useTableauColumn ? `<div>${buildTableauTotalForRows(inactiveRows, activeTableauMetric)}</div>` : ""}
+          </div>
+        `);
+      }
     }
   
     document.querySelector(".leaderboard-grid").innerHTML = `
