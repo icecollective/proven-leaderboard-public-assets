@@ -47,6 +47,7 @@
   let recruiting2025Rows = [];
   let repProfiles = {}; // approved rep card info keyed by normalized name
   let repGoals = {};    // per-rep goals (weekly CS / monthly / yearly) keyed by normalized name
+  let prStatsCache = null; // {bestMonth, bestWeek, cohort} for PR Month/Week ranking
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -1377,6 +1378,50 @@
     return { cs: best, selfGen: extras.selfGen, setOnly: extras.setOnly };
   }
 
+  // PR ("personal record") cohort stats: for each rep, their best single month /
+  // week of internal CS (contributions), plus the cohort = # of reps with >=1
+  // internal CS this year. Used to show "1 of N · Top X%" on the PR tiles.
+  function getPrStats() {
+    if (prStatsCache) return prStatsCache;
+    const year = formatDate(new Date()).slice(0, 4);
+    const monthSets = {}, weekSets = {}, ytdSets = {};
+    allDeals.forEach(d => {
+      if (!d.date) return;
+      const id = getDealId(d);
+      if (!id) return;
+      const e = normalizeName(d.expert), s = normalizeName(d.setter);
+      const reps = [];
+      if (e) reps.push(e);
+      if (s && isValidSetterName(d.setter) && s !== e) reps.push(s);
+      if (!reps.length) return;
+      const mk = d.date.slice(0, 7);
+      const wk = formatDate(getMondayOfWeek(new Date(`${d.date}T12:00:00`)));
+      const thisYear = d.date.slice(0, 4) === year;
+      reps.forEach(rep => {
+        const mkey = rep + "|" + mk; (monthSets[mkey] || (monthSets[mkey] = new Set())).add(id);
+        const wkey = rep + "|" + wk; (weekSets[wkey] || (weekSets[wkey] = new Set())).add(id);
+        if (thisYear) (ytdSets[rep] || (ytdSets[rep] = new Set())).add(id);
+      });
+    });
+    const bestMonth = {}, bestWeek = {};
+    Object.keys(monthSets).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = monthSets[k].size; if (n > (bestMonth[r] || 0)) bestMonth[r] = n; });
+    Object.keys(weekSets).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = weekSets[k].size; if (n > (bestWeek[r] || 0)) bestWeek[r] = n; });
+    const cohort = Object.keys(ytdSets).filter(r => ytdSets[r].size > 0).length;
+    prStatsCache = { bestMonth, bestWeek, cohort };
+    return prStatsCache;
+  }
+  // "1 of N · Top X%" for a rep's PR month/week (kind: "month" | "week").
+  function repPrSub(repName, kind) {
+    const stats = getPrStats();
+    const map = kind === "month" ? stats.bestMonth : stats.bestWeek;
+    const myBest = map[normalizeName(repName)] || 0;
+    if (myBest <= 0 || !stats.cohort) return "";
+    let n = 0;
+    Object.keys(map).forEach(r => { if (map[r] >= myBest) n++; });
+    const pct = Math.max(1, Math.round((n / stats.cohort) * 100));
+    return `1 of ${n} · Top ${pct}%`;
+  }
+
   function buildRepCardData(repName) {
     const profile = getRepProfileInfo(repName);
     const ytdTableauRank = getTableauMetricRank(repName, "cs");
@@ -1532,19 +1577,23 @@
     return `<div class="rc-valwrap">${left}<div class="rep-card-stat-value">${escapeHtml(String(val == null ? "—" : val))}</div></div>`;
   }
 
-  function repCardPeriodTile(p, isPlata) {
+  function repCardPeriodTile(p, isPlata, showExtras) {
     const val = isPlata ? (p.tableau && p.tableau.cs != null ? p.tableau.cs : "—") : (p.discordCs != null ? p.discordCs : "—");
+    // SG/Sets subscripts are an Expert-only feature.
     const valueHtml = isPlata
       ? `<div class="rep-card-stat-value">${escapeHtml(String(val))}</div>`
-      : repCardCsValue(val, p.extras);
+      : repCardCsValue(val, showExtras ? p.extras : null);
     return `<div class="rep-card-stat is-period"><div class="rep-card-stat-label">${escapeHtml(p.label)}</div><div class="rep-card-stat-body">${valueHtml}${repCardMetrics(p.tableau)}</div></div>`;
   }
 
-  function repCardSimpleTile(label, value, extras) {
+  // PR (personal-record) tile: value + "1 of N · Top X%" sub (matches the YTD CS
+  // Rank tile layout). SG/Sets shown only when extras passed (Expert-only).
+  function repCardPrTile(label, value, extras, subText) {
     const valueHtml = extras
       ? repCardCsValue(value, extras)
       : `<div class="rep-card-stat-value">${escapeHtml(String(value == null ? "—" : value))}</div>`;
-    return `<div class="rep-card-stat rep-card-stat--simple"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}</div></div>`;
+    const sub = subText ? `<div class="rep-card-stat-sub">${escapeHtml(subText)}</div>` : "";
+    return `<div class="rep-card-stat"><div class="rep-card-stat-label">${escapeHtml(label)}</div><div class="rep-card-stat-body">${valueHtml}${sub}</div></div>`;
   }
 
   function repCardRankTile(label, rank, metricLabel, metricVal) {
@@ -1603,6 +1652,8 @@
   function renderRepCard(data) {
     const { profile, periods } = data;
     const isPlata = profile.isPlata;
+    // SG/Sets subscripts are an Expert-only feature (Market Leaders count as experts).
+    const isExpert = !isPlata && (profile.role === "Expert" || profile.role === "Market Leader");
     const goalRings = repCardGoalRings(profile.name);
 
     // YTD CS Rank: internal rank + internal CS, then Tableau rank · CS on one line.
@@ -1639,11 +1690,11 @@
         ${goalRings}
       </div>
       <div class="rep-card-stat-grid">
-        ${repCardPeriodTile(periods.ytd, isPlata)}
-        ${repCardPeriodTile(periods.mtd, isPlata)}
-        ${repCardPeriodTile(periods.wtd, isPlata)}
-        ${repCardSimpleTile("Best Month CS", isPlata ? "na" : data.bestMonth.cs, isPlata ? null : data.bestMonth)}
-        ${repCardSimpleTile("Best Week CS", isPlata ? "na" : data.bestWeek.cs, isPlata ? null : data.bestWeek)}
+        ${repCardPeriodTile(periods.ytd, isPlata, isExpert)}
+        ${repCardPeriodTile(periods.mtd, isPlata, isExpert)}
+        ${repCardPeriodTile(periods.wtd, isPlata, isExpert)}
+        ${repCardPrTile("PR Month CS", isPlata ? "na" : data.bestMonth.cs, isExpert ? data.bestMonth : null, isPlata ? "" : repPrSub(profile.name, "month"))}
+        ${repCardPrTile("PR Week CS", isPlata ? "na" : data.bestWeek.cs, isExpert ? data.bestWeek : null, isPlata ? "" : repPrSub(profile.name, "week"))}
         ${ytdCsRankHtml}
         ${repCardRankTile("YTD SRA Rank", data.ytdSraRank, "SRA", data.ytdSraValue)}
         ${repCardRankTile("YTD CAP Rank", data.ytdCapRank, "CAP", data.ytdCapValue)}
@@ -2263,6 +2314,7 @@
 
     repProfiles = payload.repProfiles && typeof payload.repProfiles === "object" ? payload.repProfiles : {};
     repGoals = payload.repGoals && typeof payload.repGoals === "object" ? payload.repGoals : {};
+    prStatsCache = null;
 
     rebuildOfficeNameSets();
     rebuildPreviousYearMap();
@@ -3349,7 +3401,7 @@
   function buildTableauHeader() {
     const options = Object.entries(TABLEAU_METRICS)
       .map(([key, label]) => `
-        <option value="${key}" ${activeTableauMetric === key ? "selected" : ""}>Tableau ${label}</option>
+        <option value="${key}" ${activeTableauMetric === key ? "selected" : ""}>TAB ${label}</option>
       `)
       .join("");
   

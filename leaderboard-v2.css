@@ -809,7 +809,7 @@
   .rep-name-cell.has-goal { position:relative; display:flex; flex-direction:column;
                             justify-content:flex-end; align-items:flex-start; height:100%;
                             padding-bottom:14px; }
-  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:320px; max-width:none;
+  .rep-goal-track { position:absolute; left:16px; bottom:9px; width:256px; max-width:none;
                     height:4px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
   .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
@@ -821,7 +821,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { width:240px; left:8px; }
+    .rep-goal-track { width:192px; left:8px; }
     .rep-goal-label { font-size:8.5px; }
   }
   /* make the table read as one rounded white card */
@@ -895,9 +895,6 @@
   }
   .rep-card-stat-body { flex:1; display:flex; flex-direction:column; align-items:center;
                         justify-content:center; gap:4px; width:100%; }
-  /* Best Month/Week: value centered relative to the whole cell (offset the
-     top-pinned title so it doesn't sit low) */
-  .rep-card-stat--simple .rep-card-stat-body { margin-top:-14px; }
   /* 3-column grid keeps the number centered in the tile while SG/Sets sit in
      their own left column — so they can never overlap the number. */
   .rc-valwrap { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; width:100%; }
@@ -997,7 +994,7 @@
     border-bottom:1px solid #e7ebf2; font-size:12.5px;
   }
   .total-row > div { font-weight:800; color:#0f172a; }
-  .total-row .view-rep-count { font-size:11px; color:#94a3b8; font-weight:700; }
+  .total-row .view-rep-count { font-size:11px; color:#94a3b8; font-weight:700; white-space:nowrap; }
   #pv-topbar #tableau-toggle {
     margin:0; background:#fff; border:1px solid #e7ebf2; color:#475569; border-radius:11px;
     font-weight:700; padding:8px 14px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.05);
