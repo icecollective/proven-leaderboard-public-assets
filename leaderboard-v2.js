@@ -376,10 +376,14 @@
     // rep names were widening the Rep column and shifting the value columns,
     // misaligning the numbers). Fixed proportions => every row identical.
     let RANK = 0.45, REP = 1.85, VALUE_TOTAL = 3.0;
-    // On mobile dense views (Tableau/YOY/MOM = 2-3 value columns), widen Rep so
-    // the CS column sits further to the right (more clearance from the left).
+    // On mobile, ALWAYS use the wider Rep / fixed value-total proportions —
+    // regardless of how many value columns are showing. This keeps the Rep
+    // column (and the goal progress bar that spans it) exactly the same width
+    // in every view/date/toggle combination, so the bar never grows or shrinks
+    // when columns are added/removed (e.g. Tableau turning off after visiting
+    // Groups). It also keeps the CS column pushed right on dense views.
     const mobile = typeof window !== "undefined" && window.innerWidth <= 760;
-    if (mobile && nValueCols >= 2) { REP = 2.6; VALUE_TOTAL = 2.5; }
+    if (mobile) { REP = 2.6; VALUE_TOTAL = 2.5; }
     const each = (VALUE_TOTAL / nValueCols).toFixed(3);
     let s = `minmax(0,${RANK}fr) minmax(0,${REP}fr)`;
     for (let i = 0; i < nValueCols; i++) s += ` minmax(0,${each}fr)`;
@@ -1485,6 +1489,25 @@
   }
   function isRowInactive(row) {
     return getInactiveSet().has(normalizeName(row && row.name));
+  }
+  // The inactive reps to actually display (drill-down + count). Starts from the
+  // inactive rows in `currentRows`, then adds Tableau-recruiting inactive reps
+  // that the General view would show but other views' `rows` omit (general is
+  // the only view that calls addTableauRecruitingRepsToRows). This keeps the
+  // "N Reps" count and the drill-down identical to the General view's roster.
+  function getInactiveDisplayRows(currentRows) {
+    const result = currentRows.filter(isRowInactive);
+    const present = new Set(result.map(r => normalizeName(r.name)));
+    const inactive = getInactiveSet();
+    tableauMap.forEach((tRow, norm) => {
+      if (present.has(norm) || !inactive.has(norm) || HIDDEN_REPS.has(norm)) return;
+      if (!isRecruitingRep(norm) || !hasTableauRowData(tRow)) return;
+      if (hasInternalRepHistory(norm)) return;
+      if (!repInOfficeUmbrella(norm)) return;
+      present.add(norm);
+      result.push(buildEmptyInternalRow(tRow.name, tRow));
+    });
+    return result;
   }
   function toggleInactive() {
     showInactive = !showInactive;
@@ -3926,7 +3949,7 @@
     const showPreviousGroupTotalNotes = shouldShowPreviousTotalNotes();
 
     if (activeInactiveDrill) {
-      let drillRows = rows.filter(isRowInactive);
+      let drillRows = getInactiveDisplayRows(rows);
       const drillUseTableau = useTableauColumn;
       const drillCols = gridCols(
         drillUseTableau && useGroupsComparison ? 3
@@ -4309,7 +4332,7 @@
     // Count reflects the reps the drill will actually list (those with a row),
     // so the "N Reps" label matches the drill-down's rep count.
     const inactiveNamesForGroup = getInactiveSet();
-    const inactiveDisplayCount = rows.filter(isRowInactive).length;
+    const inactiveDisplayCount = getInactiveDisplayRows(rows).length;
     if (inactiveNamesForGroup.size) {
       const inGroupCur = groupContext.computeGroupStats(
         groupContext.filterDownlineForYear(inactiveNamesForGroup, "2026", groupContext.useComparison),
