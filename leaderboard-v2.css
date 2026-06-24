@@ -919,7 +919,7 @@
                             padding-bottom:14px; }
   /* Fixed length the user liked (256 desktop / 192 mobile), capped to the column
      so it still can't overflow into the CS column on a narrow board. */
-  .rep-goal-track { position:absolute; left:16px; right:auto; width:358px; bottom:9px; max-width:calc(100% - 26px);
+  .rep-goal-track { position:absolute; left:16px; right:auto; width:501px; bottom:9px; max-width:calc(100% - 26px);
                     height:8px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
   .rep-goal-fill { position:relative; height:100%; border-radius:999px; overflow:hidden;
                    background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
@@ -944,7 +944,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { left:8px; right:auto; width:269px; max-width:calc(100% - 16px); }
+    .rep-goal-track { left:8px; right:auto; width:377px; max-width:calc(100% - 16px); }
     .rep-goal-label { font-size:8.5px; }
     /* Keep the TAB selector compact so "TAB SRA"/"TAB CAP" fit in tight columns. */
     .leaderboard-header-row .sort-header-button,
@@ -1068,7 +1068,7 @@
 
   /* ---- Top bar: PROVEN wordmark left, Tableau toggle right, aligned to the board ---- */
   #pv-topbar { display:flex; align-items:center; margin:0 auto 0; min-height:48px; max-width:860px;
-               position:sticky; top:0; z-index:62; background:#eef1f6; padding-bottom:0; }
+               position:sticky; top:0; z-index:60; background:#eef1f6; padding-bottom:0; }
   /* page-colored backdrop just below the bar so the rounded rank-header corners
      reveal clean background (not scrolling rows) — no blocky/hard edge */
   /* Soft page-colored fade below the bar: filter pills dissolve into the page as
@@ -1102,7 +1102,10 @@
      the corner items (a little offset/whitespace above) */
   /* all selectors slide OVER the sticky top bar (in front) so it's seamless */
   #office-tabs, #view-tabs, #date-tabs, #tableau-tabs { position:relative; z-index:61; }
-  #office-tabs { margin-top:-20px; }
+  /* office-tabs is pulled up over the topbar; make its EMPTY area click-through so
+     the "?" beneath it stays clickable, while the pills themselves stay clickable. */
+  #office-tabs { margin-top:-20px; pointer-events:none; }
+  #office-tabs button, #office-tabs .mexico-back { pointer-events:auto; }
   @media (max-width:760px) {
     /* small rest-gap so the first pill row isn't touching the bar (lets it fade
        cleanly as it scrolls up rather than starting already at the bar) */
