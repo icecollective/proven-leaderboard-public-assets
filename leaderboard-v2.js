@@ -202,12 +202,12 @@
       current: {
         start: formatDate(currentStart),
         end: formatDate(today),
-        label: `${monthLabel} ${year}`
+        label: `${monthLabel} '${String(year).slice(2)}`
       },
       previous: {
         start: formatDate(prevStart),
         end: formatDate(prevEnd),
-        label: `${monthLabel} ${prevYear}`
+        label: `${monthLabel} '${String(prevYear).slice(2)}`
       }
     };
 
@@ -1624,10 +1624,10 @@
     if (!mexicoOn || !downline) return "";
     let q = 0, h = 0;
     downline.forEach(n => { if (qualSet.has(n)) q++; else if (halfSet.has(n)) h++; });
-    if (!q && !h) return "";
-    let html = "";
-    if (q) html += `<span class="group-bagel-line gx-qual"><span class="gb-full">${q} ${q === 1 ? "rep" : "reps"} qualified for Mexico</span><span class="gb-short">${q} Qualified</span></span>`;
-    if (h) html += `<span class="group-bagel-line gx-half"><span class="gb-full">${h} ${h === 1 ? "rep" : "reps"} halfway there</span><span class="gb-short">${h} Halfway</span></span>`;
+    // Always show both lines (including 0).
+    const html =
+      `<span class="group-bagel-line gx-qual"><span class="gb-full">${q} ${q === 1 ? "rep" : "reps"} qualified for Mexico</span><span class="gb-short">${q} Qualified</span></span>` +
+      `<span class="group-bagel-line gx-half"><span class="gb-full">${h} ${h === 1 ? "rep" : "reps"} halfway there</span><span class="gb-short">${h} Halfway</span></span>`;
     return `<span class="group-bagel-tags">${html}</span>`;
   }
 
@@ -4811,8 +4811,6 @@
         if (mexicoOn) {
           const mcols = gridCols(2);
           const mexDrill = drillDisplay.slice().sort(mexicoSortComparator());
-          const sraTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).sra, 0);
-          const capTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).cap, 0);
           const mexHeader = `
         <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
           <div>${buildRankHeaderCell()}</div>
@@ -4820,12 +4818,13 @@
           <div class="mexico-col-head">SRA</div>
           <div class="mexico-col-head">CAP</div>
         </div>`;
+          // No SRA/CAP totals here — summing Tableau values isn't accurate.
           bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${mcols};">
           <div>${buildViewRepCountCell(drillDisplay.length)}</div>
           <div>${getTotalRowLabel()}</div>
-          <div class="cs-cell"><span class="cs-main">${sraTot}</span></div>
-          <div class="cs-cell"><span class="cs-main">${capTot}</span></div>
+          <div></div>
+          <div></div>
         </div>`);
           mexDrill.forEach((row, index) => {
             const t = mexicoTableau(normalizeName(row.name));
@@ -4947,7 +4946,16 @@
       return a.name.localeCompare(b.name);
     });
 
-    const headerHtml = `
+    // Mexico groups list shows ONLY the qualified/halfway counts — no group value
+    // columns. Use a simple 2-column (rank + group) grid.
+    const listCols = mexicoOn ? "minmax(0,0.45fr) minmax(0,5fr)" : cols;
+
+    const headerHtml = mexicoOn ? `
+      <div class="leaderboard-header-row" style="grid-template-columns:${listCols};">
+        <div>${buildRankHeaderCell()}</div>
+        <div>${buildGroupHeaderCell()}</div>
+      </div>
+    ` : `
       <div class="leaderboard-header-row" style="grid-template-columns:${cols};">
         <div>${buildRankHeaderCell()}</div>
         <div>${buildGroupHeaderCell()}</div>
@@ -4973,7 +4981,12 @@
       </div>
     `;
 
-    bodyRows.push(`
+    bodyRows.push(mexicoOn ? `
+      <div class="leaderboard-row total-row" style="grid-template-columns:${listCols};">
+        <div>${buildViewRepCountCell(groupRows.length, "Groups")}</div>
+        <div>${getTotalRowLabel()}</div>
+      </div>
+    ` : `
       <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
         <div>${buildViewRepCountCell(groupRows.length, "Groups")}</div>
         <div>${getTotalRowLabel()}</div>
@@ -5011,7 +5024,12 @@
       const groupBagels = mexicoOn
         ? buildGroupMexicoBadge(row.downline, mexQualSet, mexHalfSet)
         : buildGroupBagelBadge(row.downline, bagelYellowSet, bagelRedSet);
-      bodyRows.push(`
+      bodyRows.push(mexicoOn ? `
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${listCols};">
+          <div>${index + 1}</div>
+          <div><div class="group-name-col">${nameCell}${groupBagels}</div></div>
+        </div>
+      ` : `
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
           <div><div class="group-name-col">${nameCell}${groupBagels}</div></div>
@@ -5038,7 +5056,12 @@
       );
       const inGroupRow = makeGroupStatRow(inGroupCur, inGroupPrev);
       inGroupRow.name = "Inactive Reps";
-      bodyRows.push(`
+      bodyRows.push(mexicoOn ? `
+        <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${listCols};">
+          <div>${buildViewRepCountCell(inactiveDisplayCount)}</div>
+          <div>${buildInactiveNameCell()}</div>
+        </div>
+      ` : `
         <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${cols};">
           <div>${buildViewRepCountCell(inactiveDisplayCount)}</div>
           <div>${buildInactiveNameCell()}</div>
