@@ -427,6 +427,11 @@
     const header = column.querySelector(".leaderboard-header-row");
     if (!header) return;
 
+    // The sticky topbar (logo + "?" + Tableau) sits above the column; the header
+    // / total rows must pin BELOW it, not under it. Measure its live height so
+    // the offsets stay correct even as the topbar's height changes.
+    const topbar = document.getElementById("pv-topbar");
+    column.style.setProperty("--pv-topbar-h", `${topbar ? Math.ceil(topbar.getBoundingClientRect().height) : 56}px`);
     column.style.setProperty("--lb-title-height", `${title ? title.offsetHeight : 0}px`);
     column.style.setProperty("--lb-header-height", `${header.offsetHeight}px`);
   }
