@@ -33,9 +33,8 @@
   let previousYearDetailsMap = new Map();
   let showYoy = false;
   let showMom = false;
-  // The "Include Old Reps" toggle is currently disabled for YOY/MOM: it never
-  // shows and always acts as if OFF. Flip this to true to bring it back.
-  const OLD_REPS_TOGGLE_ENABLED = false;
+  // The "Include Old Reps" toggle (YOY/MOM). Set false to hide it + force OFF.
+  const OLD_REPS_TOGGLE_ENABLED = true;
   let includeOldReps = true;
   let includeNewReps = true;
   let includeIceCollective = true;
