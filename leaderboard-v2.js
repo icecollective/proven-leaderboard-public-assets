@@ -3483,7 +3483,7 @@
       mexPanel.style.display = "none";
       mexPanel.innerHTML =
         '<img class="mexico-img" src="' + MEXICO_IMG_URL + '" alt="The Block Trip — Cabo San Lucas, Mexico">' +
-        '<div class="mexico-disclaimer">This Tableau data does not yet account for Second Systems. ' +
+        '<div class="mexico-disclaimer">This Tableau data does not account for Second Systems. ' +
         'If you know you have a Second System, self-deduct it or request that it be accounted for.</div>';
       dateTabs.parentNode.insertBefore(mexPanel, dateTabs.nextSibling);
     }
