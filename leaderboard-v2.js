@@ -2932,6 +2932,7 @@
     if (document.getElementById("pl-login-overlay")) return;
     const o = document.createElement("div");
     o.id = "pl-login-overlay";
+    o.className = "pl-modal";
     o.innerHTML =
       '<div class="pl-login-card">' +
         '<div class="pl-login-logo">PROVEN<span>LEADERBOARD</span></div>' +
@@ -2997,6 +2998,85 @@
   function hideLoginOverlay() {
     const o = document.getElementById("pl-login-overlay");
     if (o) o.style.display = "none";
+  }
+
+  // ---- Goal prompt on login -------------------------------------------------
+  // After a successful login, if the rep still owes a weekly / monthly / yearly
+  // goal, make them set it before they can use the board. Exempt reps (Justin
+  // Wall, Kelton Higgins) and reps with everything submitted skip straight in.
+  async function fetchGoalStatus() {
+    const res = await fetch(API_URL + "?action=goalStatus&token=" + encodeURIComponent(getSessionToken()));
+    return res.json();
+  }
+  async function submitGoalsForLogin(vals) {
+    const q = Object.keys(vals).map(k => k + "=" + encodeURIComponent(vals[k])).join("&");
+    const res = await fetch(API_URL + "?action=submitGoals&token=" + encodeURIComponent(getSessionToken()) + "&" + q);
+    return res.json();
+  }
+  function firstName(n) { return String(n || "").trim().split(/\s+/)[0] || "there"; }
+
+  function showGoalPrompt(s) {
+    let o = document.getElementById("pv-goal-overlay");
+    if (!o) { o = document.createElement("div"); o.id = "pv-goal-overlay"; o.className = "pl-modal"; document.body.appendChild(o); }
+    const fields = [];
+    if (s.needWeek) fields.push(
+      `<div class="pv-goal-field"><label>This week &mdash; Contracts Signed <span class="pv-goal-hint">(${s.weekLabel})</span></label>` +
+      `<input id="pv-goal-week" type="number" inputmode="numeric" min="0" placeholder="e.g. 4"></div>`);
+    if (s.needMonth) fields.push(
+      `<div class="pv-goal-field"><label>${s.monthLabel} &mdash; ${s.metric} goal</label>` +
+      `<input id="pv-goal-month" type="number" inputmode="numeric" min="0" placeholder="e.g. 15"></div>`);
+    if (s.needYear) fields.push(
+      `<div class="pv-goal-field"><label>${s.yearLabel} &mdash; ${s.metric} goal</label>` +
+      `<input id="pv-goal-year" type="number" inputmode="numeric" min="0" placeholder="e.g. 120"></div>`);
+
+    o.innerHTML =
+      '<div class="pl-login-card">' +
+        '<div class="pl-login-logo">PROVEN<span>LEADERBOARD</span></div>' +
+        `<div class="pl-login-title">Hey ${firstName(s.name)} &mdash; set your goals</div>` +
+        '<div class="pl-login-sub">Lock these in to get to the board.</div>' +
+        fields.join("") +
+        '<button id="pv-goal-submit" type="button" class="pl-login-btn">Save my goals</button>' +
+        '<div id="pv-goal-msg" class="pl-login-msg"></div>' +
+      '</div>';
+
+    const msg = o.querySelector("#pv-goal-msg");
+    const setMsg = (t, err) => { msg.textContent = t || ""; msg.className = "pl-login-msg" + (err ? " pl-login-err" : ""); };
+    const weekEl = o.querySelector("#pv-goal-week");
+    const monthEl = o.querySelector("#pv-goal-month");
+    const yearEl = o.querySelector("#pv-goal-year");
+
+    o.querySelector("#pv-goal-submit").addEventListener("click", async () => {
+      // Every shown field is required (the prompt isn't skippable).
+      const need = [];
+      if (s.needWeek && !(weekEl.value || "").trim()) need.push("this week's");
+      if (s.needMonth && !(monthEl.value || "").trim()) need.push("this month's");
+      if (s.needYear && !(yearEl.value || "").trim()) need.push("this year's");
+      if (need.length) { setMsg("Please enter " + need.join(", ") + " goal.", true); return; }
+
+      const btn = o.querySelector("#pv-goal-submit");
+      btn.disabled = true; setMsg("Saving…");
+      const vals = {};
+      if (s.needWeek) vals.weeklyCs = (weekEl.value || "").trim();
+      if (s.needMonth) vals.monthly = (monthEl.value || "").trim();
+      if (s.needYear) vals.yearly = (yearEl.value || "").trim();
+      try {
+        const r = await submitGoalsForLogin(vals);
+        if (r && r.ok) { o.style.display = "none"; }
+        else { setMsg((r && r.error) || "Couldn't save. Try again.", true); btn.disabled = false; }
+      } catch (e) { setMsg("Network error. Try again.", true); btn.disabled = false; }
+    });
+
+    o.style.display = "flex";
+  }
+
+  // Decide whether to show the goal prompt after the board loads.
+  async function maybePromptGoals() {
+    try {
+      const s = await fetchGoalStatus();
+      if (!s || s.authRequired || s.exempt) return;          // not logged in / exempt
+      if (!s.needWeek && !s.needMonth && !s.needYear) return; // all set
+      showGoalPrompt(s);
+    } catch (e) { /* never block the board on a goal-check failure */ }
   }
 
   // Session heartbeat: if this device's session gets kicked (logged in on too
@@ -5552,6 +5632,7 @@
       renderLeaderboard();
       hideLoginOverlay();
       startSessionHeartbeat();
+      maybePromptGoals();
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {

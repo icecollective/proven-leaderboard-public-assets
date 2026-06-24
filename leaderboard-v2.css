@@ -1195,39 +1195,45 @@
   #tableau-tabs { margin-top:2px; margin-bottom:16px; gap:8px; }
 
   /* ---- Rep login overlay (passwordless phone OTP) ---- */
-  #pl-login-overlay {
+  .pl-modal {
     position:fixed; inset:0; z-index:9999; display:none;
     align-items:center; justify-content:center; padding:20px;
     background:linear-gradient(180deg,#1b2740,#0f172a);
     font-family:'Inter',system-ui,sans-serif;
   }
-  #pl-login-overlay .pl-login-card {
+  .pl-modal .pl-login-card {
     width:100%; max-width:360px; background:#fff; border-radius:18px;
     padding:28px 24px; box-shadow:0 24px 60px rgba(0,0,0,.35); text-align:center;
   }
-  #pl-login-overlay .pl-login-logo { font-weight:800; font-size:18px; color:#0f172a; letter-spacing:.02em; line-height:1; }
-  #pl-login-overlay .pl-login-logo span { display:block; font-size:8.5px; letter-spacing:3.5px; text-indent:3.5px; color:#6b7280; font-weight:700; margin-top:4px; }
-  #pl-login-overlay .pl-login-title { font-size:20px; font-weight:800; color:#0f172a; margin-top:18px; }
-  #pl-login-overlay .pl-login-sub { font-size:13px; color:#6b7280; margin:6px 0 18px; line-height:1.45; }
-  #pl-login-overlay input {
+  .pl-modal .pl-login-logo { font-weight:800; font-size:18px; color:#0f172a; letter-spacing:.02em; line-height:1; }
+  .pl-modal .pl-login-logo span { display:block; font-size:8.5px; letter-spacing:3.5px; text-indent:3.5px; color:#6b7280; font-weight:700; margin-top:4px; }
+  .pl-modal .pl-login-title { font-size:20px; font-weight:800; color:#0f172a; margin-top:18px; }
+  .pl-modal .pl-login-sub { font-size:13px; color:#6b7280; margin:6px 0 18px; line-height:1.45; }
+  .pl-modal input {
     width:100%; box-sizing:border-box; padding:12px 14px; font-size:16px; text-align:center;
     border:1px solid #e2e8f0; border-radius:11px; background:#f8fafc; color:#0f172a; outline:none; margin-bottom:10px;
   }
-  #pl-login-overlay input:focus { border-color:#94a3b8; background:#fff; }
-  #pl-login-overlay .pl-login-btn {
+  .pl-modal input:focus { border-color:#94a3b8; background:#fff; }
+  .pl-modal .pl-login-btn {
     width:100%; padding:12px 14px; font-size:15px; font-weight:700; cursor:pointer;
     border:none; border-radius:11px; color:#fff; background:linear-gradient(180deg,#293548,#0f172a);
     box-shadow:0 2px 6px rgba(15,23,42,.2);
   }
-  #pl-login-overlay .pl-login-btn:disabled { opacity:.6; cursor:default; }
-  #pl-login-overlay .pl-login-linkbtn {
+  .pl-modal .pl-login-btn:disabled { opacity:.6; cursor:default; }
+  .pl-modal .pl-login-linkbtn {
     width:100%; margin-top:10px; background:none; border:none; color:#64748b;
     font-size:12.5px; font-weight:600; cursor:pointer; text-decoration:underline;
   }
-  #pl-login-overlay .pl-login-msg { font-size:12.5px; color:#475569; margin-top:12px; min-height:16px; }
-  #pl-login-overlay .pl-login-msg.pl-login-err { color:#dc2626; font-weight:600; }
-  #pl-login-overlay .pl-login-foot { font-size:12px; color:#94a3b8; margin-top:18px; }
-  #pl-login-overlay .pl-login-foot a { color:#0f172a; font-weight:700; }
+  .pl-modal .pl-login-msg { font-size:12.5px; color:#475569; margin-top:12px; min-height:16px; }
+  .pl-modal .pl-login-msg.pl-login-err { color:#dc2626; font-weight:600; }
+  .pl-modal .pl-login-foot { font-size:12px; color:#94a3b8; margin-top:18px; }
+  .pl-modal .pl-login-foot a { color:#0f172a; font-weight:700; }
+
+  /* ---- Goal prompt on login (reuses .pl-modal card styling) ---- */
+  #pv-goal-overlay .pv-goal-field { text-align:left; margin:0 0 12px; }
+  #pv-goal-overlay .pv-goal-field label { display:block; font-size:12px; font-weight:700; color:#475569; margin:0 0 5px; padding-left:2px; }
+  #pv-goal-overlay .pv-goal-field input { margin-bottom:0; }
+  #pv-goal-overlay .pv-goal-field .pv-goal-hint { font-size:11px; color:#94a3b8; font-weight:600; }
 
   /* ---- Help "?" button + bug-report modal ---- */
   /* The "?" lives inside the sticky topbar, stacked under the logo (so it aligns
