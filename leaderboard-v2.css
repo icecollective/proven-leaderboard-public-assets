@@ -1190,7 +1190,7 @@
     padding:28px 24px; box-shadow:0 24px 60px rgba(0,0,0,.35); text-align:center;
   }
   #pl-login-overlay .pl-login-logo { font-weight:800; font-size:18px; color:#0f172a; letter-spacing:.02em; line-height:1; }
-  #pl-login-overlay .pl-login-logo span { display:block; font-size:8.5px; letter-spacing:3.5px; color:#6b7280; font-weight:700; margin-top:4px; }
+  #pl-login-overlay .pl-login-logo span { display:block; font-size:8.5px; letter-spacing:3.5px; text-indent:3.5px; color:#6b7280; font-weight:700; margin-top:4px; }
   #pl-login-overlay .pl-login-title { font-size:20px; font-weight:800; color:#0f172a; margin-top:18px; }
   #pl-login-overlay .pl-login-sub { font-size:13px; color:#6b7280; margin:6px 0 18px; line-height:1.45; }
   #pl-login-overlay input {
