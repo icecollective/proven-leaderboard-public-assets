@@ -1538,8 +1538,11 @@
       const date = d.date;
       if (!date) return;
       if (date < earliest) earliest = date;
+      // Credit the same way the leaderboard does (getRepMap credits any non-hidden
+      // setter/expert), so a rep with a deal today always reads 0 bagels — even if
+      // the setter name is a placeholder like "Unknown".
       const expert = normalizeName(d.expert);
-      const setter = isValidSetterName(d.setter) ? normalizeName(d.setter) : "";
+      const setter = normalizeName(d.setter);
       [expert, setter].forEach(norm => {
         if (!norm || HIDDEN_REPS.has(norm)) return;
         const cur = lastDate.get(norm);
@@ -1577,6 +1580,20 @@
     const cls = (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
               : (colored && b.bageledLastWeek(norm)) ? " bagel-week" : "";
     return `<span class="rep-bagel-tag${cls}">${count === 1 ? "1 Bagel" : count + " Bagels"}</span>`;
+  }
+
+  // Groups-list badge: counts of a group's reps who bageled last week (yellow) /
+  // the last two weeks (red), using the same yellow/red sets the rep rows use.
+  // Desktop spells it out; mobile shows just "N Reps".
+  function buildGroupBagelBadge(downline, yellowSet, redSet) {
+    if (!bagelsOn || !downline) return "";
+    let y = 0, r = 0;
+    downline.forEach(n => { if (redSet.has(n)) r++; else if (yellowSet.has(n)) y++; });
+    if (!y && !r) return "";
+    let html = "";
+    if (y) html += `<span class="group-bagel-line gb-yellow"><span class="gb-full">${y} ${y === 1 ? "rep" : "reps"} didn't sell last week</span><span class="gb-short">${y} ${y === 1 ? "Rep" : "Reps"}</span></span>`;
+    if (r) html += `<span class="group-bagel-line gb-red"><span class="gb-full">${r} ${r === 1 ? "rep hasn't" : "reps haven't"} sold the past two weeks</span><span class="gb-short">${r} ${r === 1 ? "Rep" : "Reps"}</span></span>`;
+    return `<span class="group-bagel-tags">${html}</span>`;
   }
 
   // Extra class for a rep row's background when the bagel skin is on. No tint for
@@ -2385,8 +2402,8 @@
       return ytdCurrent.total >= 25;
     }
 
-    function buildGroupRow(name, current, previous) {
-      return { ...makeGroupStatRow(current, previous), name };
+    function buildGroupRow(name, current, previous, downline) {
+      return { ...makeGroupStatRow(current, previous), name, downline: downline || null };
     }
 
     return {
@@ -2468,7 +2485,7 @@
       const previous = computeGroupStats(filterDownlineForYear(previousDownlineNames, "2025", useComparison), previousPeriodDeals, "previous");
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
-        groupRows.push(buildGroupRow(leaderName, current, previous));
+        groupRows.push(buildGroupRow(leaderName, current, previous, downlineNames));
       }
     });
 
@@ -2506,7 +2523,7 @@
       const previous = computeGroupStats(filterDownlineForYear(previousNames, "2025", useComparison), previousPeriodDeals, "previous");
 
       if (qualifiesByYtd(ytdCurrent, ytdPrevious)) {
-        groupRows.push(buildGroupRow(label, current, previous));
+        groupRows.push(buildGroupRow(label, current, previous, currentNames));
       }
     }
 
@@ -4742,13 +4759,27 @@
       </div>
     `);
 
+    // Yellow/red rep sets (same logic as the rep rows) for the per-group bagel
+    // counts, computed once from the active rows.
+    const bagelYellowSet = new Set(), bagelRedSet = new Set();
+    if (bagelsOn) {
+      rows.forEach(r => {
+        const b = getRowBagels(r);
+        if (!b || b.count <= 0) return;
+        const n = normalizeName(r.name);
+        if (b.twoWeeks) bagelRedSet.add(n);
+        else if (b.lastWeek) bagelYellowSet.add(n);
+      });
+    }
+
     groupRows.forEach((row, index) => {
       const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
       const nameCell = buildGroupNameCell(row.name);
+      const groupBagels = buildGroupBagelBadge(row.downline, bagelYellowSet, bagelRedSet);
       bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
-          <div>${nameCell}</div>
+          <div><div class="group-name-col">${nameCell}${groupBagels}</div></div>
           <div>${buildGroupTotalCell(row, useGroupsComparison)}</div>
           ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(row)}</div>` : ""}
         </div>

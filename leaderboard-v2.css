@@ -820,11 +820,11 @@
   /* ---- Bagels (reverse leaderboard) ---- */
   /* Keep the date T-island perfectly centered (balanced 1fr sides) with the
      Bagels button sitting just to its left. */
-  .pv-date-row { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; column-gap:12px; }
+  .pv-date-row { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; column-gap:6px; }
   .pv-date-row > .bagel-toggle { justify-self:end; }
   .bagel-toggle {
-    background:#fff; border:1px solid #e7ebf2; color:#475569; border-radius:11px;
-    font-weight:700; padding:8px 14px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.05);
+    background:#fff; border:1px solid #e7ebf2; color:#475569; border-radius:9px;
+    font-weight:700; font-size:11px; padding:5px 10px; cursor:pointer; box-shadow:0 1px 2px rgba(15,23,42,.05);
     transition:all .12s ease; white-space:nowrap;
   }
   .bagel-toggle:hover { border-color:#cbd3e0; }
@@ -838,11 +838,24 @@
   .rep-bagel-tag { font-size:11px; font-weight:800; color:#64748b; white-space:nowrap; }
   .rep-bagel-tag.bagel-week { color:#ca8a04; }   /* bageled all of last week */
   .rep-bagel-tag.bagel-2week { color:#dc2626; }  /* bageled the last two weeks */
-  .rep-card-name .rep-bagel-tag { font-size:14px; margin-right:8px; vertical-align:middle; }
+  /* On the card the bagel tag sits on its own line just above the name, so it
+     doesn't shove the name to the right. */
+  .rep-card-name .rep-bagel-tag { display:block; font-size:12px; margin:0 0 1px; }
+  /* Groups list: per-group bagel counts to the right of the group name */
+  .group-name-col { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .group-bagel-tags { display:flex; flex-direction:column; gap:1px; line-height:1.2; text-align:left; }
+  .group-bagel-line { font-size:10.5px; font-weight:700; white-space:nowrap; }
+  .group-bagel-line.gb-yellow { color:#ca8a04; }
+  .group-bagel-line.gb-red { color:#dc2626; }
+  .group-bagel-line .gb-short { display:none; }
+  @media (max-width:760px) {
+    .group-bagel-line .gb-full { display:none; }
+    .group-bagel-line .gb-short { display:inline; }
+  }
   /* whole-row tint for bageled weeks, alternating two shades per row so adjacent
      rows stay distinguishable (like the normal odd/even striping). */
   .leaderboard-row.bagel-row-week.odd-row { background:#fef9c3; }
-  .leaderboard-row.bagel-row-week.even-row { background:#fcf08c; }   /* slightly brighter */
+  .leaderboard-row.bagel-row-week.even-row { background:#fcf3a8; }   /* slightly brighter, softer */
   .leaderboard-row.bagel-row-2week.odd-row { background:#fee2e2; }
   .leaderboard-row.bagel-row-2week.even-row { background:#fad1d1; }  /* ever so darker */
   /* left-aligned rep cell + REP header aligned above the names */
