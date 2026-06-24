@@ -872,7 +872,9 @@
     rebuildComparisonMapsForOffice();
 
     activeView = targetView;
-    activeSortMode = targetView === "selfgen" ? "selfGen" : "currentContribution";
+    if (activeSortMode !== "bagels") {
+      activeSortMode = targetView === "selfgen" ? "selfGen" : "currentContribution";
+    }
 
     setActiveViewTab(targetView);
     updateGroupDrillNav();
@@ -1493,12 +1495,14 @@
     return `1 of ${n} · Top ${pct}%`;
   }
 
-  // "Bagels" = consecutive days (NOT counting today) a rep has gone without a
-  // credited deal (set OR close). Always computed against the real current date,
-  // independent of the active date tab. Also flags reps who had ZERO credited
-  // deals across the last completed calendar week (Mon–Sun) and the last two.
-  //   bagels: sold today/yesterday -> 0; last deal 2 days ago -> 1; etc.
+  // "Bagels" = working days (NOT counting today, and NOT counting Sundays) a rep
+  // has gone without a credited deal (set OR close). Always vs the real current
+  // date. A Sunday deal still resets the streak, but a Sunday with no deal does
+  // not count against the rep (Sunday isn't a normal working day).
+  //   e.g. (today Tue): last deal this Fri -> 2 ; last deal the prior Fri -> 8.
   //   never sold -> counts all the way back to the earliest loaded deal.
+  // Also flags reps with ZERO credited deals across the last completed calendar
+  // week (Mon–Sun) and across the last two.
   function getBagelData() {
     if (bagelDataCache) return bagelDataCache;
 
@@ -1514,6 +1518,16 @@
     const todayNum = dayNum(todayStr);
     const lastWeek = getDateRange("lastWeek");        // most recent completed Mon–Sun
     const twoStart = addDays(lastWeek.start, -7);      // start of the week before that
+
+    // Sunday detection by day-index residue (derived, TZ-safe).
+    const todayDow = new Date(todayNum * 86400000).getUTCDay();
+    const sundayRes = (((todayNum % 7) - todayDow) % 7 + 7) % 7;
+    const countSundays = (lo, hi) => {
+      if (hi < lo) return 0;
+      let first = lo + ((((sundayRes - (lo % 7)) % 7) + 7) % 7);
+      if (first > hi) return 0;
+      return Math.floor((hi - first) / 7) + 1;
+    };
 
     const lastDate = new Map();        // norm -> latest credited-deal date string
     const inLastWeek = new Set();      // had a credited deal in the last completed week
@@ -1540,7 +1554,9 @@
       bagels(norm) {
         const d = lastDate.get(norm);
         const baseNum = d ? dayNum(d) : earliestNum;
-        return Math.max(0, todayNum - baseNum - 1);
+        const lo = baseNum + 1, hi = todayNum - 1;   // days strictly between last deal and today
+        if (hi < lo) return 0;
+        return Math.max(0, (hi - lo + 1) - countSundays(lo, hi));
       },
       bageledLastWeek(norm) { return !inLastWeek.has(norm); },
       bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); }
@@ -1548,30 +1564,35 @@
     return bagelDataCache;
   }
 
-  // "# Bagels" badge HTML for a rep by name (Plata excluded). Empty when the skin
-  // is off. Colored yellow if they bageled all of last week, red for last two.
+  // "# Bagels" badge HTML for a rep by name. Empty when the skin is off, or for
+  // Plata / inactive reps (excluded). Colored yellow if they bageled all of last
+  // week / red for the last two — but only while ON a streak (count > 0).
   function bagelTagHtmlForName(name) {
     if (!bagelsOn) return "";
     const norm = normalizeName(name);
-    if (!norm || isPlataRep(norm)) return "";
+    if (!norm || isPlataRep(norm) || getInactiveSet().has(norm)) return "";
     const b = getBagelData();
     const count = b.bagels(norm);
-    const cls = b.bageledTwoWeeks(norm) ? " bagel-2week" : (b.bageledLastWeek(norm) ? " bagel-week" : "");
+    const colored = count > 0;
+    const cls = (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
+              : (colored && b.bageledLastWeek(norm)) ? " bagel-week" : "";
     return `<span class="rep-bagel-tag${cls}">${count === 1 ? "1 Bagel" : count + " Bagels"}</span>`;
   }
 
-  // Extra class for a rep row's background when the bagel skin is on.
+  // Extra class for a rep row's background when the bagel skin is on. No tint for
+  // a streak of 0 (they sold recently, so they're off the streak).
   function bagelRowClass(row) {
     if (!bagelsOn) return "";
     const b = getRowBagels(row);
-    if (!b) return "";
+    if (!b || b.count <= 0) return "";
     return b.twoWeeks ? " bagel-row-2week" : (b.lastWeek ? " bagel-row-week" : "");
   }
 
-  // Bagel info for a leaderboard row (Plata excluded — "not included").
+  // Bagel info for a leaderboard row. Plata AND inactive reps are excluded
+  // ("not included") — they carry no bagel data, only sort to the bottom.
   function getRowBagels(row) {
     const norm = normalizeName(row && row.name);
-    if (!norm || isPlataRep(norm) || row.isPlataOnly) return null;
+    if (!norm || isPlataRep(norm) || row.isPlataOnly || isRowInactive(row)) return null;
     const b = getBagelData();
     return {
       count: b.bagels(norm),
@@ -1619,8 +1640,10 @@
     const ra = bagelBottomRank(a), rb = bagelBottomRank(b);
     if (ra !== rb) return ra - rb;
 
-    const ba = ra === 2 ? -1 : ((getRowBagels(a) || {}).count || 0);
-    const bb = rb === 2 ? -1 : ((getRowBagels(b) || {}).count || 0);
+    // Only active (rank 0) reps rank by bagels; inactive + Plata go purely on the
+    // tie-breakers at the bottom.
+    const ba = ra === 0 ? ((getRowBagels(a) || {}).count || 0) : -1;
+    const bb = rb === 0 ? ((getRowBagels(b) || {}).count || 0) : -1;
     if (bb !== ba) return bb - ba;
 
     const tab = r => (r.tableau || {});
@@ -2943,7 +2966,7 @@
 
         if (office.id === "plata-toggle" && turningOn) {
           setShowTableau(true);
-          activeSortMode = "tableau";
+          if (activeSortMode !== "bagels") activeSortMode = "tableau";
         }
 
         if (office.id !== "plata-toggle") {
@@ -3032,7 +3055,7 @@
             activeInactiveDrill = false;
             inactiveDrillLeader = null;
             groupDrillReturn = null;
-            activeSortMode = "currentContribution";
+            if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
             setShowTableau(false);
             updateGroupDrillNav();
             setActiveViewTab("groups");
@@ -3059,12 +3082,15 @@
         groupsRepType = "general";
         activeView = view.key;
 
-        if (activeView === "selfgen") {
+        // Keep the bagel sort sticky across view switches (only an explicit sort
+        // click or turning bagels off changes it).
+        if (activeSortMode !== "bagels") {
+          if (activeView === "selfgen") {
             activeSortMode = "selfGen";
-        }
-
-        if (activeView === "groups") {
+          }
+          if (activeView === "groups") {
             activeSortMode = "currentContribution";
+          }
         }
 
         if (activeView === "selfgen" || (activeView === "groups" && !isGroupDrillDownView())) {
@@ -3129,7 +3155,7 @@
 
       setShowTableau(!showTableau);
       if (showTableau) {
-        activeSortMode = "tableau";
+        if (activeSortMode !== "bagels") activeSortMode = "tableau";
         // Portrait mobile can't fit Tableau alongside a comparison column.
         if (isPortraitMobile() && (showYoy || showMom)) {
           showYoy = false;
@@ -3148,7 +3174,7 @@
 
     if (showYoy) {
       showMom = false;
-      activeSortMode = "currentContribution";
+      if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
 
@@ -3169,7 +3195,7 @@
 
     if (showMom) {
       showYoy = false;
-      activeSortMode = "currentContribution";
+      if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
 
