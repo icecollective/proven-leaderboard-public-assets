@@ -919,8 +919,8 @@
                             padding-bottom:14px; }
   /* Fixed length the user liked (256 desktop / 192 mobile), capped to the column
      so it still can't overflow into the CS column on a narrow board. */
-  .rep-goal-track { position:absolute; left:16px; right:auto; width:501px; bottom:9px; max-width:calc(100% + 30px);
-                    height:4px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
+  .rep-goal-track { position:absolute; left:16px; right:auto; width:501px; bottom:9px; max-width:calc(100% + 80px);
+                    height:5px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
   .rep-goal-fill { position:relative; height:100%; border-radius:999px; overflow:hidden;
                    background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
@@ -944,7 +944,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { left:8px; right:auto; width:377px; max-width:calc(100% + 16px); }
+    .rep-goal-track { left:8px; right:auto; width:377px; max-width:calc(100% + 52px); }
     .rep-goal-label { font-size:8.5px; }
     /* Keep the TAB selector compact so "TAB SRA"/"TAB CAP" fit in tight columns. */
     .leaderboard-header-row .sort-header-button,
