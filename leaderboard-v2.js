@@ -2924,7 +2924,6 @@
           '<button id="pl-login-back" type="button" class="pl-login-linkbtn">Use a different number</button>' +
         '</div>' +
         '<div id="pl-login-msg" class="pl-login-msg"></div>' +
-        '<div class="pl-login-foot">No account yet? <a href="' + API_URL + '?page=profile" target="_blank" rel="noopener">Make your Baseball Card</a></div>' +
       '</div>';
     document.body.appendChild(o);
 
