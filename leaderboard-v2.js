@@ -2985,8 +2985,10 @@
       setShowTableau(!showTableau);
       if (showTableau) {
         activeSortMode = "tableau";
-        if (isPortraitMobile() && showYoy) {
+        // Portrait mobile can't fit Tableau alongside a comparison column.
+        if (isPortraitMobile() && (showYoy || showMom)) {
           showYoy = false;
+          showMom = false;
         }
       }
       renderLeaderboard();
@@ -3025,6 +3027,10 @@
       activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
+
+      if (isPortraitMobile() && showTableau) {
+        setShowTableau(false);
+      }
     }
 
     renderLeaderboard();
