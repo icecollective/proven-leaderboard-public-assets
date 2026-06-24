@@ -1750,10 +1750,30 @@
     mexicoReturn = captureViewState();
     mexicoOn = true;
     bagelsOn = false;                // Mexico is its own skin
+    activeSortMode = "currentContribution"; // default Mexico sort = qualifying %, not name
     if (!showTableau) setShowTableau(true);
     updateBagelButtonState();
     updateMexicoUI();
     renderLeaderboard();
+  }
+  // Mexico Rep toggle: name <-> qualifying-% sort.
+  function toggleMexicoNameSort() {
+    activeSortMode = activeSortMode === "name" ? "currentContribution" : "name";
+    renderLeaderboard();
+  }
+  window.toggleMexicoNameSort = toggleMexicoNameSort;
+  // Rep/Name header for Mexico (Rep button toggles name sort + Inactive toggle).
+  function buildMexicoRepHeaderCell(label) {
+    return `<div class="rep-header-controls">
+      <button class="sort-header-button ${activeSortMode === "name" ? "active-sort" : ""}" onclick="toggleMexicoNameSort()">${label || "Rep"}</button>
+      <button class="inactive-toggle ${showInactive ? "active-sort" : ""}" onclick="toggleInactive()">Inactive</button>
+    </div>`;
+  }
+  // Sort comparator selector for Mexico (name when toggled, else qualifying %).
+  function mexicoSortComparator() {
+    return activeSortMode === "name"
+      ? (a, b) => String(a.name).localeCompare(String(b.name))
+      : compareMexicoRows;
   }
   function exitMexico() {
     const ret = mexicoReturn;
@@ -4790,13 +4810,13 @@
         // qualifying-proximity (same as the main Mexico views).
         if (mexicoOn) {
           const mcols = gridCols(2);
-          const mexDrill = drillDisplay.slice().sort(compareMexicoRows);
+          const mexDrill = drillDisplay.slice().sort(mexicoSortComparator());
           const sraTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).sra, 0);
           const capTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).cap, 0);
           const mexHeader = `
         <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
           <div>${buildRankHeaderCell()}</div>
-          <div>${buildDrillNameHeaderCell()}</div>
+          <div>${buildMexicoRepHeaderCell("Name")}</div>
           <div class="mexico-col-head">SRA</div>
           <div class="mexico-col-head">CAP</div>
         </div>`;
@@ -5045,12 +5065,12 @@
     // ---- Mexico incentive-trip skin (rep views only; Groups handled above) ----
     if (mexicoOn) {
       const mcols = gridCols(2); // Rank | Rep(install goal) | SRA | CAP
-      const mexRows = displayRows.slice().sort(compareMexicoRows);
+      const mexRows = displayRows.slice().sort(mexicoSortComparator());
 
       headerHtml = `
         <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
           <div>${buildRankHeaderCell()}</div>
-          <div>${buildRepHeaderCell()}</div>
+          <div>${buildMexicoRepHeaderCell("Rep")}</div>
           <div class="mexico-col-head">SRA</div>
           <div class="mexico-col-head">CAP</div>
         </div>`;
