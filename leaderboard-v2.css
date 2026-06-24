@@ -1119,9 +1119,12 @@
      locks just below the header */
   /* header sits ON TOP of the bar's bottom edge (z above topbar) to seal the gap,
      and keeps its rounded top corners so the rank bar reads as a floating card */
-  .leaderboard-title { top:var(--pv-topbar-h, 56px); }
-  .leaderboard-header-row { top:calc(var(--pv-topbar-h, 56px) + var(--lb-title-height, 0px)) !important; z-index:62; }
-  .leaderboard-row.total-row { position:sticky !important; top:calc(var(--pv-topbar-h, 56px) + var(--lb-title-height, 0px) + var(--lb-header-height, 44px)) !important; z-index:61; }
+  /* --pv-stick-gap: breathing room between the sticky topbar and the board card
+     when scrolled (the page-colored backdrop fills it, so it reads as clean space). */
+  .leaderboard-column { --pv-stick-gap:14px; }
+  .leaderboard-title { top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap)); }
+  .leaderboard-header-row { top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap) + var(--lb-title-height, 0px)) !important; z-index:62; }
+  .leaderboard-row.total-row { position:sticky !important; top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap) + var(--lb-title-height, 0px) + var(--lb-header-height, 44px)) !important; z-index:61; }
   .pv-topspacer { flex:1; }
   #pv-logo { font-weight:900; font-size:20px; letter-spacing:.5px; line-height:1; color:#0f172a; text-align:left; }
   #pv-logo span { display:block; font-size:8.5px; letter-spacing:3.5px; color:#6b7280; font-weight:700; margin-top:4px; }
