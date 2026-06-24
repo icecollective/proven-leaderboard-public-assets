@@ -3620,32 +3620,32 @@
     if (app && tabBtn && !document.getElementById("pv-topbar")) {
       var bar = document.createElement("div");
       bar.id = "pv-topbar";
+
       var logo = document.createElement("div");
       logo.id = "pv-logo";
       logo.innerHTML = 'PROVEN<span>LEADERBOARD</span>';
-      var spacer = document.createElement("div");
-      spacer.className = "pv-topspacer";
-      bar.appendChild(logo);
-      bar.appendChild(spacer);
-      bar.appendChild(tabBtn);
-      app.insertBefore(bar, app.firstChild);
-    }
 
-    // Faint "?" help button under the logo (left-aligned), opens the help / bug
-    // report modal.
-    if (app && !document.getElementById("pv-help-row")) {
-      var helpRow = document.createElement("div");
-      helpRow.id = "pv-help-row";
+      // Faint "?" help button stacked UNDER the logo, INSIDE the sticky bar — so
+      // it stays aligned to the logo, is always clickable, and never gets clipped
+      // by the scroll backdrop that sits in the strip below the bar.
       var helpBtn = document.createElement("button");
       helpBtn.id = "pv-help-btn";
       helpBtn.type = "button";
       helpBtn.textContent = "?";
       helpBtn.setAttribute("aria-label", "Help & feedback");
       helpBtn.addEventListener("click", openHelpModal);
-      helpRow.appendChild(helpBtn);
-      var topbarEl = document.getElementById("pv-topbar");
-      if (topbarEl && topbarEl.nextSibling) app.insertBefore(helpRow, topbarEl.nextSibling);
-      else app.insertBefore(helpRow, app.firstChild);
+
+      var leftCol = document.createElement("div");
+      leftCol.className = "pv-topleft";
+      leftCol.appendChild(logo);
+      leftCol.appendChild(helpBtn);
+
+      var spacer = document.createElement("div");
+      spacer.className = "pv-topspacer";
+      bar.appendChild(leftCol);
+      bar.appendChild(spacer);
+      bar.appendChild(tabBtn);
+      app.insertBefore(bar, app.firstChild);
     }
 
     // 3) Date controls -> T-island; YOY/MOM tucked into the bottom-right
@@ -4814,16 +4814,14 @@
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : getCurrentComparisonLabel("CS"))}
     </button>
-    ${useGroupsComparison ? `
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
-      </button>
-    ` : ""}
   </div>
         ${useGroupsComparison ? `
-    <div>
+    <div style="display:flex;gap:4px;justify-content:center;">
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
+      </button>
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
       </button>
     </div>
   ` : ""}
@@ -4943,16 +4941,14 @@
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : getCurrentComparisonLabel("CS"))}
     </button>
-    ${useGroupsComparison ? `
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
-      </button>
-    ` : ""}
   </div>
         ${useGroupsComparison ? `
-    <div>
+    <div style="display:flex;gap:4px;justify-content:center;">
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
+      </button>
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
       </button>
     </div>
   ` : ""}
@@ -5135,16 +5131,14 @@
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("Total") : groupMetricLabel()}
     </button>
-    ${useGroupsComparison ? `
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
-      </button>
-    ` : ""}
   </div>
         ${useGroupsComparison ? `
-    <div>
+    <div style="display:flex;gap:4px;justify-content:center;">
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("Total")}
+      </button>
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
       </button>
     </div>
   ` : ""}
@@ -5394,16 +5388,14 @@
       ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
     </button>
 
-    ${comparisonActive ? `
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
-      </button>
-    ` : ""}
   </div>
           ${comparisonActive ? `
-    <div>
+    <div style="display:flex;gap:4px;justify-content:center;">
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
+      </button>
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
       </button>
     </div>
   ` : ""}
