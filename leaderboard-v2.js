@@ -1624,7 +1624,8 @@
         return Math.max(0, (hi - lo + 1) - countSundays(lo, hi));
       },
       bageledLastWeek(norm) { return !inLastWeek.has(norm); },
-      bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); }
+      bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); },
+      hasEverSold(norm) { return lastDate.has(norm); } // any credited deal this year
     };
     return bagelDataCache;
   }
@@ -1637,6 +1638,8 @@
     const norm = normalizeName(name);
     if (!norm || isPlataRep(norm) || getInactiveSet().has(norm)) return "";
     const b = getBagelData();
+    // Never sold this year -> "Hasn't Sold" (red), ranked as the most bagels.
+    if (!b.hasEverSold(norm)) return `<span class="rep-bagel-tag bagel-neversold">Hasn't Sold</span>`;
     const count = b.bagels(norm);
     const colored = count > 0;
     const cls = (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
@@ -1688,6 +1691,7 @@
     const b = getBagelData();
     return {
       count: b.bagels(norm),
+      neverSold: !b.hasEverSold(norm),
       lastWeek: b.bageledLastWeek(norm),
       twoWeeks: b.bageledTwoWeeks(norm)
     };
@@ -1733,9 +1737,14 @@
     if (ra !== rb) return ra - rb;
 
     // Only active (rank 0) reps rank by bagels; inactive + Plata go purely on the
-    // tie-breakers at the bottom.
-    const ba = ra === 0 ? ((getRowBagels(a) || {}).count || 0) : -1;
-    const bb = rb === 0 ? ((getRowBagels(b) || {}).count || 0) : -1;
+    // tie-breakers at the bottom. "Hasn't Sold" (never sold) ranks as the most.
+    const bagelScore = r => {
+      const g = getRowBagels(r);
+      if (!g) return 0;
+      return g.neverSold ? Infinity : (g.count || 0);
+    };
+    const ba = ra === 0 ? bagelScore(a) : -1;
+    const bb = rb === 0 ? bagelScore(b) : -1;
     if (bb !== ba) return bb - ba;
 
     const tab = r => (r.tableau || {});
@@ -1863,6 +1872,9 @@
     Object.keys(consider).forEach(norm => {
       if (!norm || HIDDEN_REPS.has(norm)) return;
       if (isPlataRep(norm)) return;                        // Plata excluded for now
+      // Reps who have NEVER sold are new (still ramping to their first deal), not
+      // "inactive" — they stay on the active board and read "Hasn't Sold".
+      if (!getBagelData().hasEverSold(norm)) return;
       const goal = repGoals[norm];
       if (goal && goal.weeklyCs != null && Number(goal.weeklyCs) > 0) return; // has weekly goal
       if (wtdContrib[norm] && wtdContrib[norm].size > 0) return;              // weekly internal CS
@@ -4214,6 +4226,28 @@
     return rows;
   }
 
+  // Add org-tree reps who haven't sold yet (no internal CS, usually no Tableau),
+  // so they still appear on the board with 0s. Reps already shown (any sale) are
+  // skipped; intentionally-removed reps stay hidden via HIDDEN_REPS. General view
+  // only (like addTableauRecruitingRepsToRows).
+  function addOrgTreeRepsToRows(rows) {
+    if (activeView !== "general") return rows;
+
+    const existing = new Set(rows.map(row => normalizeName(row.name)));
+
+    recruitingRows.forEach(r => {
+      const norm = normalizeName(r.name);
+      if (!norm || HIDDEN_REPS.has(norm) || existing.has(norm)) return;
+      if (!repInOfficeUmbrella(norm)) return;
+      if (isSubsetMode && activeDownlineNames && !activeDownlineNames.has(norm)) return;
+
+      existing.add(norm);
+      rows.push(buildEmptyInternalRow(r.name, tableauMap.get(norm) || {}));
+    });
+
+    return rows;
+  }
+
   function addPlataRepsToRows(rows) {
     const existing = new Set(rows.map(row => normalizeName(row.name)));
 
@@ -4716,7 +4750,8 @@
     }
 
     rows = addTableauRecruitingRepsToRows(rows);
-  
+    rows = addOrgTreeRepsToRows(rows);
+
     rows.sort((a, b) => {
     if (activeSortMode === "bagels") return compareBagelRows(a, b);
     if (activeSortMode === "name") {

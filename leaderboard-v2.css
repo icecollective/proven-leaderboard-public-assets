@@ -861,6 +861,7 @@
   .rep-bagel-tag { font-size:11px; font-weight:800; color:#64748b; white-space:nowrap; }
   .rep-bagel-tag.bagel-week { color:#e0a72c; }   /* bageled all of last week (cleaner gold, less mustard) */
   .rep-bagel-tag.bagel-2week { color:#dc2626; }  /* bageled the last two weeks */
+  .rep-bagel-tag.bagel-neversold { color:#dc2626; }  /* never sold this year (red) */
   /* On the card the name stays centered with the bagel tag to its LEFT (balanced
      1fr | name | 1fr grid keeps the name centered regardless of the tag width). */
   .rep-card-name { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; column-gap:8px; }
