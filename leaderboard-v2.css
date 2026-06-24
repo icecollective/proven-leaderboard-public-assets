@@ -821,7 +821,7 @@
   /* Bagels + Mexico stacked just to the LEFT of the T-pill (absolute, anchored to
      the T-pill so the date island stays centered and YOY/MOM are untouched). */
   .pv-bagel-stack {
-    position:absolute; right:100%; top:0; margin-right:10px;
+    position:absolute; right:100%; top:7px; margin-right:10px;
     display:flex; flex-direction:column; gap:4px; z-index:3;
   }
   /* Scoped under #date-tabs .pv-bagel-stack so these win over the generic
@@ -860,7 +860,7 @@
      inline-flex wrapper), and to the left of the name on the rep card. */
   .rep-name-line { display:inline-flex; align-items:center; gap:6px; }
   .rep-bagel-tag { font-size:11px; font-weight:800; color:#64748b; white-space:nowrap; }
-  .rep-bagel-tag.bagel-week { color:#ca8a04; }   /* bageled all of last week */
+  .rep-bagel-tag.bagel-week { color:#e0a72c; }   /* bageled all of last week (cleaner gold, less mustard) */
   .rep-bagel-tag.bagel-2week { color:#dc2626; }  /* bageled the last two weeks */
   /* On the card the name stays centered with the bagel tag to its LEFT (balanced
      1fr | name | 1fr grid keeps the name centered regardless of the tag width). */
@@ -874,8 +874,10 @@
   .group-name-col > * { flex:0 0 auto; }
   .group-bagel-tags { display:flex; flex-direction:column; gap:1px; line-height:1.2; text-align:left; }
   .group-bagel-line { font-size:10.5px; font-weight:700; white-space:nowrap; }
-  .group-bagel-line.gb-yellow { color:#ca8a04; }
+  .group-bagel-line.gb-yellow { color:#e0a72c; }
   .group-bagel-line.gb-red { color:#dc2626; }
+  .group-bagel-line.gx-qual { color:#16a34a; }   /* Mexico: qualified */
+  .group-bagel-line.gx-half { color:#d97706; }   /* Mexico: halfway */
   .group-bagel-line .gb-short { display:none; }
   @media (max-width:760px) {
     .group-bagel-line .gb-full { display:none; }
@@ -883,8 +885,8 @@
   }
   /* whole-row tint for bageled weeks, alternating two shades per row so adjacent
      rows stay distinguishable (like the normal odd/even striping). */
-  .leaderboard-row.bagel-row-week.odd-row { background:#fef9c3; }
-  .leaderboard-row.bagel-row-week.even-row { background:#fcf3a8; }   /* slightly brighter, softer */
+  .leaderboard-row.bagel-row-week.odd-row { background:#fffdf2; }
+  .leaderboard-row.bagel-row-week.even-row { background:#fdf6d8; }   /* softer, cleaner yellow (less mustard) */
   .leaderboard-row.bagel-row-2week.odd-row { background:#fee2e2; }
   .leaderboard-row.bagel-row-2week.even-row { background:#fad1d1; }  /* ever so darker */
   /* left-aligned rep cell + REP header aligned above the names */

@@ -1618,6 +1618,19 @@
     return `<span class="group-bagel-tags">${html}</span>`;
   }
 
+  // Groups-list badge for Mexico: how many of a group's reps have QUALIFIED
+  // (installs >= their threshold) and how many are HALFWAY there (>= 50%, < 100%).
+  function buildGroupMexicoBadge(downline, qualSet, halfSet) {
+    if (!mexicoOn || !downline) return "";
+    let q = 0, h = 0;
+    downline.forEach(n => { if (qualSet.has(n)) q++; else if (halfSet.has(n)) h++; });
+    if (!q && !h) return "";
+    let html = "";
+    if (q) html += `<span class="group-bagel-line gx-qual"><span class="gb-full">${q} ${q === 1 ? "rep" : "reps"} qualified for Mexico</span><span class="gb-short">${q} Qualified</span></span>`;
+    if (h) html += `<span class="group-bagel-line gx-half"><span class="gb-full">${h} ${h === 1 ? "rep" : "reps"} halfway there</span><span class="gb-short">${h} Halfway</span></span>`;
+    return `<span class="group-bagel-tags">${html}</span>`;
+  }
+
   // Extra class for a rep row's background when the bagel skin is on. No tint for
   // a streak of 0 (they sold recently, so they're off the streak).
   function bagelRowClass(row) {
@@ -1759,7 +1772,10 @@
     const back = document.getElementById("mexico-back");
     if (dateTabs) dateTabs.style.display = mexicoOn ? "none" : "";
     if (panel) panel.style.display = mexicoOn ? "flex" : "none";
-    if (back) back.style.display = mexicoOn ? "inline-flex" : "none";
+    // Hide the Mexico Back button inside a group/inactive drill — that view's own
+    // "← Back" is the single exit; you land back in Groups (still Mexico) where the
+    // Mexico Back button reappears.
+    if (back) back.style.display = (mexicoOn && !activeGroupDrillLeader && !activeInactiveDrill) ? "inline-flex" : "none";
     const btn = document.getElementById("mexico-toggle");
     if (btn) btn.classList.toggle("active", mexicoOn);
   }
@@ -4770,6 +4786,59 @@
         const drillInactive = drillRows.filter(r => isRowInactive(r) && normalizeName(r.name) !== leaderNorm);
         const drillDisplay = showInactive ? drillRows : drillRows.filter(r => !drillInactive.includes(r));
 
+        // Mexico skin inside the group drill: install goals + SRA/CAP, ranked by
+        // qualifying-proximity (same as the main Mexico views).
+        if (mexicoOn) {
+          const mcols = gridCols(2);
+          const mexDrill = drillDisplay.slice().sort(compareMexicoRows);
+          const sraTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).sra, 0);
+          const capTot = drillDisplay.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).cap, 0);
+          const mexHeader = `
+        <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
+          <div>${buildRankHeaderCell()}</div>
+          <div>${buildDrillNameHeaderCell()}</div>
+          <div class="mexico-col-head">SRA</div>
+          <div class="mexico-col-head">CAP</div>
+        </div>`;
+          bodyRows.push(`
+        <div class="leaderboard-row total-row" style="grid-template-columns:${mcols};">
+          <div>${buildViewRepCountCell(drillDisplay.length)}</div>
+          <div>${getTotalRowLabel()}</div>
+          <div class="cs-cell"><span class="cs-main">${sraTot}</span></div>
+          <div class="cs-cell"><span class="cs-main">${capTot}</span></div>
+        </div>`);
+          mexDrill.forEach((row, index) => {
+            const t = mexicoTableau(normalizeName(row.name));
+            const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+            bodyRows.push(`
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${mcols};">
+          <div>${index + 1}</div>
+          <div>${buildRepNameCell(row.name, row)}</div>
+          <div class="cs-cell"><span class="cs-main">${t.sra}</span></div>
+          <div class="cs-cell"><span class="cs-main">${t.cap}</span></div>
+        </div>`);
+          });
+          if (!showInactive && drillInactive.length) {
+            const inSra = drillInactive.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).sra, 0);
+            const inCap = drillInactive.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).cap, 0);
+            bodyRows.push(`
+        <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${mcols};">
+          <div>${buildViewRepCountCell(drillInactive.length)}</div>
+          <div>${buildInactiveNameCell(activeGroupDrillLeader)}</div>
+          <div class="cs-cell"><span class="cs-main">${inSra}</span></div>
+          <div class="cs-cell"><span class="cs-main">${inCap}</span></div>
+        </div>`);
+          }
+          document.querySelector(".leaderboard-grid").innerHTML = `
+        <div class="leaderboard-column tableau-on">
+          ${buildLeaderboardTitleHtml(activeGroupDrillLeader + " Group")}
+          ${mexHeader}
+          <div class="leaderboard-body">${bodyRows.join("")}</div>
+        </div>`;
+          finishLeaderboardRender();
+          return;
+        }
+
         bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillDisplay.length)}</div>
@@ -4905,11 +4974,23 @@
         else if (b.lastWeek) bagelYellowSet.add(n);
       });
     }
+    // Mexico qualified / halfway sets (from the active rows), for the per-group badge.
+    const mexQualSet = new Set(), mexHalfSet = new Set();
+    if (mexicoOn) {
+      rows.forEach(r => {
+        const n = normalizeName(r.name);
+        const p = mexicoProgress(n);
+        if (p >= 1) mexQualSet.add(n);
+        else if (p >= 0.5) mexHalfSet.add(n);
+      });
+    }
 
     groupRows.forEach((row, index) => {
       const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
       const nameCell = buildGroupNameCell(row.name);
-      const groupBagels = buildGroupBagelBadge(row.downline, bagelYellowSet, bagelRedSet);
+      const groupBagels = mexicoOn
+        ? buildGroupMexicoBadge(row.downline, mexQualSet, mexHalfSet)
+        : buildGroupBagelBadge(row.downline, bagelYellowSet, bagelRedSet);
       bodyRows.push(`
         <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
           <div>${index + 1}</div>
