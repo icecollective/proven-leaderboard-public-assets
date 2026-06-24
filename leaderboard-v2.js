@@ -53,6 +53,8 @@
   let inactiveSetCache = null;  // Set of normalized names inactive THIS WEEK
   let activeInactiveDrill = false; // viewing the Inactive Reps drill-down
   let inactiveDrillLeader = null;  // when set, the inactive drill is scoped to this group leader's downline
+  let bagelsOn = false;            // "Bagels" reverse-leaderboard skin (days since last credited deal)
+  let bagelDataCache = null;       // per-normalized-name bagel info, computed from real "today"
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -64,7 +66,7 @@
     ic: "IC"
   };
   
-  let activeTableauMetric = "sra";
+  let activeTableauMetric = "cap";
   
   let activeView = "general";
   // Rep-type "lens" applied to the Groups view (and group drill-downs):
@@ -417,6 +419,7 @@
   }
 
   function finishLeaderboardRender() {
+    updateBagelButtonState();
     requestAnimationFrame(updateLeaderboardStickyOffsets);
   }
 
@@ -937,17 +940,21 @@
     const displayName = String(name || "").trim();
     const sub = repRoleOffice(displayName);
     const btn = `<button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(displayName)}">${escapeHtml(displayName)}</button>`;
+    // Bagels skin: a "# Bagels" badge to the RIGHT of the name (kept on one line
+    // with the name via an inline-flex wrapper).
+    const bagelTag = bagelTagHtmlForName(displayName);
+    const nameEl = bagelTag ? `<span class="rep-name-line">${btn}${bagelTag}</span>` : btn;
 
     // Outside the goal tabs: original simple name + role/office stack.
     if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) {
-      return `<div class="rep-name-cell">${btn}${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+      return `<div class="rep-name-cell">${nameEl}${sub ? `<div class="rep-row-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
     }
 
     // Inactive reps (shown inline when the toggle is on): "Not in Market" in
     // place of the goal bar.
     if (row && isRowInactive(row)) {
       const subLine = `<div class="rep-row-sub">${sub ? escapeHtml(sub) + " · " : ""}<span class="rep-goal-none">Not in Market</span></div>`;
-      return `<div class="rep-name-cell has-goal">${btn}${subLine}</div>`;
+      return `<div class="rep-name-cell has-goal">${nameEl}${subLine}</div>`;
     }
 
     // Goal tabs: SAME name + title row as the standard layout (position unchanged),
@@ -961,7 +968,7 @@
       : `<span class="rep-goal-none">No Goal</span>`;
     const subLine = `<div class="rep-row-sub">${sub ? escapeHtml(sub) + " · " : ""}${goalLabel}</div>`;
     const bar = `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>`;
-    return `<div class="rep-name-cell has-goal">${btn}${subLine}${bar}</div>`;
+    return `<div class="rep-name-cell has-goal">${nameEl}${subLine}${bar}</div>`;
   }
 
   // Per-rep goal progress for the active timeframe:
@@ -1486,6 +1493,144 @@
     return `1 of ${n} · Top ${pct}%`;
   }
 
+  // "Bagels" = consecutive days (NOT counting today) a rep has gone without a
+  // credited deal (set OR close). Always computed against the real current date,
+  // independent of the active date tab. Also flags reps who had ZERO credited
+  // deals across the last completed calendar week (Mon–Sun) and the last two.
+  //   bagels: sold today/yesterday -> 0; last deal 2 days ago -> 1; etc.
+  //   never sold -> counts all the way back to the earliest loaded deal.
+  function getBagelData() {
+    if (bagelDataCache) return bagelDataCache;
+
+    const todayStr = formatDate(new Date());
+    const dayNum = s => {
+      const p = String(s).split("-");
+      return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+    };
+    const addDays = (s, n) => {
+      const p = String(s).split("-");
+      return formatDate(new Date(+p[0], +p[1] - 1, +p[2] + n));
+    };
+    const todayNum = dayNum(todayStr);
+    const lastWeek = getDateRange("lastWeek");        // most recent completed Mon–Sun
+    const twoStart = addDays(lastWeek.start, -7);      // start of the week before that
+
+    const lastDate = new Map();        // norm -> latest credited-deal date string
+    const inLastWeek = new Set();      // had a credited deal in the last completed week
+    const inTwoWeeks = new Set();      // ...in either of the last two completed weeks
+    let earliest = todayStr;
+
+    allDeals.forEach(d => {
+      const date = d.date;
+      if (!date) return;
+      if (date < earliest) earliest = date;
+      const expert = normalizeName(d.expert);
+      const setter = isValidSetterName(d.setter) ? normalizeName(d.setter) : "";
+      [expert, setter].forEach(norm => {
+        if (!norm || HIDDEN_REPS.has(norm)) return;
+        const cur = lastDate.get(norm);
+        if (!cur || date > cur) lastDate.set(norm, date);
+        if (date >= lastWeek.start && date <= lastWeek.end) inLastWeek.add(norm);
+        if (date >= twoStart && date <= lastWeek.end) inTwoWeeks.add(norm);
+      });
+    });
+
+    const earliestNum = dayNum(earliest);
+    bagelDataCache = {
+      bagels(norm) {
+        const d = lastDate.get(norm);
+        const baseNum = d ? dayNum(d) : earliestNum;
+        return Math.max(0, todayNum - baseNum - 1);
+      },
+      bageledLastWeek(norm) { return !inLastWeek.has(norm); },
+      bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); }
+    };
+    return bagelDataCache;
+  }
+
+  // "# Bagels" badge HTML for a rep by name (Plata excluded). Empty when the skin
+  // is off. Colored yellow if they bageled all of last week, red for last two.
+  function bagelTagHtmlForName(name) {
+    if (!bagelsOn) return "";
+    const norm = normalizeName(name);
+    if (!norm || isPlataRep(norm)) return "";
+    const b = getBagelData();
+    const count = b.bagels(norm);
+    const cls = b.bageledTwoWeeks(norm) ? " bagel-2week" : (b.bageledLastWeek(norm) ? " bagel-week" : "");
+    return `<span class="rep-bagel-tag${cls}">${count === 1 ? "1 Bagel" : count + " Bagels"}</span>`;
+  }
+
+  // Extra class for a rep row's background when the bagel skin is on.
+  function bagelRowClass(row) {
+    if (!bagelsOn) return "";
+    const b = getRowBagels(row);
+    if (!b) return "";
+    return b.twoWeeks ? " bagel-row-2week" : (b.lastWeek ? " bagel-row-week" : "");
+  }
+
+  // Bagel info for a leaderboard row (Plata excluded — "not included").
+  function getRowBagels(row) {
+    const norm = normalizeName(row && row.name);
+    if (!norm || isPlataRep(norm) || row.isPlataOnly) return null;
+    const b = getBagelData();
+    return {
+      count: b.bagels(norm),
+      lastWeek: b.bageledLastWeek(norm),
+      twoWeeks: b.bageledTwoWeeks(norm)
+    };
+  }
+
+  // Bagels button: 1st click turns the skin on + sorts by bagels; while on, a
+  // different sort can be selected without turning it off; clicking Bagels again
+  // re-sorts by bagels (if another sort is active) or turns the skin off (if it's
+  // already sorting by bagels).
+  function onBagelButtonClick() {
+    if (!bagelsOn) {
+      bagelsOn = true;
+      activeSortMode = "bagels";
+    } else if (activeSortMode !== "bagels") {
+      activeSortMode = "bagels";
+    } else {
+      bagelsOn = false;
+      activeSortMode = activeView === "selfgen" ? "selfGen" : "currentContribution";
+    }
+    updateBagelButtonState();
+    renderLeaderboard();
+  }
+  window.onBagelButtonClick = onBagelButtonClick;
+
+  function updateBagelButtonState() {
+    const btn = document.getElementById("bagel-toggle");
+    if (!btn) return;
+    btn.classList.toggle("active", bagelsOn);
+    btn.classList.toggle("bagel-sorting", bagelsOn && activeSortMode === "bagels");
+  }
+
+  // Sort comparator used when activeSortMode === "bagels": most bagels first;
+  // ties -> Internal CS, SRA, CAP, IC, Name. Plata and (when shown) inactive reps
+  // sink to the bottom, ordered among themselves by the same tie-breakers.
+  function bagelBottomRank(row) {
+    const norm = normalizeName(row && row.name);
+    if (isPlataRep(norm) || row.isPlataOnly) return 2;
+    if (showInactive && isRowInactive(row)) return 1;
+    return 0;
+  }
+  function compareBagelRows(a, b) {
+    const ra = bagelBottomRank(a), rb = bagelBottomRank(b);
+    if (ra !== rb) return ra - rb;
+
+    const ba = ra === 2 ? -1 : ((getRowBagels(a) || {}).count || 0);
+    const bb = rb === 2 ? -1 : ((getRowBagels(b) || {}).count || 0);
+    if (bb !== ba) return bb - ba;
+
+    const tab = r => (r.tableau || {});
+    if ((b.cs || 0) !== (a.cs || 0)) return (b.cs || 0) - (a.cs || 0);
+    if ((+tab(b).sra || 0) !== (+tab(a).sra || 0)) return (+tab(b).sra || 0) - (+tab(a).sra || 0);
+    if ((+tab(b).cap || 0) !== (+tab(a).cap || 0)) return (+tab(b).cap || 0) - (+tab(a).cap || 0);
+    if ((+tab(b).ic || 0) !== (+tab(a).ic || 0)) return (+tab(b).ic || 0) - (+tab(a).ic || 0);
+    return a.name.localeCompare(b.name);
+  }
+
   // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
   // Tableau CS/SRA/CAP this week, or a submitted weekly goal. (Plata excluded.)
   // Always judged on the CURRENT WEEK regardless of the active date tab.
@@ -1836,7 +1981,7 @@
             : escapeHtml(repCardInitials(profile.name))
         }</div>
         <div>
-          <div class="rep-card-name" id="rep-card-title">${escapeHtml(profile.name)}</div>
+          <div class="rep-card-name" id="rep-card-title">${bagelTagHtmlForName(profile.name)}${escapeHtml(profile.name)}</div>
           ${isPlata ? "" : `<div class="rep-card-role">${escapeHtml(profile.role)}</div>`}
           ${repCardChips(profile)}
           ${(profile.phone || profile.instagram) ? contact : ""}
@@ -1933,6 +2078,7 @@
       activeInactiveDrill,
       inactiveDrillLeader,
       groupsRepType,
+      bagelsOn,
       isSubsetMode,
       activeDownlineNames,
       activePreviousYearDownlineNames,
@@ -1958,6 +2104,7 @@
     activeInactiveDrill = !!state.activeInactiveDrill;
     inactiveDrillLeader = state.inactiveDrillLeader || null;
     groupsRepType = state.groupsRepType || "general";
+    bagelsOn = !!state.bagelsOn;
     isSubsetMode = state.isSubsetMode;
     activeDownlineNames = state.activeDownlineNames;
     activePreviousYearDownlineNames = state.activePreviousYearDownlineNames;
@@ -2504,10 +2651,7 @@
     if (showComparison) {
       const yoy = getGroupYoyPercent(row);
       if (yoy !== null) {
-        const sign = yoy > 0 ? "+" : "";
-        rightNotes.push(
-          `<span class="cs-note-left">${sign}${yoy.toFixed(0)}%</span>`
-        );
+        rightNotes.push(pctNoteHtml(yoy));
       }
     }
 
@@ -2602,6 +2746,7 @@
     prStatsCache = null;
     inactiveSetCache = null;
     everClosedCache = null;
+    bagelDataCache = null;
 
     rebuildOfficeNameSets();
     rebuildPreviousYearMap();
@@ -3162,6 +3307,24 @@
       dateTabs.appendChild(island);
     }
 
+    // "Bagels" reverse-leaderboard button — its own button just left of the date
+    // T-island (not part of it). Wrap the date card + button in a centered row.
+    if (dateTabs && !document.getElementById("bagel-toggle")) {
+      var bagelBtn = document.createElement("button");
+      bagelBtn.id = "bagel-toggle";
+      bagelBtn.type = "button";
+      bagelBtn.className = "bagel-toggle";
+      bagelBtn.textContent = "Bagels";
+      bagelBtn.addEventListener("click", onBagelButtonClick);
+
+      var dateRow = document.createElement("div");
+      dateRow.className = "pv-date-row";
+      dateTabs.parentNode.insertBefore(dateRow, dateTabs);
+      dateRow.appendChild(bagelBtn);
+      dateRow.appendChild(dateTabs);
+      updateBagelButtonState();
+    }
+
     setupControlScrollFade();
   }
 
@@ -3638,15 +3801,19 @@
     return ((current - previous) / previous) * 100;
   }
 
+  // Comparison % note, colored green when positive / red when negative / default at 0.
+  function pctNoteHtml(pct) {
+    const sign = pct > 0 ? "+" : "";
+    const cls = pct > 0 ? " pct-pos" : (pct < 0 ? " pct-neg" : "");
+    return `<span class="cs-note-left${cls}">${sign}${pct.toFixed(0)}%</span>`;
+  }
+
   function buildCreditTotalCell(totals, comparisonPct = null, showNotes = true) {
     const total = (totals.sets + totals.cs) / 2;
     const rightNotes = [];
 
     if (comparisonPct !== null) {
-      const sign = comparisonPct > 0 ? "+" : "";
-      rightNotes.push(
-        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
-      );
+      rightNotes.push(pctNoteHtml(comparisonPct));
     }
 
     const rightHtml = rightNotes.length
@@ -3670,10 +3837,7 @@
     const rightNotes = [];
 
     if (comparisonPct !== null) {
-      const sign = comparisonPct > 0 ? "+" : "";
-      rightNotes.push(
-        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
-      );
+      rightNotes.push(pctNoteHtml(comparisonPct));
     }
 
     const leftHtml = leftNotes && leftNotes.length
@@ -3892,10 +4056,7 @@
     const comparisonPct = useMomColumn() ? getMomPercent(row) : getYoyPercent(row);
 
     if (isComparisonMode() && comparisonPct !== null) {
-      const sign = comparisonPct > 0 ? "+" : "";
-      rightNotes.push(
-        `<span class="cs-note-left">${sign}${comparisonPct.toFixed(0)}%</span>`
-      );
+      rightNotes.push(pctNoteHtml(comparisonPct));
     }
   
     if (showNotes) {
@@ -4083,6 +4244,7 @@
     rows = addTableauRecruitingRepsToRows(rows);
   
     rows.sort((a, b) => {
+    if (activeSortMode === "bagels") return compareBagelRows(a, b);
     if (activeSortMode === "name") {
     return a.name.localeCompare(b.name);
     }
@@ -4227,6 +4389,7 @@
       );
 
       drillRows.sort((a, b) => {
+        if (activeSortMode === "bagels") return compareBagelRows(a, b);
         if (activeSortMode === "name") return a.name.localeCompare(b.name);
         if (activeSortMode === "previousContribution") {
           const aPrev = getRowPreviousSets(a) + getRowPreviousCloses(a);
@@ -4312,7 +4475,7 @@
       drillRows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
-        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
+        <div class="leaderboard-row ${rowClass}${bagelRowClass(row)}" style="grid-template-columns:${drillCols};">
           <div>${index + 1}</div>
           <div>${buildRepNameCell(row.name, row)}</div>
           <div>${buildCsCell(row, true)}</div>
@@ -4356,6 +4519,7 @@
         if (!drillRows.some(row => normalizeName(row.name) === leaderNorm)) {
           drillRows.push(buildEmptyInternalRow(activeGroupDrillLeader, tableauMap.get(leaderNorm)));
           drillRows.sort((a, b) => {
+            if (activeSortMode === "bagels") return compareBagelRows(a, b);
             if (activeSortMode === "name") return a.name.localeCompare(b.name);
 
             if (activeSortMode === "previousContribution") {
@@ -4442,7 +4606,7 @@
         drillDisplay.forEach((row, index) => {
           const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
           bodyRows.push(`
-        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${drillCols};">
+        <div class="leaderboard-row ${rowClass}${bagelRowClass(row)}" style="grid-template-columns:${drillCols};">
           <div>${index + 1}</div>
           <div>${buildRepNameCell(row.name, row)}</div>
           <div>${buildCsCell(row, true)}</div>
@@ -4651,7 +4815,7 @@
       displayRows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
-          <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
+          <div class="leaderboard-row ${rowClass}${bagelRowClass(row)}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
             <div>${buildRepNameCell(row.name, row)}</div>
             <div class="cs-cell">
@@ -4763,7 +4927,7 @@
       displayRows.forEach((row, index) => {
         const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
         bodyRows.push(`
-          <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${cols};">
+          <div class="leaderboard-row ${rowClass}${bagelRowClass(row)}" style="grid-template-columns:${cols};">
             <div>${index + 1}</div>
             <div>${buildRepNameCell(row.name, row)}</div>
             ${buildCsCell(row, true)}
