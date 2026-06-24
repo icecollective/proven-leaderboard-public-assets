@@ -5098,12 +5098,15 @@
           <div class="mexico-col-head">CAP</div>
         </div>`;
 
+      // SRA/CAP office totals only make sense on General/Experts (where the office
+      // numbers line up); blank them on Setters/SelfGen.
+      const mexShowTotals = activeView === "general" || activeView === "experts";
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${mcols};">
           <div>${buildViewRepCountCell(displayRows.length)}</div>
           <div>${getTotalRowLabel()}</div>
-          <div>${getTableauTotal(rows, "sra")}</div>
-          <div>${getTableauTotal(rows, "cap")}</div>
+          <div>${mexShowTotals ? getTableauTotal(rows, "sra") : ""}</div>
+          <div>${mexShowTotals ? getTableauTotal(rows, "cap") : ""}</div>
         </div>`);
 
       mexRows.forEach((row, index) => {
