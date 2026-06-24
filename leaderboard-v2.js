@@ -2141,33 +2141,64 @@
       return filtered;
     }
 
-    function computeGroupStats(downlineNames, deals, year = "current") {
-      let sets = 0;
-      let cs = 0;
-      let selfGen = 0;
-      // Lens components (rep-role aware):
-      let setterSets = 0;                 // sets by PURE setters (never closed)
-      let expertSets = 0;                 // sets by experts (closed somewhere)
-      let expertSelfGen = 0, expertSetOnly = 0;
+    // Per-rep contribution tally for a given (deals array, year), computed ONCE
+    // and reused across every group/total/drill in this render. Replaces the old
+    // approach of re-scanning the entire deal list for every single group.
+    // Scoped to this render via the closure: office toggles are constant within a
+    // render, and the deal arrays are freshly filtered each render, so the cache
+    // is always consistent with the current filters (no stale-toggle risk).
+    const _tallyCache = new WeakMap();
+    function getRepTally(deals, year) {
+      let byYear = _tallyCache.get(deals);
+      if (!byYear) { byYear = {}; _tallyCache.set(deals, byYear); }
+      if (byYear[year]) return byYear[year];
+
+      const tally = new Map();
+      const ensure = norm => {
+        let t = tally.get(norm);
+        if (!t) {
+          t = { sets: 0, cs: 0, selfGen: 0, setterSets: 0, expertSets: 0, expertSelfGen: 0, expertSetOnly: 0 };
+          tally.set(norm, t);
+        }
+        return t;
+      };
 
       deals.forEach(deal => {
         const setterNorm = normalizeName(deal.setter);
         const expertNorm = normalizeName(deal.expert);
         const isSelf = setterNorm && setterNorm === expertNorm;
-        const setterInGroup = downlineNames.has(setterNorm) && repInOfficeUmbrella(setterNorm, year);
-        const expertInGroup = downlineNames.has(expertNorm) && repInOfficeUmbrella(expertNorm, year);
 
-        if (setterInGroup) {
-          sets += 1;
+        if (setterNorm && repInOfficeUmbrella(setterNorm, year)) {
+          const t = ensure(setterNorm);
+          t.sets += 1;
           if (repEverClosed(setterNorm)) {
-            expertSets += 1;                       // an expert who also set this deal
-            if (isSelf) expertSelfGen += 1; else expertSetOnly += 1;
+            t.expertSets += 1;
+            if (isSelf) t.expertSelfGen += 1; else t.expertSetOnly += 1;
           } else {
-            setterSets += 1;                       // a pure setter
+            t.setterSets += 1;
           }
+          if (isSelf) t.selfGen += 1;
         }
-        if (expertInGroup) cs += 1;
-        if (isSelf && setterInGroup) selfGen += 1;
+        if (expertNorm && repInOfficeUmbrella(expertNorm, year)) {
+          ensure(expertNorm).cs += 1;
+        }
+      });
+
+      byYear[year] = tally;
+      return tally;
+    }
+
+    function computeGroupStats(downlineNames, deals, year = "current") {
+      const tally = getRepTally(deals, year);
+      let sets = 0, cs = 0, selfGen = 0;
+      let setterSets = 0, expertSets = 0, expertSelfGen = 0, expertSetOnly = 0;
+
+      downlineNames.forEach(norm => {
+        const t = tally.get(norm);
+        if (!t) return;
+        sets += t.sets; cs += t.cs; selfGen += t.selfGen;
+        setterSets += t.setterSets; expertSets += t.expertSets;
+        expertSelfGen += t.expertSelfGen; expertSetOnly += t.expertSetOnly;
       });
 
       return {
