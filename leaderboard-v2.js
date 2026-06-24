@@ -2849,31 +2849,20 @@
   }
 
   function buildGroupTotalCell(row, showComparison, showNotes = true) {
-    const rightNotes = [];
-
-    if (showComparison) {
-      const yoy = getGroupYoyPercent(row);
-      if (yoy !== null) {
-        rightNotes.push(pctNoteHtml(yoy));
-      }
-    }
-
-    const rightHtml = rightNotes.length
-      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
-      : "";
+    const yoy = showComparison ? getGroupYoyPercent(row) : null;
 
     // The Experts lens always shows its SG/Sets breakdown on the total (the lens
     // is specifically about experts' full contribution), regardless of the
     // office-based note-visibility rule that governs the General blend.
     const showLeft = showNotes || groupsRepType === "experts";
-    const leftHtml = showLeft
+    const leftBase = showLeft
       ? groupTotalNotesStack(row, false)
       : `<div class="cs-notes-stack"></div>`;
+    const leftHtml = injectPctIntoStack(leftBase, yoy);
 
     return `
       <div class="cs-cell">
         ${leftHtml}
-        ${rightHtml}
         <span class="cs-main">${groupRowValue(row)}</span>
       </div>
     `;
@@ -3587,21 +3576,37 @@
   // Help / bug-report modal: a baseball-card-sized panel holding the Apps Script
   // help page in an iframe (so the form's file upload + email + sheet save all run
   // same-origin via google.script.run — no CORS).
-  function openHelpModal() {
+  function ensureHelpOverlay() {
     var ov = document.getElementById("pv-help-overlay");
-    if (ov) { ov.style.display = "flex"; return; }
+    if (ov) return ov;
+    // Warm up the connection to the Apps Script host so the iframe loads faster.
+    try {
+      ["https://script.google.com", "https://script.googleusercontent.com"].forEach(function (h) {
+        var l = document.createElement("link"); l.rel = "preconnect"; l.href = h; l.crossOrigin = ""; document.head.appendChild(l);
+      });
+    } catch (e) {}
     ov = document.createElement("div");
     ov.id = "pv-help-overlay";
     ov.innerHTML =
       '<div class="pv-help-card">' +
         '<button class="pv-help-close" type="button" aria-label="Close">&times;</button>' +
-        '<iframe class="pv-help-frame" src="' + API_URL + '?page=help" title="Help & feedback"></iframe>' +
+        '<div class="pv-help-spin" id="pv-help-spin"></div>' +
+        '<iframe class="pv-help-frame" title="Help & feedback"></iframe>' +
       '</div>';
     document.body.appendChild(ov);
     ov.addEventListener("click", function (e) { if (e.target === ov) ov.style.display = "none"; });
     ov.querySelector(".pv-help-close").addEventListener("click", function () { ov.style.display = "none"; });
-    ov.style.display = "flex";
+    var frame = ov.querySelector(".pv-help-frame");
+    frame.addEventListener("load", function () { var s = document.getElementById("pv-help-spin"); if (s) s.style.display = "none"; });
+    frame.src = API_URL + "?page=help"; // start loading immediately
+    return ov;
   }
+  function openHelpModal() {
+    ensureHelpOverlay().style.display = "flex";
+  }
+  // Build + start loading the iframe in the background (stays hidden) so the
+  // modal is instant when the rep actually taps "?".
+  function preloadHelpModal() { ensureHelpOverlay(); }
 
   // One-time DOM reshuffle to match the Proven design: All Offices button,
   // Tableau as a top-right corner toggle, and the date controls as a T-island
@@ -4205,50 +4210,39 @@
     return `<span class="cs-note-left${cls}">${sign}${pct.toFixed(0)}%</span>`;
   }
 
+  // Place the comparison % at the TOP of the current-period (2026) subscript
+  // stack — above Sets/SG/CS — so it never overlaps the previous-period (2025)
+  // subscripts in the next column. Works on an empty stack too (% shows alone).
+  function injectPctIntoStack(stackHtml, pct) {
+    if (pct === null || pct === undefined) return stackHtml;
+    return stackHtml.replace(/<div class="cs-notes-stack">/, `<div class="cs-notes-stack">${pctNoteHtml(pct)}`);
+  }
+
   function buildCreditTotalCell(totals, comparisonPct = null, showNotes = true) {
     const total = (totals.sets + totals.cs) / 2;
-    const rightNotes = [];
 
-    if (comparisonPct !== null) {
-      rightNotes.push(pctNoteHtml(comparisonPct));
-    }
-
-    const rightHtml = rightNotes.length
-      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
-      : "";
-
-    const leftHtml = showNotes
+    const leftBase = showNotes
       ? buildSetsCsNotesStack(totals.sets, totals.cs)
       : `<div class="cs-notes-stack"></div>`;
+    const leftHtml = injectPctIntoStack(leftBase, comparisonPct);
 
     return `
       <div class="cs-cell">
         ${leftHtml}
-        ${rightHtml}
         <span class="cs-main">${total}</span>
       </div>
     `;
   }
 
   function buildUniqueTotalCell(value, comparisonPct = null, leftNotes = null) {
-    const rightNotes = [];
-
-    if (comparisonPct !== null) {
-      rightNotes.push(pctNoteHtml(comparisonPct));
-    }
-
-    const leftHtml = leftNotes && leftNotes.length
+    const leftBase = leftNotes && leftNotes.length
       ? `<div class="cs-notes-stack">${leftNotes.join("")}</div>`
       : `<div class="cs-notes-stack"></div>`;
-
-    const rightHtml = rightNotes.length
-      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
-      : "";
+    const leftHtml = injectPctIntoStack(leftBase, comparisonPct);
 
     return `
       <div class="cs-cell">
         ${leftHtml}
-        ${rightHtml}
         <span class="cs-main">${value}</span>
       </div>
     `;
@@ -4448,14 +4442,10 @@
     if (rowShowsCurrentNa(row)) return buildInternalNaCell();
 
     const leftNotes = [];
-    const rightNotes = [];
 
-    const comparisonPct = useMomColumn() ? getMomPercent(row) : getYoyPercent(row);
+    const rawPct = useMomColumn() ? getMomPercent(row) : getYoyPercent(row);
+    const comparisonPct = (isComparisonMode() && rawPct !== null) ? rawPct : null;
 
-    if (isComparisonMode() && comparisonPct !== null) {
-      rightNotes.push(pctNoteHtml(comparisonPct));
-    }
-  
     if (showNotes) {
       const roleView = effectiveRoleView();
       if (roleView === "setters" || roleView === "selfgen") {
@@ -4486,18 +4476,14 @@
       }
     }
   
-    const leftHtml = leftNotes.length
+    const leftBase = leftNotes.length
       ? `<div class="cs-notes-stack">${leftNotes.join("")}</div>`
       : `<div class="cs-notes-stack"></div>`;
-  
-    const rightHtml = rightNotes.length
-      ? `<div class="cs-notes-right">${rightNotes.join("")}</div>`
-      : "";
-  
+    const leftHtml = injectPctIntoStack(leftBase, comparisonPct);
+
     return `
       <div class="cs-cell">
         ${leftHtml}
-        ${rightHtml}
         <span class="cs-main">${getRowDisplayCs(row)}</span>
       </div>
     `;
@@ -5566,6 +5552,7 @@
       renderLeaderboard();
       hideLoginOverlay();
       startSessionHeartbeat();
+      if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
         showLoginOverlay();

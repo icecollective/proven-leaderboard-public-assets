@@ -1241,4 +1241,10 @@
     font-size:20px; line-height:1; cursor:pointer;
   }
   #pv-help-overlay .pv-help-close:hover { background:rgba(15,23,42,.12); }
-  #pv-help-overlay .pv-help-frame { width:100%; height:100%; border:0; display:block; }
+  #pv-help-overlay .pv-help-frame { width:100%; height:100%; border:0; display:block; position:relative; z-index:1; }
+  #pv-help-overlay .pv-help-spin {
+    position:absolute; top:50%; left:50%; width:26px; height:26px; margin:-13px 0 0 -13px; z-index:0;
+    border:3px solid #e2e8f0; border-top-color:#0f172a; border-radius:50%;
+    animation:pvHelpSpin .8s linear infinite;
+  }
+  @keyframes pvHelpSpin { to { transform:rotate(360deg); } }
