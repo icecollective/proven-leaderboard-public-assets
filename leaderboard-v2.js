@@ -33,6 +33,9 @@
   let previousYearDetailsMap = new Map();
   let showYoy = false;
   let showMom = false;
+  // The "Include Old Reps" toggle is currently disabled for YOY/MOM: it never
+  // shows and always acts as if OFF. Flip this to true to bring it back.
+  const OLD_REPS_TOGGLE_ENABLED = false;
   let includeOldReps = true;
   let includeNewReps = true;
   let includeIceCollective = true;
@@ -81,6 +84,10 @@
   let groupsRepType = "general";
   let activeDateMode = "ytd";
   let showTableau = true;
+  // Remembers when the user INTENTIONALLY turned Tableau off, so we don't
+  // auto-re-enable it on every view/date switch. Only an explicit Tableau toggle
+  // (or a view like Mexico that requires Tableau) clears this.
+  let tableauUserOff = false;
   
   let isSubsetMode = false;
   let activeDownlineNames = null;
@@ -589,6 +596,30 @@
     if (value && isPortraitMobile() && showYoy) {
       showYoy = false;
     }
+  }
+
+  // The "Include Old Reps" filter — currently force-disabled (see
+  // OLD_REPS_TOGGLE_ENABLED). Always returns false so it behaves as "not selected".
+  function oldRepsActive() {
+    return OLD_REPS_TOGGLE_ENABLED && includeOldReps;
+  }
+
+  // Decide whether Tableau should be shown after a view/date change. Auto-restores
+  // Tableau when we land back in a tableau-capable context, UNLESS the user
+  // intentionally turned it off, or (on portrait mobile) YOY/MOM is active — those
+  // can't share the screen with Tableau.
+  function applyTableauAutoState() {
+    let desired;
+    if (!canShowTableauButton()) {
+      desired = false;                       // not a tableau-capable context
+    } else if (tableauUserOff) {
+      desired = false;                       // respect an intentional off
+    } else if (isPortraitMobile() && (showYoy || showMom)) {
+      desired = false;                       // mobile: can't show with YOY/MOM
+    } else {
+      desired = true;
+    }
+    setShowTableau(desired);
   }
 
   function canUsePlataToggle() {
@@ -1751,6 +1782,7 @@
     mexicoOn = true;
     bagelsOn = false;                // Mexico is its own skin
     activeSortMode = "currentContribution"; // default Mexico sort = qualifying %, not name
+    tableauUserOff = false;                  // Mexico requires Tableau -> clear intentional-off
     if (!showTableau) setShowTableau(true);
     updateBagelButtonState();
     updateMexicoUI();
@@ -2234,6 +2266,7 @@
       activeView,
       activeDateMode,
       showTableau,
+      tableauUserOff,
       showYoy,
       showMom,
       includeOldReps,
@@ -2260,6 +2293,7 @@
     activeView = state.activeView;
     activeDateMode = state.activeDateMode;
     showTableau = state.showTableau;
+    tableauUserOff = !!state.tableauUserOff;
     showYoy = state.showYoy;
     showMom = state.showMom;
     includeOldReps = state.includeOldReps;
@@ -2438,7 +2472,7 @@
     function filterDownlineForYear(downlineNames, year, applyYoyFilters = useComparison) {
       if (!applyYoyFilters) return downlineNames;
       if (year === "2026" && includeNewReps) return downlineNames;
-      if (year === "2025" && includeOldReps) return downlineNames;
+      if (year === "2025" && oldRepsActive()) return downlineNames;
 
       const filtered = new Set();
       downlineNames.forEach(norm => {
@@ -2690,7 +2724,7 @@
 
   function shouldShowPreviousTotalNotes() {
     if (isComparisonMode() && (!includeIceCollective || !includeRiot)) return true;
-    if (isComparisonMode() && !includeOldReps) return true;
+    if (isComparisonMode() && !oldRepsActive()) return true;
     return false;
   }
 
@@ -3354,12 +3388,11 @@
           }
         }
 
-        if (activeView === "selfgen" || (activeView === "groups" && !isGroupDrillDownView())) {
-          setShowTableau(false);
-
-          if (activeSortMode === "tableau") {
-            activeSortMode = "currentContribution";
-          }
+        // Auto turn Tableau back on when landing in a tableau-capable view
+        // (unless intentionally off / blocked by mobile YOY/MOM); off otherwise.
+        applyTableauAutoState();
+        if (!showTableau && activeSortMode === "tableau") {
+          activeSortMode = "currentContribution";
         }
 
         setActiveViewTab(activeView);
@@ -3391,11 +3424,14 @@
       mode.key === "custom" ? "flex" : "none";
   
     rebuildTableauMap();
-  
-    if (!["ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) {
-      setShowTableau(false);
+
+    // Auto-restore Tableau when switching to a tableau-capable date (and turn it
+    // off for Today/Custom), respecting an intentional off + mobile YOY/MOM.
+    applyTableauAutoState();
+    if (!showTableau && activeSortMode === "tableau") {
+      activeSortMode = "currentContribution";
     }
-  
+
     renderLeaderboard();
   });
   
@@ -3415,6 +3451,7 @@
       }
 
       setShowTableau(!showTableau);
+      tableauUserOff = !showTableau; // remember the user's intentional choice
       if (showTableau) {
         if (activeSortMode !== "bagels") activeSortMode = "tableau";
         // Portrait mobile can't fit Tableau alongside a comparison column.
@@ -3547,6 +3584,25 @@
   applyProvenLayout();
   }
 
+  // Help / bug-report modal: a baseball-card-sized panel holding the Apps Script
+  // help page in an iframe (so the form's file upload + email + sheet save all run
+  // same-origin via google.script.run — no CORS).
+  function openHelpModal() {
+    var ov = document.getElementById("pv-help-overlay");
+    if (ov) { ov.style.display = "flex"; return; }
+    ov = document.createElement("div");
+    ov.id = "pv-help-overlay";
+    ov.innerHTML =
+      '<div class="pv-help-card">' +
+        '<button class="pv-help-close" type="button" aria-label="Close">&times;</button>' +
+        '<iframe class="pv-help-frame" src="' + API_URL + '?page=help" title="Help & feedback"></iframe>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.style.display = "none"; });
+    ov.querySelector(".pv-help-close").addEventListener("click", function () { ov.style.display = "none"; });
+    ov.style.display = "flex";
+  }
+
   // One-time DOM reshuffle to match the Proven design: All Offices button,
   // Tableau as a top-right corner toggle, and the date controls as a T-island
   // with YOY/MOM tucked into the bottom-right. All buttons keep their existing
@@ -3568,6 +3624,23 @@
       bar.appendChild(spacer);
       bar.appendChild(tabBtn);
       app.insertBefore(bar, app.firstChild);
+    }
+
+    // Faint "?" help button under the logo (left-aligned), opens the help / bug
+    // report modal.
+    if (app && !document.getElementById("pv-help-row")) {
+      var helpRow = document.createElement("div");
+      helpRow.id = "pv-help-row";
+      var helpBtn = document.createElement("button");
+      helpBtn.id = "pv-help-btn";
+      helpBtn.type = "button";
+      helpBtn.textContent = "?";
+      helpBtn.setAttribute("aria-label", "Help & feedback");
+      helpBtn.addEventListener("click", openHelpModal);
+      helpRow.appendChild(helpBtn);
+      var topbarEl = document.getElementById("pv-topbar");
+      if (topbarEl && topbarEl.nextSibling) app.insertBefore(helpRow, topbarEl.nextSibling);
+      else app.insertBefore(helpRow, app.firstChild);
     }
 
     // 3) Date controls -> T-island; YOY/MOM tucked into the bottom-right
@@ -3803,8 +3876,8 @@
   const newRepsBtn = document.getElementById("new-reps-toggle");
 
   if (oldRepsBtn) {
-    oldRepsBtn.style.display = isComparisonMode() ? "inline-block" : "none";
-    oldRepsBtn.classList.toggle("active", includeOldReps);
+    oldRepsBtn.style.display = (OLD_REPS_TOGGLE_ENABLED && isComparisonMode()) ? "inline-block" : "none";
+    oldRepsBtn.classList.toggle("active", oldRepsActive());
   }
 
   if (newRepsBtn) {
@@ -3972,7 +4045,7 @@
   }
 
   function addOldRepsToRows(rows) {
-    if (!isComparisonMode() || !includeOldReps) return rows;
+    if (!isComparisonMode() || !oldRepsActive()) return rows;
 
     const existing = new Set(rows.map(row => normalizeName(row.name)));
     const previousDeals = useMomColumn() ? getMomPreviousDeals() : previousYearDeals;
@@ -4549,7 +4622,7 @@
     );
   }
 
-    if (isComparisonMode() && !includeOldReps) {
+    if (isComparisonMode() && !oldRepsActive()) {
     rows = rows.filter(row => {
       const currentContrib = row.sets + row.closes;
       const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
