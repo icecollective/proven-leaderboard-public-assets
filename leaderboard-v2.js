@@ -1043,10 +1043,15 @@
       current = Number(row && row.cs) || 0; // internal CS for the active (WTD) range
     } else if (activeDateMode === "mtd" || activeDateMode === "ytd") {
       target = activeDateMode === "mtd" ? goal.monthly : goal.yearly;
-      const metric = (goal.metric || "SRA").toLowerCase(); // sra | cap
+      const metric = (goal.metric || "SRA").toLowerCase(); // sra | cap | cs
       label = (goal.metric || "SRA").toUpperCase();
-      const trow = getTableauRowForDateMode(norm, activeDateMode);
-      current = trow ? (Number(trow[metric]) || 0) : 0;
+      if (metric === "cs") {
+        // Not-onboarded reps: no Tableau data — measure against INTERNAL CS.
+        current = getRepDiscordCsForRange(repName, activeDateMode);
+      } else {
+        const trow = getTableauRowForDateMode(norm, activeDateMode);
+        current = trow ? (Number(trow[metric]) || 0) : 0;
+      }
     } else {
       return null; // today / lastWeek / custom -> no bar
     }
@@ -2109,12 +2114,14 @@
     if (!goal) return "";
     const metric = (goal.metric || "SRA").toUpperCase();
     const ml = metric.toLowerCase();
+    // Not-onboarded reps (metric CS) have no Tableau data — use internal CS.
+    const isCs = ml === "cs";
     const mtdT = getRepTableauStatsForPeriod(repName, "mtd") || {};
     const ytdT = getRepTableauStatsForPeriod(repName, "ytd") || {};
     const rings = [
       { label: "WTD", cur: getRepDiscordCsForRange(repName, "wtd") || 0, goal: goal.weeklyCs, metric: "CS" },
-      { label: "MTD", cur: Number(mtdT[ml]) || 0, goal: goal.monthly, metric: metric },
-      { label: "YTD", cur: Number(ytdT[ml]) || 0, goal: goal.yearly, metric: metric }
+      { label: "MTD", cur: isCs ? getRepDiscordCsForRange(repName, "mtd") : (Number(mtdT[ml]) || 0), goal: goal.monthly, metric: metric },
+      { label: "YTD", cur: isCs ? getRepDiscordCsForRange(repName, "ytd") : (Number(ytdT[ml]) || 0), goal: goal.yearly, metric: metric }
     ];
     if (!rings.some(r => r.goal != null && Number(r.goal) > 0)) return "";
 
