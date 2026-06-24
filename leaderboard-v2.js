@@ -2021,7 +2021,7 @@
             : escapeHtml(repCardInitials(profile.name))
         }</div>
         <div>
-          <div class="rep-card-name" id="rep-card-title">${bagelTagHtmlForName(profile.name)}${escapeHtml(profile.name)}</div>
+          <div class="rep-card-name" id="rep-card-title">${bagelTagHtmlForName(profile.name)}<span class="rcn-text">${escapeHtml(profile.name)}</span></div>
           ${isPlata ? "" : `<div class="rep-card-role">${escapeHtml(profile.role)}</div>`}
           ${repCardChips(profile)}
           ${(profile.phone || profile.instagram) ? contact : ""}
