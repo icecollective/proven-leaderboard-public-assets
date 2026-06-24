@@ -1121,7 +1121,7 @@
      and keeps its rounded top corners so the rank bar reads as a floating card */
   /* --pv-stick-gap: breathing room between the sticky topbar and the board card
      when scrolled (the page-colored backdrop fills it, so it reads as clean space). */
-  .leaderboard-column { --pv-stick-gap:14px; }
+  .leaderboard-column { --pv-stick-gap:4px; }
   .leaderboard-title { top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap)); }
   .leaderboard-header-row { top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap) + var(--lb-title-height, 0px)) !important; z-index:62; }
   .leaderboard-row.total-row { position:sticky !important; top:calc(var(--pv-topbar-h, 56px) + var(--pv-stick-gap) + var(--lb-title-height, 0px) + var(--lb-header-height, 44px)) !important; z-index:61; }
