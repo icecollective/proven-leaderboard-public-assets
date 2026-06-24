@@ -1,5 +1,8 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbwAum0sv4KhswD0Svr2QWEdBw4cP2K-_wg_bBzkA4lNAgWDX58JX4ODT9xRXxljqR5T/exec";
-  
+
+  // Mexico incentive-trip banner (static image; @main so it isn't tied to a JS commit hash).
+  const MEXICO_IMG_URL = "https://cdn.jsdelivr.net/gh/icecollective/proven-leaderboard-public-assets@main/mexico-trip.jpg";
+
   const INCLUDE_RECRUITER_SELF = true;
 
   // Debug/testing UI — set true to re-enable
@@ -55,6 +58,9 @@
   let inactiveDrillLeader = null;  // when set, the inactive drill is scoped to this group leader's downline
   let bagelsOn = false;            // "Bagels" reverse-leaderboard skin (days since last credited deal)
   let bagelDataCache = null;       // per-normalized-name bagel info, computed from real "today"
+  let mexicoOn = false;            // "Mexico" incentive-trip skin (YTD installs vs 35/15 thresholds)
+  let mexicoReturn = null;         // captured view state to restore on the Mexico Back button
+  let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -420,6 +426,7 @@
 
   function finishLeaderboardRender() {
     updateBagelButtonState();
+    updateMexicoUI();
     requestAnimationFrame(updateLeaderboardStickyOffsets);
   }
 
@@ -946,6 +953,21 @@
     // with the name via an inline-flex wrapper).
     const bagelTag = bagelTagHtmlForName(displayName);
     const nameEl = bagelTag ? `<span class="rep-name-line">${btn}${bagelTag}</span>` : btn;
+
+    // Mexico skin: goal = YTD installs vs the 35 (Expert) / 15 (Setter) threshold,
+    // with the role relabeled to "Expert Setter" where relevant.
+    if (mexicoOn) {
+      const norm = normalizeName(displayName);
+      const inst = mexicoInstalls(norm);
+      const req = mexicoRequired(norm);
+      const pct = Math.max(0, Math.min(100, Math.round((inst / req) * 100)));
+      const done = inst >= req;
+      const mSub = mexicoRoleOffice(displayName);
+      const goalLabel = `<span class="rep-goal-label">${inst}<span>/${req} Installs</span></span>`;
+      const subLine = `<div class="rep-row-sub">${mSub ? escapeHtml(mSub) + " · " : ""}${goalLabel}</div>`;
+      const bar = `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>`;
+      return `<div class="rep-name-cell has-goal">${nameEl}${subLine}${bar}</div>`;
+    }
 
     // Outside the goal tabs: original simple name + role/office stack.
     if (["wtd", "mtd", "ytd"].indexOf(activeDateMode) === -1) {
@@ -1669,6 +1691,77 @@
     if ((+tab(b).cap || 0) !== (+tab(a).cap || 0)) return (+tab(b).cap || 0) - (+tab(a).cap || 0);
     if ((+tab(b).ic || 0) !== (+tab(a).ic || 0)) return (+tab(b).ic || 0) - (+tab(a).ic || 0);
     return a.name.localeCompare(b.name);
+  }
+
+  // ---- Mexico incentive-trip skin (YTD installs vs 35 Expert / 15 Setter) ----
+  // A rep is an Expert (needs 35) if listed in the Tableau Experts tab; everyone
+  // else needs 15. Falls back to internal close-history until the tab is populated.
+  function mexicoIsExpert(norm) {
+    if (tableauExperts.size) return tableauExperts.has(norm);
+    return repEverClosed(norm);
+  }
+  function mexicoRequired(norm) { return mexicoIsExpert(norm) ? 35 : 15; }
+  function mexicoTableau(norm) {
+    const t = getTableauRowForDateMode(norm, "ytd") || {};
+    return { ic: Number(t.ic) || 0, sra: Number(t.sra) || 0, cap: Number(t.cap) || 0 };
+  }
+  function mexicoInstalls(norm) { return mexicoTableau(norm).ic; }
+  function mexicoProgress(norm) {
+    const req = mexicoRequired(norm);
+    return req > 0 ? mexicoInstalls(norm) / req : 0;
+  }
+  // Title for the Mexico view: a Setter who's an Expert in Tableau shows
+  // "Expert Setter"; otherwise the normal role/office.
+  function mexicoRoleOffice(name) {
+    const norm = normalizeName(name);
+    const base = repRoleOffice(name);
+    if (tableauExperts.has(norm) && !isPlataRep(norm) && !MARKET_LEADER_NAMES.has(norm) && !repEverClosed(norm)) {
+      const idx = base.indexOf(" · ");
+      return idx >= 0 ? "Expert Setter" + base.slice(idx) : "Expert Setter";
+    }
+    return base;
+  }
+  // Rank by proximity to qualifying (installs / required), so a Setter at 14/15
+  // outranks an Expert at 20/35. Ties -> raw installs, then name.
+  function compareMexicoRows(a, b) {
+    const na = normalizeName(a.name), nb = normalizeName(b.name);
+    const pa = mexicoProgress(na), pb = mexicoProgress(nb);
+    if (pb !== pa) return pb - pa;
+    const ia = mexicoInstalls(na), ib = mexicoInstalls(nb);
+    if (ib !== ia) return ib - ia;
+    return a.name.localeCompare(b.name);
+  }
+
+  function onMexicoButtonClick() {
+    if (mexicoOn) return;            // already on; the Back button exits
+    mexicoReturn = captureViewState();
+    mexicoOn = true;
+    bagelsOn = false;                // Mexico is its own skin
+    if (!showTableau) setShowTableau(true);
+    updateBagelButtonState();
+    updateMexicoUI();
+    renderLeaderboard();
+  }
+  function exitMexico() {
+    const ret = mexicoReturn;
+    mexicoOn = false;
+    mexicoReturn = null;
+    updateMexicoUI();
+    if (ret) restoreViewState(ret);  // restores the exact prior view (incl. showTableau)
+    else renderLeaderboard();
+  }
+  window.exitMexico = exitMexico;
+
+  // Show/hide the Mexico image panel + Back button and hide the date controls.
+  function updateMexicoUI() {
+    const dateTabs = document.getElementById("date-tabs");
+    const panel = document.getElementById("mexico-panel");
+    const back = document.getElementById("mexico-back");
+    if (dateTabs) dateTabs.style.display = mexicoOn ? "none" : "";
+    if (panel) panel.style.display = mexicoOn ? "flex" : "none";
+    if (back) back.style.display = mexicoOn ? "inline-flex" : "none";
+    const btn = document.getElementById("mexico-toggle");
+    if (btn) btn.classList.toggle("active", mexicoOn);
   }
 
   // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
@@ -2783,6 +2876,10 @@
 
     repProfiles = payload.repProfiles && typeof payload.repProfiles === "object" ? payload.repProfiles : {};
     repGoals = payload.repGoals && typeof payload.repGoals === "object" ? payload.repGoals : {};
+    tableauExperts = new Set(
+      (Array.isArray(payload.tableauExperts) ? payload.tableauExperts : [])
+        .map(n => normalizeName(n)).filter(Boolean)
+    );
     prStatsCache = null;
     inactiveSetCache = null;
     everClosedCache = null;
@@ -3370,12 +3467,40 @@
       mexicoBtn.type = "button";
       mexicoBtn.className = "bagel-toggle mexico-toggle";
       mexicoBtn.textContent = "Mexico";
+      mexicoBtn.addEventListener("click", onMexicoButtonClick);
 
       bagelStack.appendChild(bagelBtn);
       bagelStack.appendChild(mexicoBtn);
       tpillEl.appendChild(bagelStack);
       updateBagelButtonState();
     }
+
+    // Mexico image panel (replaces the date controls) + disclaimer, inserted right
+    // after the date controls. Hidden unless Mexico mode is on.
+    if (dateTabs && !document.getElementById("mexico-panel")) {
+      var mexPanel = document.createElement("div");
+      mexPanel.id = "mexico-panel";
+      mexPanel.style.display = "none";
+      mexPanel.innerHTML =
+        '<img class="mexico-img" src="' + MEXICO_IMG_URL + '" alt="The Block Trip — Cabo San Lucas, Mexico">' +
+        '<div class="mexico-disclaimer">This Tableau data does not yet account for Second Systems. ' +
+        'If you know you have a Second System, self-deduct it or request that it be accounted for.</div>';
+      dateTabs.parentNode.insertBefore(mexPanel, dateTabs.nextSibling);
+    }
+
+    // Mexico "Back" button to the LEFT of the office selectors.
+    var officeTabsEl = document.getElementById("office-tabs");
+    if (officeTabsEl && !document.getElementById("mexico-back")) {
+      var backBtn = document.createElement("button");
+      backBtn.id = "mexico-back";
+      backBtn.type = "button";
+      backBtn.className = "group-drill-back mexico-back";
+      backBtn.textContent = "← Back";
+      backBtn.style.display = "none";
+      backBtn.addEventListener("click", exitMexico);
+      officeTabsEl.insertBefore(backBtn, officeTabsEl.firstChild);
+    }
+    updateMexicoUI();
 
     setupControlScrollFade();
   }
@@ -4835,7 +4960,62 @@
     finishLeaderboardRender();
     return;
   }
-  
+
+    // ---- Mexico incentive-trip skin (rep views only; Groups handled above) ----
+    if (mexicoOn) {
+      const mcols = gridCols(2); // Rank | Rep(install goal) | SRA | CAP
+      const mexRows = displayRows.slice().sort(compareMexicoRows);
+
+      headerHtml = `
+        <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
+          <div>${buildRankHeaderCell()}</div>
+          <div>${buildRepHeaderCell()}</div>
+          <div class="mexico-col-head">SRA</div>
+          <div class="mexico-col-head">CAP</div>
+        </div>`;
+
+      bodyRows.push(`
+        <div class="leaderboard-row total-row" style="grid-template-columns:${mcols};">
+          <div>${buildViewRepCountCell(displayRows.length)}</div>
+          <div>${getTotalRowLabel()}</div>
+          <div>${getTableauTotal(rows, "sra")}</div>
+          <div>${getTableauTotal(rows, "cap")}</div>
+        </div>`);
+
+      mexRows.forEach((row, index) => {
+        const t = mexicoTableau(normalizeName(row.name));
+        const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+        bodyRows.push(`
+          <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${mcols};">
+            <div>${index + 1}</div>
+            <div>${buildRepNameCell(row.name, row)}</div>
+            <div class="cs-cell"><span class="cs-main">${t.sra}</span></div>
+            <div class="cs-cell"><span class="cs-main">${t.cap}</span></div>
+          </div>`);
+      });
+
+      if (!showInactive && inactiveRows.length) {
+        const sraSum = inactiveRows.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).sra, 0);
+        const capSum = inactiveRows.reduce((s, r) => s + mexicoTableau(normalizeName(r.name)).cap, 0);
+        bodyRows.push(`
+          <div class="leaderboard-row inactive-summary-row" style="grid-template-columns:${mcols};">
+            <div>${buildViewRepCountCell(inactiveRows.length)}</div>
+            <div>${buildInactiveNameCell()}</div>
+            <div class="cs-cell"><span class="cs-main">${sraSum}</span></div>
+            <div class="cs-cell"><span class="cs-main">${capSum}</span></div>
+          </div>`);
+      }
+
+      document.querySelector(".leaderboard-grid").innerHTML = `
+        <div class="leaderboard-column tableau-on">
+          ${buildLeaderboardTitleHtml(title)}
+          ${headerHtml}
+          <div class="leaderboard-body">${bodyRows.join("")}</div>
+        </div>`;
+      finishLeaderboardRender();
+      return;
+    }
+
     if (activeView === "selfgen") {
       const cols = gridCols(comparisonActive ? 2 : 1);
 

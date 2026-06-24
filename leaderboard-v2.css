@@ -836,6 +836,25 @@
     background:linear-gradient(180deg,#293548,#0f172a); color:#fff; border-color:#0f172a;
     box-shadow:0 2px 6px rgba(15,23,42,.20);
   }
+  /* ---- Mexico incentive-trip skin ---- */
+  #mexico-panel {
+    display:none; flex-direction:column; align-items:center; gap:8px;
+    max-width:640px; margin:0 auto 8px;
+  }
+  #mexico-panel .mexico-img {
+    width:100%; height:auto; border-radius:14px; display:block;
+    box-shadow:0 8px 20px rgba(15,23,42,.14);
+  }
+  #mexico-panel .mexico-disclaimer {
+    font-size:11px; color:#b45309; font-weight:600; text-align:center;
+    background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:7px 12px; line-height:1.4;
+  }
+  .mexico-col-head {
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.07em;
+  }
+  #office-tabs .mexico-back { display:none; }
+
   /* "# Bagels" badge: sits to the right of the name in rows (one line via the
      inline-flex wrapper), and to the left of the name on the rep card. */
   .rep-name-line { display:inline-flex; align-items:center; gap:6px; }
