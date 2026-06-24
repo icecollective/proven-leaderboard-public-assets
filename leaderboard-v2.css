@@ -919,10 +919,23 @@
                             padding-bottom:14px; }
   /* Fixed length the user liked (256 desktop / 192 mobile), capped to the column
      so it still can't overflow into the CS column on a narrow board. */
-  .rep-goal-track { position:absolute; left:16px; right:auto; width:256px; bottom:9px; max-width:calc(100% - 26px);
-                    height:4px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
-  .rep-goal-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
+  .rep-goal-track { position:absolute; left:16px; right:auto; width:358px; bottom:9px; max-width:calc(100% - 26px);
+                    height:8px; border-radius:999px; background:#c3ccdb; overflow:hidden; margin:0; }
+  .rep-goal-fill { position:relative; height:100%; border-radius:999px; overflow:hidden;
+                   background:linear-gradient(90deg,#293548,#0f172a); transition:width .3s ease; }
   .rep-goal-fill.done { background:linear-gradient(90deg,#16a34a,#15803d); }
+  /* Occasional diagonal "shine" that sweeps across so the bar feels alive. */
+  .rep-goal-fill::after {
+    content:""; position:absolute; top:0; bottom:0; left:0; width:55%; pointer-events:none;
+    background:linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%);
+    transform:translateX(-160%) skewX(-18deg);
+    animation:goalShine 6s ease-in-out infinite;
+  }
+  @keyframes goalShine {
+    0%   { transform:translateX(-160%) skewX(-18deg); }
+    16%  { transform:translateX(280%) skewX(-18deg); }
+    100% { transform:translateX(280%) skewX(-18deg); }
+  }
   .rep-goal-label { font-weight:700; color:#0f172a; white-space:nowrap; }
   .rep-goal-label span { color:#94a3b8; font-weight:600; }
   .rep-goal-none { color:#94a3b8; font-weight:700; }
@@ -931,7 +944,7 @@
     .rep-name-cell { padding-left:8px; }
     .rep-name-cell .rep-card-name-button { font-size:11px; padding:2px 7px; }
     .rep-row-sub { font-size:9.5px; }
-    .rep-goal-track { left:8px; right:auto; width:192px; max-width:calc(100% - 16px); }
+    .rep-goal-track { left:8px; right:auto; width:269px; max-width:calc(100% - 16px); }
     .rep-goal-label { font-size:8.5px; }
     /* Keep the TAB selector compact so "TAB SRA"/"TAB CAP" fit in tight columns. */
     .leaderboard-header-row .sort-header-button,
@@ -1055,7 +1068,7 @@
 
   /* ---- Top bar: PROVEN wordmark left, Tableau toggle right, aligned to the board ---- */
   #pv-topbar { display:flex; align-items:center; margin:0 auto 0; min-height:48px; max-width:860px;
-               position:sticky; top:0; z-index:60; background:#eef1f6; padding-bottom:0; }
+               position:sticky; top:0; z-index:62; background:#eef1f6; padding-bottom:0; }
   /* page-colored backdrop just below the bar so the rounded rank-header corners
      reveal clean background (not scrolling rows) — no blocky/hard edge */
   /* Soft page-colored fade below the bar: filter pills dissolve into the page as

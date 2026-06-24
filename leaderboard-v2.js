@@ -4809,6 +4809,11 @@
     </button>
   </div>
         <div style="display:flex;gap:4px;justify-content:center;">
+    ${useGroupsComparison ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
@@ -4816,12 +4821,9 @@
     </button>
   </div>
         ${useGroupsComparison ? `
-    <div style="display:flex;gap:4px;justify-content:center;">
+    <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
-      </button>
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
       </button>
     </div>
   ` : ""}
@@ -4936,6 +4938,11 @@
         <div>${buildRankHeaderCell()}</div>
         <div>${buildDrillNameHeaderCell()}</div>
         <div style="display:flex;gap:4px;justify-content:center;">
+    ${useGroupsComparison ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
@@ -4943,12 +4950,9 @@
     </button>
   </div>
         ${useGroupsComparison ? `
-    <div style="display:flex;gap:4px;justify-content:center;">
+    <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
-      </button>
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
       </button>
     </div>
   ` : ""}
@@ -5126,6 +5130,11 @@
         <div>${buildRankHeaderCell()}</div>
         <div>${buildGroupHeaderCell()}</div>
         <div style="display:flex;gap:4px;justify-content:center;">
+    ${useGroupsComparison ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
@@ -5133,12 +5142,9 @@
     </button>
   </div>
         ${useGroupsComparison ? `
-    <div style="display:flex;gap:4px;justify-content:center;">
+    <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("Total")}
-      </button>
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
       </button>
     </div>
   ` : ""}
@@ -5382,6 +5388,11 @@
           <div>${buildRankHeaderCell()}</div>
           <div>${buildRepHeaderCell()}</div>
           <div style="display:flex;gap:4px;justify-content:center;">
+    ${comparisonActive ? `
+      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
+        %
+      </button>
+    ` : ""}
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
@@ -5390,12 +5401,9 @@
 
   </div>
           ${comparisonActive ? `
-    <div style="display:flex;gap:4px;justify-content:center;">
+    <div>
       <button class="sort-header-button ${activeSortMode === "previousContribution" ? "active-sort" : ""}" onclick="setPreviousContributionSort()">
         ${getPreviousComparisonLabel("CS")}
-      </button>
-      <button class="sort-header-button ${activeSortMode === "yoyPercent" ? "active-sort" : ""}" onclick="setYoyPercentSort()">
-        %
       </button>
     </div>
   ` : ""}
