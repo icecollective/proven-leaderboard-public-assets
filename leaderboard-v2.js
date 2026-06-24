@@ -2891,10 +2891,101 @@
   
   
   
+  // ---- Passwordless rep login (phone -> texted code -> weekly session token) ----
+  const AUTH_KEY = "pl_session_token";
+  function getSessionToken() { try { return localStorage.getItem(AUTH_KEY) || ""; } catch (e) { return ""; } }
+  function setSessionToken(t) { try { localStorage.setItem(AUTH_KEY, t); } catch (e) {} }
+
+  async function loginRequestCode(phone) {
+    const res = await fetch(API_URL + "?action=requestCode&phone=" + encodeURIComponent(phone));
+    return res.json();
+  }
+  async function loginVerifyCode(phone, code) {
+    const res = await fetch(API_URL + "?action=verifyCode&phone=" + encodeURIComponent(phone) + "&code=" + encodeURIComponent(code));
+    return res.json();
+  }
+
+  function ensureLoginOverlay() {
+    if (document.getElementById("pl-login-overlay")) return;
+    const o = document.createElement("div");
+    o.id = "pl-login-overlay";
+    o.innerHTML =
+      '<div class="pl-login-card">' +
+        '<div class="pl-login-logo">PROVEN<span>LEADERBOARD</span></div>' +
+        '<div class="pl-login-title">Rep sign in</div>' +
+        '<div class="pl-login-sub" id="pl-login-sub">Enter your phone number and we’ll text you a code.</div>' +
+        '<div id="pl-login-step1">' +
+          '<input id="pl-login-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(555) 555-5555">' +
+          '<button id="pl-login-send" type="button" class="pl-login-btn">Text me a code</button>' +
+        '</div>' +
+        '<div id="pl-login-step2" style="display:none">' +
+          '<input id="pl-login-code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code">' +
+          '<button id="pl-login-verify" type="button" class="pl-login-btn">Verify & sign in</button>' +
+          '<button id="pl-login-back" type="button" class="pl-login-linkbtn">Use a different number</button>' +
+        '</div>' +
+        '<div id="pl-login-msg" class="pl-login-msg"></div>' +
+        '<div class="pl-login-foot">No account yet? <a href="' + API_URL + '?page=profile" target="_blank" rel="noopener">Make your Baseball Card</a></div>' +
+      '</div>';
+    document.body.appendChild(o);
+
+    const phoneEl = o.querySelector("#pl-login-phone");
+    const codeEl = o.querySelector("#pl-login-code");
+    const msgEl = o.querySelector("#pl-login-msg");
+    const step1 = o.querySelector("#pl-login-step1");
+    const step2 = o.querySelector("#pl-login-step2");
+    const sendBtn = o.querySelector("#pl-login-send");
+    const verifyBtn = o.querySelector("#pl-login-verify");
+    const setMsg = (t, err) => { msgEl.textContent = t || ""; msgEl.className = "pl-login-msg" + (err ? " pl-login-err" : ""); };
+
+    sendBtn.addEventListener("click", async () => {
+      const phone = (phoneEl.value || "").trim();
+      if (phone.replace(/\D/g, "").length < 10) { setMsg("Enter a valid 10-digit phone number.", true); return; }
+      sendBtn.disabled = true; setMsg("Sending…");
+      try {
+        const r = await loginRequestCode(phone);
+        if (r && r.ok) { step1.style.display = "none"; step2.style.display = "block"; setMsg("Code sent. Check your texts."); codeEl.focus(); }
+        else { setMsg((r && r.error) || "Couldn't send a code.", true); }
+      } catch (e) { setMsg("Network error. Try again.", true); }
+      sendBtn.disabled = false;
+    });
+
+    verifyBtn.addEventListener("click", async () => {
+      const phone = (phoneEl.value || "").trim();
+      const code = (codeEl.value || "").trim();
+      if (!code) { setMsg("Enter the code we texted you.", true); return; }
+      verifyBtn.disabled = true; setMsg("Verifying…");
+      try {
+        const r = await loginVerifyCode(phone, code);
+        if (r && r.ok && r.token) { setSessionToken(r.token); setMsg("Signed in."); bootLeaderboard(); }
+        else { setMsg((r && r.error) || "That code wasn't right.", true); verifyBtn.disabled = false; }
+      } catch (e) { setMsg("Network error. Try again.", true); verifyBtn.disabled = false; }
+    });
+
+    o.querySelector("#pl-login-back").addEventListener("click", () => {
+      step2.style.display = "none"; step1.style.display = "block"; setMsg(""); phoneEl.focus();
+    });
+    codeEl.addEventListener("keydown", e => { if (e.key === "Enter") verifyBtn.click(); });
+    phoneEl.addEventListener("keydown", e => { if (e.key === "Enter") sendBtn.click(); });
+  }
+  function showLoginOverlay() {
+    ensureLoginOverlay();
+    const o = document.getElementById("pl-login-overlay");
+    if (o) { o.style.display = "flex"; const p = o.querySelector("#pl-login-phone"); if (p) p.focus(); }
+  }
+  function hideLoginOverlay() {
+    const o = document.getElementById("pl-login-overlay");
+    if (o) o.style.display = "none";
+  }
+
   async function loadApiData() {
-    const res = await fetch(API_URL);
+    const res = await fetch(API_URL + "?token=" + encodeURIComponent(getSessionToken()));
     const payload = await res.json();
-  
+    if (payload && payload.authRequired) {
+      const err = new Error("AUTH_REQUIRED");
+      err.authRequired = true;
+      throw err;
+    }
+
     apiMeta = {
       lastUpdated: payload.lastUpdated,
       recordCount: payload.recordCount
@@ -5372,23 +5463,32 @@
     setTimeout(function () { if (o && o.parentNode) o.parentNode.removeChild(o); }, 450);
   }
 
-  document.addEventListener("DOMContentLoaded", async () => {
+  // Load data + render, or show the login overlay if the session is missing/expired.
+  async function bootLeaderboard() {
     showLoadingOverlay();
     try {
-      createButtons();
-      setupRepCardEvents();
       await loadApiData();
       await loadDownlineIfNeeded();
       isLeaderboardReady = true;
       renderLeaderboard();
+      hideLoginOverlay();
     } catch (error) {
-      console.error(error);
-      document.querySelector(".leaderboard-grid").innerHTML =
-        `<div style="text-align:center;color:red;">Error loading Leaderboard V2. Check console.</div>`;
+      if (error && error.authRequired) {
+        showLoginOverlay();
+      } else {
+        console.error(error);
+        document.querySelector(".leaderboard-grid").innerHTML =
+          `<div style="text-align:center;color:red;">Error loading Leaderboard V2. Check console.</div>`;
+      }
     } finally {
       hideLoadingOverlay();
     }
+  }
 
+  document.addEventListener("DOMContentLoaded", async () => {
+    createButtons();
+    setupRepCardEvents();
+    await bootLeaderboard();
     window.addEventListener("resize", updateLeaderboardStickyOffsets);
   });
   
