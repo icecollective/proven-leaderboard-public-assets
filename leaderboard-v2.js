@@ -2976,6 +2976,27 @@
     if (o) o.style.display = "none";
   }
 
+  // Session heartbeat: if this device's session gets kicked (logged in on too
+  // many devices, or blocked), drop to the login screen within ~60s instead of
+  // sitting on stale data until a manual reload.
+  let sessionHeartbeat = null;
+  function startSessionHeartbeat() {
+    if (sessionHeartbeat) return;
+    sessionHeartbeat = setInterval(async () => {
+      const t = getSessionToken();
+      if (!t) return;
+      try {
+        const res = await fetch(API_URL + "?action=ping&token=" + encodeURIComponent(t));
+        const j = await res.json();
+        if (j && j.authRequired) {
+          clearInterval(sessionHeartbeat); sessionHeartbeat = null;
+          try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+          showLoginOverlay();
+        }
+      } catch (e) { /* transient network error — try again next tick */ }
+    }, 60000);
+  }
+
   async function loadApiData() {
     const res = await fetch(API_URL + "?token=" + encodeURIComponent(getSessionToken()));
     const payload = await res.json();
@@ -5471,6 +5492,7 @@
       isLeaderboardReady = true;
       renderLeaderboard();
       hideLoginOverlay();
+      startSessionHeartbeat();
     } catch (error) {
       if (error && error.authRequired) {
         showLoginOverlay();
