@@ -3350,9 +3350,14 @@
       dateTabs.appendChild(island);
     }
 
-    // "Bagels" reverse-leaderboard button — its own button just left of the date
-    // T-island (not part of it). Wrap the date card + button in a centered row.
-    if (dateTabs && !document.getElementById("bagel-toggle")) {
+    // "Bagels" reverse-leaderboard button + a "Mexico" button beneath it, anchored
+    // just LEFT of the date T-pill (absolute, so it never depends on the island
+    // width and the T-pill stays centered with YOY/MOM untouched).
+    var tpillEl = dateTabs && dateTabs.querySelector(".pv-tpill");
+    if (tpillEl && !document.getElementById("bagel-toggle")) {
+      var bagelStack = document.createElement("div");
+      bagelStack.className = "pv-bagel-stack";
+
       var bagelBtn = document.createElement("button");
       bagelBtn.id = "bagel-toggle";
       bagelBtn.type = "button";
@@ -3360,11 +3365,15 @@
       bagelBtn.textContent = "Bagels";
       bagelBtn.addEventListener("click", onBagelButtonClick);
 
-      var dateRow = document.createElement("div");
-      dateRow.className = "pv-date-row";
-      dateTabs.parentNode.insertBefore(dateRow, dateTabs);
-      dateRow.appendChild(bagelBtn);
-      dateRow.appendChild(dateTabs);
+      var mexicoBtn = document.createElement("button");
+      mexicoBtn.id = "mexico-toggle";
+      mexicoBtn.type = "button";
+      mexicoBtn.className = "bagel-toggle mexico-toggle";
+      mexicoBtn.textContent = "Mexico";
+
+      bagelStack.appendChild(bagelBtn);
+      bagelStack.appendChild(mexicoBtn);
+      tpillEl.appendChild(bagelStack);
       updateBagelButtonState();
     }
 
