@@ -1214,7 +1214,10 @@
   #pl-login-overlay .pl-login-foot a { color:#0f172a; font-weight:700; }
 
   /* ---- Help "?" button + bug-report modal ---- */
-  #pv-help-row { padding:6px 0 0 2px; text-align:left; }
+  /* Match the topbar's centered 860px box so the "?" lines up under the logo on
+     desktop (not the screen edge); negative top pulls it close to LEADERBOARD so
+     the gap matches the PROVEN/LEADERBOARD gap. */
+  #pv-help-row { max-width:860px; margin:-6px auto 0; padding:0 0 0 2px; text-align:left; }
   #pv-help-btn {
     width:20px; height:20px; line-height:18px; padding:0; border-radius:50%;
     border:1px solid rgba(15,23,42,.22); background:transparent; color:#94a3b8;
