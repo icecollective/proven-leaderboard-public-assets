@@ -149,6 +149,20 @@
     if (activeDateMode === "lastWeek") return "lastWeek";
     return null;
   }
+
+  // Did this rep DO anything in the active period? An internal close (CS) or any
+  // Tableau metric (CS/SRA/CAP/IC) for that period. Used to hide 0-production reps
+  // in the short date modes (everything except YTD, which still shows everyone).
+  function rowHasPeriodActivity(row) {
+    if ((Number(row && row.cs) || 0) > 0) return true;
+    const key = getTableauKeyForDateMode();          // null for Today / Custom (no Tableau period)
+    if (key) {
+      const tr = getTableauRowForDateMode(normalizeName(row && row.name), key);
+      if (tr && ((Number(tr.cs) || 0) > 0 || (Number(tr.sra) || 0) > 0 ||
+                 (Number(tr.cap) || 0) > 0 || (Number(tr.ic) || 0) > 0)) return true;
+    }
+    return false;
+  }
   
   function getDateRange(mode) {
     const today = new Date();
@@ -4655,11 +4669,14 @@
   function addInactivePlataRows(rows) {
     const existing = new Set(rows.map(r => normalizeName(r.name)));
     const inactive = getInactiveSet();
+    const ytd = activeDateMode === "ytd";
     tableauMap.forEach((tableauRow, norm) => {
       if (HIDDEN_REPS.has(norm) || existing.has(norm) || !isPlataRep(norm)) return;
       if (!hasTableauRowData(tableauRow) || !inactive.has(norm)) return;
+      const row = { ...buildEmptyInternalRow(tableauRow.name, tableauRow), isPlataOnly: true };
+      if (!ytd && !rowHasPeriodActivity(row)) return; // short period: needs period activity
       existing.add(norm);
-      rows.push({ ...buildEmptyInternalRow(tableauRow.name, tableauRow), isPlataOnly: true });
+      rows.push(row);
     });
     return rows;
   }
@@ -5163,6 +5180,14 @@
 
     rows = addTableauRecruitingRepsToRows(rows);
     rows = addOrgTreeRepsToRows(rows);
+
+    // Short date modes (everything but YTD): drop reps with no activity in the
+    // period (no internal CS and no Tableau CS/SRA/CAP/IC) — including from the
+    // Inactive toggle / Inactive drill. YTD still shows everyone. General + Groups
+    // only; the Setters/Experts/SelfGen lenses keep their own filters.
+    if (activeDateMode !== "ytd" && (activeView === "general" || activeView === "groups")) {
+      rows = rows.filter(rowHasPeriodActivity);
+    }
 
     rows.sort((a, b) => {
     if (activeSortMode === "bagels") return compareBagelRows(a, b);
