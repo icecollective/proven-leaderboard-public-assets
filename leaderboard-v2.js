@@ -4161,9 +4161,7 @@
       var refreshBtn = document.createElement("button");
       refreshBtn.id = "pv-refresh-btn";
       refreshBtn.type = "button";
-      // U+21BB + U+FE0E (text-presentation selector) so the browser renders it as a
-      // monochrome glyph in our grey, not as a colored emoji.
-      refreshBtn.textContent = "↻︎";
+      refreshBtn.textContent = "↻";
       refreshBtn.setAttribute("aria-label", "Refresh data");
       refreshBtn.addEventListener("click", refreshData);
 
