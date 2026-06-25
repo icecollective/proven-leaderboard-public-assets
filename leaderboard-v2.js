@@ -538,6 +538,7 @@
   function applyExclusiveToggleStates() {
     const cmpActive = isComparisonMode();          // YOY / MOM / COC on
     const bmActive = bagelsOn || mexicoOn;         // Bagels / Mexico skin on
+    const onlyPlata = isOnlyPlataOfficeSelected(); // only the Plata office selected
 
     // Comparison on -> fade Bagels + Mexico.
     [document.getElementById("bagel-toggle"), document.getElementById("mexico-toggle")]
@@ -547,16 +548,17 @@
         btn.classList.toggle("disabled", cmpActive);
       });
 
-    // Bagels/Mexico on -> fade YOY + MOM (and COC, on top of its own range gate).
+    // Bagels/Mexico on OR only Plata selected -> fade YOY + MOM (+ COC, on top of its
+    // own range gate). Plata's Tableau data has no comparison column.
+    const fadeCmp = bmActive || onlyPlata;
     const yoyBtn = document.getElementById("yoy-toggle");
     const momBtn = document.getElementById("mom-toggle");
     const cocBtn = document.getElementById("coc-toggle");
-    if (yoyBtn) { yoyBtn.disabled = bmActive; yoyBtn.classList.toggle("disabled", bmActive); }
-    if (momBtn) { momBtn.disabled = bmActive; momBtn.classList.toggle("disabled", bmActive); }
-    if (cocBtn && bmActive) { cocBtn.disabled = true; cocBtn.classList.add("disabled"); }
+    if (yoyBtn) { yoyBtn.disabled = fadeCmp; yoyBtn.classList.toggle("disabled", fadeCmp); }
+    if (momBtn) { momBtn.disabled = fadeCmp; momBtn.classList.toggle("disabled", fadeCmp); }
+    if (cocBtn && fadeCmp) { cocBtn.disabled = true; cocBtn.classList.add("disabled"); }
 
     // Only Plata selected -> Groups/SelfGen views and Today/Custom dates are unusable.
-    const onlyPlata = isOnlyPlataOfficeSelected();
     const fadeByLabel = (containerId, labels) => {
       const c = document.getElementById(containerId);
       if (!c) return;
@@ -1600,7 +1602,7 @@
     if (MARKET_LEADER_NAMES.has(norm)) {
       role = "Market Leader";
     } else if (isPlata) {
-      role = "Plata";
+      role = isPlataExpert(norm) ? "Expert" : "Setter"; // title from the Tableau Experts list
     } else if (!role) {
       if (hasClose) role = "Expert";
       else if (hasSet) role = "Setter";
@@ -2032,11 +2034,13 @@
   }
 
   // Scroll the page so the leaderboard's top selectors are fully in view again.
+  // Anchor on the (non-sticky) app container — the topbar is sticky, so its rect
+  // top stays ~0 once stuck and can't tell us the document offset.
   function scrollLeaderboardToTop() {
-    var anchor = document.getElementById("pv-topbar") || document.getElementById("leaderboard-app");
-    if (!anchor) return;
-    var y = (window.pageYOffset || document.documentElement.scrollTop || 0);
-    var top = anchor.getBoundingClientRect().top + y;
+    var anchor = document.getElementById("leaderboard-app");
+    if (!anchor) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    var top = 0, node = anchor;
+    while (node) { top += node.offsetTop || 0; node = node.offsetParent; }
     window.scrollTo({ top: Math.max(0, top - 8), behavior: "smooth" });
   }
   // Mexico Rep toggle: name <-> qualifying-% sort.
@@ -5964,9 +5968,11 @@
       const uniqueTotalComparisonPct = comparisonActive
         ? getComparisonPercent(totalUniqueCs, totalPreviousUniqueCs)
         : null;
-      // Show "Excl. Plata" under the total only when Plata SRAs are actually on the
+      // Only Plata selected -> the internal total is just 0s; show nothing (no number,
+      // no "Excl. Plata" note). Otherwise show "Excl. Plata" when Plata SRAs are on the
       // board (Plata rows present with an SRA) — they're left out of this total.
-      const showExclPlata = rows.some(r => r.isPlataOnly && getRowDisplayCs(r) > 0);
+      const onlyPlataTotal = isOnlyPlataOfficeSelected();
+      const showExclPlata = !onlyPlataTotal && rows.some(r => r.isPlataOnly && getRowDisplayCs(r) > 0);
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
@@ -5974,13 +5980,13 @@
           <div>${getTotalRowLabel()}</div>
          <div>${useUniqueCsTotals
           ? buildUniqueTotalCell(
-            totalUniqueCs,
+            onlyPlataTotal ? "" : totalUniqueCs,
             uniqueTotalComparisonPct,
             expertTotalNotes,
             showExclPlata
           )
           : buildUniqueTotalCell(
-            currentTotalValue,
+            onlyPlataTotal ? "" : currentTotalValue,
             totalComparisonPct,
             buildCurrentTotalNotesForView(rows, currentCreditTotals),
             showExclPlata

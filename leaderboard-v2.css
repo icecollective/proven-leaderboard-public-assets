@@ -188,7 +188,7 @@
   .cs-excl-plata {
     position:absolute;
     left:50%;
-    top:calc(50% + 11px);
+    top:calc(50% + 8px);
     transform:translateX(-50%);
     font-size:7px;
     line-height:1;
