@@ -3986,6 +3986,7 @@
         setActiveViewTab("groups");
         updateGroupDrillNav();
         renderLeaderboard();
+        scrollLeaderboardToTop();
         return;
       }
 
@@ -4006,6 +4007,7 @@
         setActiveViewTab("groups");
         updateGroupDrillNav();
         renderLeaderboard();
+        scrollLeaderboardToTop();
         return;
       }
 
