@@ -568,6 +568,7 @@
   }
 
   function getRowDisplayCs(row) {
+    if (row && row.isPlataOnly) return plataHeadlineSra(row); // Plata: headline = SRA
     const view = effectiveRoleView();
     if (view === "experts") return row.expertCs || 0;
     if (view === "setters") return row.setterCs || 0;
@@ -657,6 +658,18 @@
 
   function isPlataRep(normName) {
     return isTableauOnlyRep(normName) && !hasInternalRepHistory(normName);
+  }
+  // Plata has no internal data — an "Expert" is identified from the Tableau
+  // Experts list (same source as Mexico); everyone else in Plata is a Setter.
+  function isPlataExpert(normName) {
+    return isPlataRep(normName) && tableauExperts.has(normName);
+  }
+  // Plata's headline number = their Tableau SRA for the active period.
+  function plataHeadlineSra(row) {
+    const key = getTableauKeyForDateMode();
+    if (!key) return 0;
+    const t = getTableauRowForDateMode(normalizeName(row && row.name), key);
+    return t ? (Number(t.sra) || 0) : 0;
   }
 
   function isGroupDrillDownView() {
@@ -1042,7 +1055,7 @@
     const isPlata = isPlataRep(norm);
     let role = row?.role || row?.title || "";
     if (MARKET_LEADER_NAMES.has(norm)) role = "Market Leader";
-    else if (isPlata) role = "Plata";
+    else if (isPlata) role = isPlataExpert(norm) ? "Expert" : "Setter"; // from Tableau Experts list
     else if (!role) {
       let hasClose = false, hasSet = false;
       const ytd = getDateRange("ytd");
@@ -1909,6 +1922,8 @@
     mexicoReturn = captureViewState();
     mexicoOn = true;
     bagelsOn = false;                // Mexico is its own skin
+    activeDateMode = "ytd";          // Mexico is ALWAYS YTD (installs vs 35/15), ignore the time filter
+    if (activeView === "selfgen") activeView = "general"; // SelfGen isn't a Mexico view
     activeSortMode = "currentContribution"; // default Mexico sort = qualifying %, not name
     tableauUserOff = false;                  // Mexico requires Tableau -> clear intentional-off
     if (!showTableau) setShowTableau(true);
@@ -1960,6 +1975,13 @@
     if (back) back.style.display = (mexicoOn && !activeGroupDrillLeader && !activeInactiveDrill) ? "inline-flex" : "none";
     const btn = document.getElementById("mexico-toggle");
     if (btn) btn.classList.toggle("active", mexicoOn);
+    // SelfGen isn't a Mexico view — fade + disable that selector while Mexico is on.
+    const viewTabs = document.getElementById("view-tabs");
+    if (viewTabs) {
+      Array.prototype.slice.call(viewTabs.querySelectorAll("button")).forEach(function (b) {
+        if (b.textContent.trim() === "SelfGen") b.classList.toggle("mexico-faded", mexicoOn);
+      });
+    }
   }
 
   // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
@@ -1981,9 +2003,12 @@
     const consider = {};
     recruitingRows.forEach(r => { const n = normalizeName(r.name); if (n) consider[n] = true; });
     Object.keys(wtdContrib).forEach(n => { consider[n] = true; });
+    // Plata reps aren't in the recruiting tree — add them so they get active/
+    // inactive status too (qualified by weekly Tableau SRA, not internal CS).
+    tableauMap.forEach((row, norm) => { if (isPlataRep(norm)) consider[norm] = true; });
     Object.keys(consider).forEach(norm => {
       if (!norm || HIDDEN_REPS.has(norm)) return;
-      if (isPlataRep(norm)) return;                        // Plata excluded for now
+      // (Plata now included — qualified by weekly Tableau activity below.)
       // A brand-new rep with NO data at all (never sold AND no Tableau) is still
       // ramping to their first deal — keep them active ("Hasn't Sold"). But a rep
       // WITH Tableau data (e.g. recruiting-only reps like Brennan Whitney) follows
@@ -4469,7 +4494,10 @@
     tableauMap.forEach((tableauRow, norm) => {
       if (HIDDEN_REPS.has(norm) || existing.has(norm) || !isPlataRep(norm)) return;
       if (!hasTableauRowData(tableauRow)) return;
-      if (!plataRepMeetsActiveTableauCsGate(norm)) return;
+      // Gate relaxed: show all Plata reps (we know experts from the Tableau Experts
+      // list; everyone else is a setter). View-aware so Experts/Setters tabs match.
+      if (activeView === "experts" && !isPlataExpert(norm)) return;
+      if (activeView === "setters" && isPlataExpert(norm)) return;
 
       existing.add(norm);
       rows.push({
@@ -4778,7 +4806,11 @@
   }
   
   function buildCsCell(row, showNotes) {
-    if (row.isPlataOnly) return buildInternalPlaceholderCell();
+    if (row.isPlataOnly) {
+      // Plata: show their Tableau SRA as the headline, with an "SRA" subscript so
+      // it's clear it isn't internal CS.
+      return `<div class="cs-cell"><div class="cs-notes-stack"><span class="cs-note-left">SRA</span></div><span class="cs-main">${plataHeadlineSra(row)}</span></div>`;
+    }
     if (rowShowsCurrentNa(row)) return buildInternalNaCell();
 
     const leftNotes = [];
@@ -4995,9 +5027,10 @@
   }
   
     if (activeSortMode === "currentContribution") {
-    const aValue = (a.isPlataOnly || rowShowsCurrentNa(a)) ? -Infinity : getRowDisplayCs(a);
-    const bValue = (b.isPlataOnly || rowShowsCurrentNa(b)) ? -Infinity : getRowDisplayCs(b);
-  
+    // Plata interleaves by its SRA (getRowDisplayCs returns SRA for Plata).
+    const aValue = rowShowsCurrentNa(a) ? -Infinity : getRowDisplayCs(a);
+    const bValue = rowShowsCurrentNa(b) ? -Infinity : getRowDisplayCs(b);
+
     if (bValue !== aValue) return bValue - aValue;
     if (b.cs !== a.cs) return b.cs - a.cs;
   }
@@ -5039,9 +5072,8 @@
   
       if (activeView === "selfgen") {
         if (b.selfGen !== a.selfGen) return b.selfGen - a.selfGen;
-      } else if (!a.isPlataOnly || !b.isPlataOnly) {
-        if (b.isPlataOnly && !a.isPlataOnly) return -1;
-        if (a.isPlataOnly && !b.isPlataOnly) return 1;
+      } else {
+        // (Plata is no longer forced to the bottom — it interleaves by SRA above.)
         if (rowShowsCurrentNa(b) && !rowShowsCurrentNa(a)) return -1;
         if (rowShowsCurrentNa(a) && !rowShowsCurrentNa(b)) return 1;
         if (b.cs !== a.cs) return b.cs - a.cs;
