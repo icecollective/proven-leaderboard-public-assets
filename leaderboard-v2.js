@@ -3141,7 +3141,21 @@
       if (s.needYear) vals.yearly = (yearEl.value || "").trim();
       try {
         const r = await submitGoalsForLogin(vals);
-        if (r && r.ok) { o.style.display = "none"; }
+        if (r && r.ok) {
+          // Reflect the rep's just-set goals in THEIR view immediately — the shared
+          // cache updates for everyone else within the normal ~1-min cycle.
+          const norm = normalizeName(s.name);
+          if (norm) {
+            const g = repGoals[norm] || { name: s.name };
+            g.role = s.role; g.metric = s.metric;
+            if (s.needWeek) g.weeklyCs = Number(vals.weeklyCs);
+            if (s.needMonth) g.monthly = Number(vals.monthly);
+            if (s.needYear) g.yearly = Number(vals.yearly);
+            repGoals[norm] = g;
+          }
+          o.style.display = "none";
+          renderLeaderboard();
+        }
         else { setMsg((r && r.error) || "Couldn't save. Try again.", true); btn.disabled = false; }
       } catch (e) { setMsg("Network error. Try again.", true); btn.disabled = false; }
     });
