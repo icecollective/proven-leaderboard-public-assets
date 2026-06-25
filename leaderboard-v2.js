@@ -34,6 +34,7 @@
   let previousYearDetailsMap = new Map();
   let showYoy = false;
   let showMom = false;
+  let showCoc = false; // Custom-over-Custom: the applied Custom range vs the same dates last year
   // The "Include Old Reps" toggle (YOY/MOM). Set false to hide it + force OFF.
   const OLD_REPS_TOGGLE_ENABLED = true;
   let includeOldReps = true;
@@ -190,7 +191,37 @@
     };
   }
 
+  // True once the user has applied a Custom date range (both inputs filled).
+  function hasCustomRange() {
+    const s = document.getElementById("custom-start");
+    const e = document.getElementById("custom-end");
+    return !!(s && e && s.value && e.value && s.value <= e.value);
+  }
+
+  // COC: the applied Custom range (this year) vs the SAME calendar dates last year.
+  function getCocDateRanges() {
+    const startStr = document.getElementById("custom-start").value;
+    const endStr = document.getElementById("custom-end").value;
+    const shiftYear = str => {
+      const p = str.split("-");
+      return formatDate(new Date(+p[0] - 1, +p[1] - 1, +p[2]));
+    };
+    const md = str => { const p = str.split("-"); return `${+p[1]}/${+p[2]}`; };       // 6/1
+    const yy = str => `'${str.slice(2, 4)}`;                                            // '26
+    const pStart = shiftYear(startStr), pEnd = shiftYear(endStr);
+    return {
+      current: { start: startStr, end: endStr, label: `${md(startStr)}–${md(endStr)} ${yy(startStr)}` },
+      previous: { start: pStart, end: pEnd, label: `${md(pStart)}–${md(pEnd)} ${yy(pStart)}` }
+    };
+  }
+
   function getMomDateRanges() {
+    // COC reuses the entire MoM "two explicit ranges" pipeline — it just supplies
+    // the Custom range vs the same dates last year instead of the month ranges.
+    if (showCoc && activeDateMode === "custom" && hasCustomRange()) {
+      momDateRanges = getCocDateRanges();
+      return momDateRanges;
+    }
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth();
@@ -257,8 +288,11 @@
     return activeDateMode === "ytd" && showYoy;
   }
 
+  // "Explicit two-range comparison" column — drives MoM AND COC, which share the
+  // same machinery (getMomDateRanges / getMomPreviousDeals / previousMonthDetailsMap).
   function useMomColumn() {
-    return showMom && activeDateMode === "mtd";
+    return (showMom && activeDateMode === "mtd") ||
+           (showCoc && activeDateMode === "custom" && hasCustomRange());
   }
 
   function useComparisonColumn() {
@@ -619,7 +653,7 @@
       desired = false;                       // not a tableau-capable context
     } else if (tableauUserOff) {
       desired = false;                       // respect an intentional off
-    } else if (isPortraitMobile() && (showYoy || showMom)) {
+    } else if (isPortraitMobile() && (showYoy || showMom || showCoc)) {
       desired = false;                       // mobile: can't show with YOY/MOM
     } else {
       desired = true;
@@ -2299,6 +2333,7 @@
       tableauUserOff,
       showYoy,
       showMom,
+      showCoc,
       includeOldReps,
       includeNewReps,
       includeIceCollective,
@@ -2326,6 +2361,7 @@
     tableauUserOff = !!state.tableauUserOff;
     showYoy = state.showYoy;
     showMom = state.showMom;
+    showCoc = !!state.showCoc;
     includeOldReps = state.includeOldReps;
     includeNewReps = state.includeNewReps;
     includeIceCollective = state.includeIceCollective;
@@ -2465,8 +2501,8 @@
     const momRanges = getMomDateRanges();
     const momCurrentDeals = allDeals.filter(deal => dealInDateRange(deal, momRanges.current));
     const momPreviousDeals = previousYearDeals.filter(deal => dealInDateRange(deal, momRanges.previous));
-    const useMom = showMom && activeDateMode === "mtd";
-    const useYoy = activeDateMode === "ytd" && showYoy && !showMom;
+    const useMom = useMomColumn(); // MoM (mtd) or COC (custom) — both use momRanges
+    const useYoy = useYoyColumn();
     const useComparison = useMom || useYoy;
     const currentPeriodDeals = useMom ? momCurrentDeals : periodDeals;
     const previousPeriodDeals = useMom ? momPreviousDeals : previousYearDeals;
@@ -2591,7 +2627,7 @@
     }
 
     function qualifiesByYtd(ytdCurrent, ytdPrevious) {
-      if (showYoy || showMom) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
+      if (useComparison) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
       return ytdCurrent.total >= 25;
     }
 
@@ -3554,9 +3590,10 @@
       if (showTableau) {
         if (activeSortMode !== "bagels") activeSortMode = "tableau";
         // Portrait mobile can't fit Tableau alongside a comparison column.
-        if (isPortraitMobile() && (showYoy || showMom)) {
+        if (isPortraitMobile() && (showYoy || showMom || showCoc)) {
           showYoy = false;
           showMom = false;
+          showCoc = false;
         }
       }
       renderLeaderboard();
@@ -3568,9 +3605,11 @@
   yoyBtn.textContent = "YOY";
   yoyBtn.addEventListener("click", () => {
     showYoy = !showYoy;
+    momDateRanges = null;
 
     if (showYoy) {
       showMom = false;
+      showCoc = false;
       if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
@@ -3589,9 +3628,11 @@
   momBtn.textContent = "MOM";
   momBtn.addEventListener("click", () => {
     showMom = !showMom;
+    momDateRanges = null;
 
     if (showMom) {
       showYoy = false;
+      showCoc = false;
       if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
       includeOldReps = true;
       includeNewReps = true;
@@ -3604,6 +3645,30 @@
     renderLeaderboard();
   });
   tableauTabs.appendChild(momBtn);
+
+  const cocBtn = document.createElement("button");
+  cocBtn.id = "coc-toggle";
+  cocBtn.textContent = "COC";
+  cocBtn.addEventListener("click", () => {
+    if (!hasCustomRange()) return; // only after a Custom range is applied
+    showCoc = !showCoc;
+    momDateRanges = null;
+
+    if (showCoc) {
+      showYoy = false;
+      showMom = false;
+      if (activeSortMode !== "bagels") activeSortMode = "currentContribution";
+      includeOldReps = true;
+      includeNewReps = true;
+
+      if (isPortraitMobile() && showTableau) {
+        setShowTableau(false);
+      }
+    }
+
+    renderLeaderboard();
+  });
+  tableauTabs.appendChild(cocBtn);
   
   const newRepsBtn = document.createElement("button");
   newRepsBtn.id = "new-reps-toggle";
@@ -3775,8 +3840,10 @@
       var cmp = document.createElement("div"); cmp.className = "pv-cmpcell";
       var yoyB = document.getElementById("yoy-toggle");
       var momB = document.getElementById("mom-toggle");
+      var cocB = document.getElementById("coc-toggle");
       if (yoyB) cmp.appendChild(yoyB);
       if (momB) cmp.appendChild(momB);
+      if (cocB) cmp.appendChild(cocB);
       brow.appendChild(sp); brow.appendChild(bpill); brow.appendChild(cmp);
       island.appendChild(tpill); island.appendChild(brow);
       dateTabs.appendChild(island);
@@ -3985,6 +4052,17 @@
       momBtn.style.display = shouldShowMom ? "inline-block" : "none";
       if (!shouldShowMom) showMom = false;
       momBtn.classList.toggle("active", showMom);
+    }
+
+    const cocBtn = document.getElementById("coc-toggle");
+    if (cocBtn) {
+      const shouldShowCoc = activeDateMode === "custom" && previousYearDeals.length > 0;
+      const canSelectCoc = shouldShowCoc && hasCustomRange();
+      cocBtn.style.display = shouldShowCoc ? "inline-block" : "none";
+      if (!canSelectCoc) showCoc = false;               // no range applied -> can't be on
+      cocBtn.disabled = !canSelectCoc;
+      cocBtn.classList.toggle("disabled", !canSelectCoc);
+      cocBtn.classList.toggle("active", showCoc);
     }
 
     const oldRepsBtn = document.getElementById("old-reps-toggle");
@@ -4706,7 +4784,13 @@
     
   function renderLeaderboard() {
     updateTableauToggle();
-  
+
+    // Recompute the comparison ranges fresh each render (the Custom range used by
+    // COC can change between renders), and rebuild the previous-period per-rep map
+    // so the comparison columns match the live ranges.
+    momDateRanges = null;
+    if (useMomColumn()) rebuildPreviousMonthMap();
+
     const range = getDateRange(activeDateMode);
   
     const filteredDeals = allDeals.filter(deal =>
