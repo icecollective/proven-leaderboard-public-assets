@@ -1297,6 +1297,16 @@
     font-family:'Inter',system-ui,sans-serif; transition:color .15s, border-color .15s;
   }
   #pv-help-btn:hover { color:#475569; border-color:rgba(15,23,42,.4); }
+  .pv-helprow { display:flex; align-items:center; gap:6px; }
+  #pv-refresh-btn {
+    width:20px; height:20px; line-height:18px; padding:0; margin:4px 0 0 0; border-radius:50%;
+    border:1px solid rgba(15,23,42,.22); background:transparent; color:#94a3b8;
+    font-size:13px; font-weight:700; cursor:pointer; text-align:center;
+    font-family:'Inter',system-ui,sans-serif; transition:color .15s, border-color .15s;
+  }
+  #pv-refresh-btn:hover { color:#475569; border-color:rgba(15,23,42,.4); }
+  #pv-refresh-btn.pv-spinning { animation:pv-spin .7s linear infinite; pointer-events:none; }
+  @keyframes pv-spin { to { transform:rotate(360deg); } }
   .pv-frame-modal {
     position:fixed; inset:0; z-index:10000; display:none;
     align-items:center; justify-content:center; padding:18px;

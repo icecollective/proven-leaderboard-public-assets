@@ -4156,10 +4156,24 @@
       helpBtn.setAttribute("aria-label", "Help & feedback");
       helpBtn.addEventListener("click", openHelpModal);
 
+      // Refresh button just to the right of "?" — re-pulls the latest standings
+      // without a full reload.
+      var refreshBtn = document.createElement("button");
+      refreshBtn.id = "pv-refresh-btn";
+      refreshBtn.type = "button";
+      refreshBtn.textContent = "↻"; // ↻
+      refreshBtn.setAttribute("aria-label", "Refresh data");
+      refreshBtn.addEventListener("click", refreshData);
+
+      var helpRow = document.createElement("div");
+      helpRow.className = "pv-helprow";
+      helpRow.appendChild(helpBtn);
+      helpRow.appendChild(refreshBtn);
+
       var leftCol = document.createElement("div");
       leftCol.className = "pv-topleft";
       leftCol.appendChild(logo);
-      leftCol.appendChild(helpBtn);
+      leftCol.appendChild(helpRow);
 
       var spacer = document.createElement("div");
       spacer.className = "pv-topspacer";
@@ -6226,6 +6240,27 @@
   }
 
   // Load data + render, or show the login overlay if the session is missing/expired.
+  // Manual refresh (the ↻ button): re-pull the latest standings and re-render,
+  // without a full page reload. Spins the button while loading.
+  let isRefreshing = false;
+  async function refreshData() {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    const btn = document.getElementById("pv-refresh-btn");
+    if (btn) btn.classList.add("pv-spinning");
+    try {
+      await loadApiData();
+      await loadDownlineIfNeeded();
+      isLeaderboardReady = true;
+      renderLeaderboard();
+    } catch (e) {
+      if (e && e.authRequired) showLoginOverlay();
+    } finally {
+      isRefreshing = false;
+      if (btn) btn.classList.remove("pv-spinning");
+    }
+  }
+
   async function bootLeaderboard() {
     showLoadingOverlay();
     // Fire the goal-status check up front, in parallel with the payload, so the
