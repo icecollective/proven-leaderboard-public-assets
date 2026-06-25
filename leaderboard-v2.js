@@ -589,7 +589,7 @@
     // Only Plata -> Groups/SelfGen views unusable. Inactive drill -> SelfGen faded
     // (SelfGen isn't a meaningful lens for inactive reps); Setters/Experts stay live.
     fadeBy("view-tabs", label => {
-      if (label === "SelfGen") return onlyPlata || inInactiveDrill;
+      if (label === "SelfGen") return onlyPlata || inInactiveDrill || mexicoOn;
       if (label === "Groups") return onlyPlata;
       return null;
     });
