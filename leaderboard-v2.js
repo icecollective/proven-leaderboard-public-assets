@@ -4164,7 +4164,7 @@
       // Vector refresh arrow whose circle is centered in the viewBox, so it spins
       // perfectly round (the ↻ text glyph is off-center in the font and wobbles).
       // stroke = currentColor keeps it the same grey as the "?".
-      refreshBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.93 4.27A8 8 0 1 0 14.07 4.27"/><path d="M17.26 3.42 14.07 4.27 16.4 6.6"/></svg>';
+      refreshBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(12 12) scale(0.82) translate(-12 -12)"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></g></svg>';
       refreshBtn.setAttribute("aria-label", "Refresh data");
       refreshBtn.addEventListener("click", refreshData);
 
