@@ -80,7 +80,6 @@
   
   let activeTableauMetric = "cap";
   
-  let goalPromptShown = false; // guard so the login goal prompt shows at most once
   let activeView = "general";
   // Rep-type "lens" applied to the Groups view (and group drill-downs):
   // "general" (default blend), "setters", "experts", or "selfgen". Only meaningful
@@ -3365,14 +3364,10 @@
 
   // Decide whether to show the goal prompt after the board loads.
   async function maybePromptGoals(statusPromise) {
-    if (goalPromptShown) return;
     try {
       const s = await (statusPromise || fetchGoalStatus());
-      if (goalPromptShown) return;                            // raced with another call
       if (!s || s.authRequired || s.exempt) return;          // not logged in / exempt
       if (!s.needWeek && !s.needMonth && !s.needYear) return; // all set
-      goalPromptShown = true;
-      hideLoginOverlay();                                     // surface over any loading state
       showGoalPrompt(s);
     } catch (e) { /* never block the board on a goal-check failure */ }
   }
@@ -6119,9 +6114,6 @@
     // prompt can appear the moment the board renders instead of waiting on a
     // second serial round-trip after load.
     const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
-    // Show the prompt as soon as the light status returns — don't wait for the heavy
-    // payload/render. The board loads behind the modal.
-    if (goalStatusPromise) maybePromptGoals(goalStatusPromise);
     try {
       await loadApiData();
       await loadDownlineIfNeeded();
@@ -6129,7 +6121,7 @@
       renderLeaderboard();
       hideLoginOverlay();
       startSessionHeartbeat();
-      maybePromptGoals(goalStatusPromise); // fallback if status returned after render
+      maybePromptGoals(goalStatusPromise);
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
