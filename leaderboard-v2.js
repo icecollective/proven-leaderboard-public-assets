@@ -35,6 +35,7 @@
   let showYoy = false;
   let showMom = false;
   let showCoc = false; // Custom-over-Custom: the applied Custom range vs the same dates last year
+  let appliedCustom = { start: "", end: "" }; // the Custom range that's actually live on the board
   // The "Include Old Reps" toggle (YOY/MOM). Set false to hide it + force OFF.
   const OLD_REPS_TOGGLE_ENABLED = true;
   let includeOldReps = true;
@@ -199,6 +200,44 @@
     return !!(s && e && s.value && e.value && s.value <= e.value);
   }
 
+  // Dim the date inputs when they've been changed but not yet applied, so the
+  // board never looks like it reflects dates that aren't actually live.
+  function updateCustomPending() {
+    const wrap = document.getElementById("custom-date-wrapper");
+    if (!wrap) return;
+    const s = (document.getElementById("custom-start") || {}).value || "";
+    const e = (document.getElementById("custom-end") || {}).value || "";
+    const pending = activeDateMode === "custom" && s && e &&
+      (s !== appliedCustom.start || e !== appliedCustom.end);
+    wrap.classList.toggle("custom-pending", !!pending);
+  }
+  // Record the currently-entered Custom range as the live/applied one.
+  function recordAppliedCustom() {
+    appliedCustom = {
+      start: (document.getElementById("custom-start") || {}).value || "",
+      end: (document.getElementById("custom-end") || {}).value || ""
+    };
+    updateCustomPending();
+  }
+  // One-time: balance the row so the two date boxes are centered with Apply just
+  // to the right (a hidden Apply-sized clone on the left), + wire the pending dim.
+  function setupCustomDateRow() {
+    const wrap = document.getElementById("custom-date-wrapper");
+    const applyBtn = document.getElementById("apply-custom");
+    if (!wrap || !applyBtn || document.getElementById("pv-date-spacer")) return;
+    const spacer = applyBtn.cloneNode(true);
+    spacer.id = "pv-date-spacer";
+    spacer.style.visibility = "hidden";
+    spacer.style.pointerEvents = "none";
+    spacer.setAttribute("aria-hidden", "true");
+    spacer.removeAttribute("onclick");
+    wrap.insertBefore(spacer, wrap.firstChild);
+    const sEl = document.getElementById("custom-start");
+    const eEl = document.getElementById("custom-end");
+    if (sEl) sEl.addEventListener("input", updateCustomPending);
+    if (eEl) eEl.addEventListener("input", updateCustomPending);
+  }
+
   // COC: the applied Custom range (this year) vs the SAME calendar dates last year.
   function getCocDateRanges() {
     const startStr = document.getElementById("custom-start").value;
@@ -304,7 +343,16 @@
     return suffix === "Total" || suffix === "CS" || suffix === "SG";
   }
 
+  function isCocActive() {
+    return showCoc && activeDateMode === "custom" && hasCustomRange();
+  }
+
   function getCurrentComparisonLabel(suffix) {
+    // COC selectors show just the YEAR (the exact range is in the date boxes).
+    if (isCocActive()) {
+      const y = (getMomDateRanges().current.start || "").slice(0, 4);
+      return isPeriodMetricSuffix(suffix) ? y : `${y} ${suffix}`;
+    }
     if (useMomColumn()) {
       if (isPeriodMetricSuffix(suffix)) {
         return (momDateRanges || getMomDateRanges()).current.label;
@@ -320,6 +368,10 @@
   }
 
   function getPreviousComparisonLabel(suffix) {
+    if (isCocActive()) {
+      const y = (getMomDateRanges().previous.start || "").slice(0, 4);
+      return isPeriodMetricSuffix(suffix) ? y : `${y} ${suffix}`;
+    }
     if (useMomColumn()) {
       if (isPeriodMetricSuffix(suffix)) {
         return (momDateRanges || getMomDateRanges()).previous.label;
@@ -1927,9 +1979,11 @@
     Object.keys(consider).forEach(norm => {
       if (!norm || HIDDEN_REPS.has(norm)) return;
       if (isPlataRep(norm)) return;                        // Plata excluded for now
-      // Reps who have NEVER sold are new (still ramping to their first deal), not
-      // "inactive" — they stay on the active board and read "Hasn't Sold".
-      if (!getBagelData().hasEverSold(norm)) return;
+      // A brand-new rep with NO data at all (never sold AND no Tableau) is still
+      // ramping to their first deal — keep them active ("Hasn't Sold"). But a rep
+      // WITH Tableau data (e.g. recruiting-only reps like Brennan Whitney) follows
+      // the normal rules below, so a dry week makes them inactive.
+      if (!getBagelData().hasEverSold(norm) && !hasTableauDataForNorm(norm)) return;
       const goal = repGoals[norm];
       if (goal && goal.weeklyCs != null && Number(goal.weeklyCs) > 0) return; // has weekly goal
       if (wtdContrib[norm] && wtdContrib[norm].size > 0) return;              // weekly internal CS
@@ -3594,7 +3648,8 @@
   
     document.getElementById("custom-date-wrapper").style.display =
       mode.key === "custom" ? "flex" : "none";
-  
+    updateCustomPending();
+
     rebuildTableauMap();
 
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
@@ -3725,7 +3780,10 @@
   });
   tableauTabs.appendChild(oldRepsBtn);
   
-  document.getElementById("apply-custom").addEventListener("click", renderLeaderboard);
+  document.getElementById("apply-custom").addEventListener("click", function () {
+    recordAppliedCustom();
+    renderLeaderboard();
+  });
 
   const leaderboardApp = document.getElementById("leaderboard-app");
   if (leaderboardApp) {
@@ -3839,7 +3897,7 @@
     ov.querySelector(".pv-help-close").addEventListener("click", function () { ov.style.display = "none"; });
     var frame = ov.querySelector(".pv-help-frame");
     frame.addEventListener("load", function () { var s = document.getElementById("pv-ss-spin"); if (s) s.style.display = "none"; });
-    frame.src = API_URL + "?page=secondsystem";
+    frame.src = API_URL + "?page=secondsystem&token=" + encodeURIComponent(getSessionToken());
     return ov;
   }
   function openSecondSystemModal() { ensureSecondSystemOverlay().style.display = "flex"; }
@@ -3970,6 +4028,7 @@
     updateMexicoUI();
 
     setupControlScrollFade();
+    setupCustomDateRow();
   }
 
   // Mobile: fade each filter-pill row out exactly as it scrolls up to the sticky
@@ -5046,6 +5105,45 @@
           return inactiveDrillDownline.has(n) && n !== leaderN;
         });
       }
+
+      // Mexico skin: inactive drill follows the same rules as other Mexico views
+      // (SRA/CAP columns, qualifying-% / name sort) — not the CS comparison skin.
+      if (mexicoOn) {
+        const mcols = gridCols(2);
+        const mexInactive = drillRows.slice().sort(mexicoSortComparator());
+        const mexHeader = `
+        <div class="leaderboard-header-row" style="grid-template-columns:${mcols};">
+          <div>${buildRankHeaderCell()}</div>
+          <div>${buildMexicoRepHeaderCell("Name")}</div>
+          <div class="mexico-col-head">SRA</div>
+          <div class="mexico-col-head">CAP</div>
+        </div>`;
+        bodyRows.push(`
+        <div class="leaderboard-row total-row" style="grid-template-columns:${mcols};">
+          <div>${buildViewRepCountCell(drillRows.length)}</div>
+          <div>${getTotalRowLabel()}</div><div></div><div></div>
+        </div>`);
+        mexInactive.forEach((row, index) => {
+          const t = mexicoTableau(normalizeName(row.name));
+          const rowClass = index % 2 === 0 ? "odd-row" : "even-row";
+          bodyRows.push(`
+        <div class="leaderboard-row ${rowClass}" style="grid-template-columns:${mcols};">
+          <div>${index + 1}</div>
+          <div>${buildRepNameCell(row.name, row)}</div>
+          <div class="cs-cell"><span class="cs-main">${t.sra}</span></div>
+          <div class="cs-cell"><span class="cs-main">${t.cap}</span></div>
+        </div>`);
+        });
+        document.querySelector(".leaderboard-grid").innerHTML = `
+        <div class="leaderboard-column tableau-on">
+          ${buildLeaderboardTitleHtml(`${inactiveDrillLeader ? inactiveDrillLeader + " Group · " : ""}Inactive Reps`)}
+          ${mexHeader}
+          <div class="leaderboard-body">${bodyRows.join("")}</div>
+        </div>`;
+        finishLeaderboardRender();
+        return;
+      }
+
       const drillUseTableau = useTableauColumn;
       const drillCols = gridCols(
         drillUseTableau && useGroupsComparison ? 3

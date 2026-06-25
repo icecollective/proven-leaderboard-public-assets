@@ -49,6 +49,15 @@
     border:1px solid #d1d5db;
     font-size:11px;
   }
+  /* Dates changed but not yet applied: dim the inputs (so the board never looks
+     like it reflects unapplied dates) and pulse Apply so it's clear it needs a tap. */
+  #custom-date-wrapper.custom-pending #custom-start,
+  #custom-date-wrapper.custom-pending #custom-end { opacity:.45; }
+  #custom-date-wrapper.custom-pending #apply-custom { animation:pvApplyPulse 1.1s ease-in-out infinite; }
+  @keyframes pvApplyPulse {
+    0%,100% { box-shadow:0 2px 6px rgba(15,23,42,.2); }
+    50%     { box-shadow:0 0 0 3px rgba(37,99,235,.55); }
+  }
   
   .leaderboard-grid {
     display:flex;
@@ -854,8 +863,8 @@
   }
   /* Mexico install count + "N Second Systems" stacked, centered against the title */
   .rep-row-sub.mex-sub-ss { display:flex; align-items:center; gap:6px; }
-  .rep-row-sub.mex-sub-ss .mex-inst-stack { display:flex; flex-direction:column; line-height:1.2; }
-  .rep-row-sub.mex-sub-ss .mex-ss-note { font-size:9px; font-weight:700; color:#b45309; white-space:nowrap; }
+  .rep-row-sub.mex-sub-ss .mex-inst-stack { display:flex; flex-direction:column; line-height:1.0; }
+  .rep-row-sub.mex-sub-ss .mex-ss-note { font-size:9px; font-weight:700; color:#94a3b8; white-space:nowrap; }
   .mexico-col-head {
     display:flex; align-items:center; justify-content:center;
     font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.07em;
