@@ -3145,7 +3145,7 @@
     return `<div class="cs-notes-stack"></div>`;
   }
 
-  function buildGroupTotalCell(row, showComparison, showNotes = true) {
+  function buildGroupTotalCell(row, showComparison, showNotes = true, showExclPlata = false) {
     const yoy = showComparison ? getGroupYoyPercent(row) : null;
 
     // The Experts lens always shows its SG/Sets breakdown on the total (the lens
@@ -3156,11 +3156,13 @@
       ? groupTotalNotesStack(row, false)
       : `<div class="cs-notes-stack"></div>`;
     const leftHtml = injectPctIntoStack(leftBase, yoy);
+    const exclNote = showExclPlata ? `<span class="cs-excl-plata">Excl. Plata</span>` : "";
 
     return `
       <div class="cs-cell">
         ${leftHtml}
         <span class="cs-main">${groupRowValue(row)}</span>
+        ${exclNote}
       </div>
     `;
   }
@@ -5320,9 +5322,18 @@
         : getInactiveDisplayRows(rows);
       // Plata reps show only in the whole-team Inactive drill, on a real Tableau
       // period (not Today/Custom) and not while a comparison (YOY/MOM/COC) is active.
-      if (!inactiveDrillLeader && !isComparisonMode() &&
+      if (!inactiveDrillLeader && includePlata && !isComparisonMode() &&
           ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
         drillRows = addInactivePlataRows(drillRows);
+      }
+      // Whole-team drill: respect the office selection — drop reps from offices that
+      // aren't currently selected (Plata included only when its toggle is on).
+      if (!inactiveDrillLeader) {
+        drillRows = drillRows.filter(r => {
+          const n = normalizeName(r.name);
+          if (r.isPlataOnly || isPlataRep(n)) return includePlata;
+          return repInOfficeUmbrella(n);
+        });
       }
       if (groupsRepType !== "general") drillRows = drillRows.filter(rowMatchesActiveView);
       if (inactiveDrillDownline) {
@@ -5443,6 +5454,9 @@
       if (inactiveDrillDownline) {
         const leaderN = normalizeName(inactiveDrillLeader);
         inactiveNames = new Set([...inactiveNames].filter(n => inactiveDrillDownline.has(n) && n !== leaderN));
+      } else {
+        // Whole-team drill: total stats also respect the office selection.
+        inactiveNames = new Set([...inactiveNames].filter(n => repInOfficeUmbrella(n)));
       }
       const inCurrent = groupContext.computeGroupStats(
         groupContext.filterDownlineForYear(inactiveNames, "2026", groupContext.useComparison),
@@ -5453,11 +5467,16 @@
         groupContext.previousPeriodDeals, "previous"
       );
 
+      // "Excl. Plata" under the total when the whole-team drill is actually showing
+      // Plata reps with an SRA (their SRAs aren't in this internal total).
+      const drillExclPlata = !inactiveDrillLeader &&
+        drillRows.some(r => r.isPlataOnly && getRowDisplayCs(r) > 0);
+
       bodyRows.push(`
       <div class="leaderboard-row total-row" style="grid-template-columns:${drillCols};">
         <div>${buildViewRepCountCell(drillRows.length)}</div>
         <div>${getTotalRowLabel()}</div>
-        <div>${buildGroupTotalCell(makeGroupStatRow(inCurrent, inPrevious), useGroupsComparison, true)}</div>
+        <div>${buildGroupTotalCell(makeGroupStatRow(inCurrent, inPrevious), useGroupsComparison, true, drillExclPlata)}</div>
         ${useGroupsComparison ? `<div>${buildGroupPreviousTotalCell(makeGroupStatRow(inCurrent, inPrevious), true)}</div>` : ""}
         ${drillUseTableau ? `<div></div>` : ""}
       </div>
