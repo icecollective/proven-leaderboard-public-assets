@@ -586,9 +586,13 @@
         b.classList.toggle("mexico-faded", fade);
       });
     };
-    // Only Plata -> Groups/SelfGen views unusable.
-    fadeBy("view-tabs", label =>
-      (label === "Groups" || label === "SelfGen") ? onlyPlata : null);
+    // Only Plata -> Groups/SelfGen views unusable. Inactive drill -> SelfGen faded
+    // (SelfGen isn't a meaningful lens for inactive reps); Setters/Experts stay live.
+    fadeBy("view-tabs", label => {
+      if (label === "SelfGen") return onlyPlata || inInactiveDrill;
+      if (label === "Groups") return onlyPlata;
+      return null;
+    });
     // Only Plata -> Today/Custom faded; Inactive drill -> Today/WTD faded.
     fadeBy("date-tabs", label => {
       if (label === "Today") return onlyPlata || inInactiveDrill;
@@ -4521,6 +4525,15 @@
   function rowMatchesActiveView(row) {
     const norm = normalizeName(row.name);
     const view = effectiveRoleView();
+
+    // Plata reps have no internal sets/closes — classify them by their Tableau
+    // Experts role instead, so the Setters/Experts lens includes them correctly.
+    if (row.isPlataOnly || isPlataRep(norm)) {
+      if (view === "setters") return !isPlataExpert(norm);
+      if (view === "experts") return isPlataExpert(norm);
+      if (view === "selfgen") return false; // Plata has no SelfGen data
+      return true;
+    }
 
     if (view === "setters") {
       const isCurrentSetter =
