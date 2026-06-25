@@ -1597,20 +1597,18 @@
   // Best calendar month/week CS, plus the SG/Sets breakdown for that period.
   function repBestPeriodInfo(repName, keyFn) {
     const norm = normalizeName(repName);
-    // Best single period by TOTAL CONTRIBUTION (sets + closes), so a self-gen
-    // counts twice and moves the rep up — not just unique deals.
-    const buckets = new Map(); // periodKey -> sets + closes
+    // DISPLAY = best single period by UNIQUE DEALS (self-gen counts once). The
+    // pecking-order ranking (getPrStats) uses total contribution instead, so
+    // self-gens still move a rep up the rank even though the shown number is deals.
+    const buckets = new Map();
     allDeals.forEach(d => {
-      if (!d.date) return;
-      let roleCount = 0;
-      if (normalizeName(d.expert) === norm) roleCount++;                              // a close
-      if (normalizeName(d.setter) === norm && isValidSetterName(d.setter)) roleCount++; // a set (self-gen adds again)
-      if (!roleCount) return;
+      if (!d.date || !repContributesToDeal(d, norm)) return;
       const k = keyFn(d);
-      buckets.set(k, (buckets.get(k) || 0) + roleCount);
+      if (!buckets.has(k)) buckets.set(k, new Set());
+      buckets.get(k).add(getDealId(d));
     });
     let bestK = null, best = 0;
-    buckets.forEach((cnt, k) => { if (cnt > best) { best = cnt; bestK = k; } });
+    buckets.forEach((ids, k) => { if (ids.size > best) { best = ids.size; bestK = k; } });
     const extras = bestK ? repCsBreakdown(repName, d => d.date && keyFn(d) === bestK) : { selfGen: 0, setOnly: 0 };
     return { cs: best, selfGen: extras.selfGen, setOnly: extras.setOnly };
   }
@@ -1917,6 +1915,8 @@
     updateBagelButtonState();
     updateMexicoUI();
     renderLeaderboard();
+    // Preload the Second System form in the background so the modal opens instantly.
+    try { ensureSecondSystemOverlay(); } catch (e) {}
   }
   // Mexico Rep toggle: name <-> qualifying-% sort.
   function toggleMexicoNameSort() {
