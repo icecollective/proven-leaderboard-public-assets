@@ -24,7 +24,8 @@
     "Justin Wall",
     "Meredith Fields",
     "Erin Wall",
-    "Connor Fouts"
+    "Connor Fouts",
+    "Kelton Higgins"
   ].map(normalizeName));
   
   let allDeals = [];
