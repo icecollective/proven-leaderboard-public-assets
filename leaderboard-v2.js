@@ -4348,7 +4348,10 @@
       btn.classList.toggle("active", showTableau);
     }
 
-    if (!canSelectPlata) {
+    // Don't drop the Plata selection just because we're in Groups (its toggle is
+    // hidden there) — the whole-team Inactive drill still needs to know Plata was on.
+    // Groups never renders Plata on the board itself, so this is safe.
+    if (!canSelectPlata && activeView !== "groups") {
       includePlata = false;
     }
 
