@@ -1597,15 +1597,20 @@
   // Best calendar month/week CS, plus the SG/Sets breakdown for that period.
   function repBestPeriodInfo(repName, keyFn) {
     const norm = normalizeName(repName);
-    const buckets = new Map();
+    // Best single period by TOTAL CONTRIBUTION (sets + closes), so a self-gen
+    // counts twice and moves the rep up — not just unique deals.
+    const buckets = new Map(); // periodKey -> sets + closes
     allDeals.forEach(d => {
-      if (!d.date || !repContributesToDeal(d, norm)) return;
+      if (!d.date) return;
+      let roleCount = 0;
+      if (normalizeName(d.expert) === norm) roleCount++;                              // a close
+      if (normalizeName(d.setter) === norm && isValidSetterName(d.setter)) roleCount++; // a set (self-gen adds again)
+      if (!roleCount) return;
       const k = keyFn(d);
-      if (!buckets.has(k)) buckets.set(k, new Set());
-      buckets.get(k).add(getDealId(d));
+      buckets.set(k, (buckets.get(k) || 0) + roleCount);
     });
     let bestK = null, best = 0;
-    buckets.forEach((ids, k) => { if (ids.size > best) { best = ids.size; bestK = k; } });
+    buckets.forEach((cnt, k) => { if (cnt > best) { best = cnt; bestK = k; } });
     const extras = bestK ? repCsBreakdown(repName, d => d.date && keyFn(d) === bestK) : { selfGen: 0, setOnly: 0 };
     return { cs: best, selfGen: extras.selfGen, setOnly: extras.setOnly };
   }
@@ -1616,29 +1621,29 @@
   function getPrStats() {
     if (prStatsCache) return prStatsCache;
     const year = formatDate(new Date()).slice(0, 4);
-    const monthSets = {}, weekSets = {}, ytdSets = {};
+    // Count TOTAL CONTRIBUTION (sets + closes) per period — a self-gen counts the
+    // rep twice (once as setter, once as expert), so self-gens raise their PR.
+    const monthCnt = {}, weekCnt = {}, ytdCnt = {};
     allDeals.forEach(d => {
       if (!d.date) return;
-      const id = getDealId(d);
-      if (!id) return;
       const e = normalizeName(d.expert), s = normalizeName(d.setter);
       const reps = [];
-      if (e) reps.push(e);
-      if (s && isValidSetterName(d.setter) && s !== e) reps.push(s);
+      if (e) reps.push(e);                                  // a close
+      if (s && isValidSetterName(d.setter)) reps.push(s);   // a set (self-gen: same rep added again)
       if (!reps.length) return;
       const mk = d.date.slice(0, 7);
       const wk = formatDate(getMondayOfWeek(new Date(`${d.date}T12:00:00`)));
       const thisYear = d.date.slice(0, 4) === year;
       reps.forEach(rep => {
-        const mkey = rep + "|" + mk; (monthSets[mkey] || (monthSets[mkey] = new Set())).add(id);
-        const wkey = rep + "|" + wk; (weekSets[wkey] || (weekSets[wkey] = new Set())).add(id);
-        if (thisYear) (ytdSets[rep] || (ytdSets[rep] = new Set())).add(id);
+        const mkey = rep + "|" + mk; monthCnt[mkey] = (monthCnt[mkey] || 0) + 1;
+        const wkey = rep + "|" + wk; weekCnt[wkey] = (weekCnt[wkey] || 0) + 1;
+        if (thisYear) ytdCnt[rep] = (ytdCnt[rep] || 0) + 1;
       });
     });
     const bestMonth = {}, bestWeek = {};
-    Object.keys(monthSets).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = monthSets[k].size; if (n > (bestMonth[r] || 0)) bestMonth[r] = n; });
-    Object.keys(weekSets).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = weekSets[k].size; if (n > (bestWeek[r] || 0)) bestWeek[r] = n; });
-    const cohort = Object.keys(ytdSets).filter(r => ytdSets[r].size > 0).length;
+    Object.keys(monthCnt).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = monthCnt[k]; if (n > (bestMonth[r] || 0)) bestMonth[r] = n; });
+    Object.keys(weekCnt).forEach(k => { const r = k.slice(0, k.lastIndexOf("|")); const n = weekCnt[k]; if (n > (bestWeek[r] || 0)) bestWeek[r] = n; });
+    const cohort = Object.keys(ytdCnt).filter(r => ytdCnt[r] > 0).length;
     prStatsCache = { bestMonth, bestWeek, cohort };
     return prStatsCache;
   }
