@@ -937,11 +937,11 @@
     content:""; position:absolute; top:0; bottom:0; left:0; width:55%; pointer-events:none;
     background:linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%);
     transform:translateX(-160%) skewX(-18deg);
-    animation:goalShine 6s ease-in-out infinite;
+    animation:goalShine 3s ease-in-out infinite;
   }
   @keyframes goalShine {
     0%   { transform:translateX(-160%) skewX(-18deg); }
-    16%  { transform:translateX(280%) skewX(-18deg); }
+    30%  { transform:translateX(280%) skewX(-18deg); }
     100% { transform:translateX(280%) skewX(-18deg); }
   }
   .rep-goal-label { font-weight:700; color:#0f172a; white-space:nowrap; }
