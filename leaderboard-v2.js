@@ -1799,7 +1799,8 @@
     if (!b.hasEverSold(norm)) return `<span class="rep-bagel-tag bagel-neversold">Hasn't Sold</span>`;
     const count = b.bagels(norm);
     const colored = count > 0 && !b.soldThisWeek(norm); // a sale this week = not cold
-    const cls = (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
+    const cls = count === 0 ? " bagel-sold"             // 0 bagels = sold recently = green
+              : (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
               : (colored && b.bageledLastWeek(norm)) ? " bagel-week" : "";
     return `<span class="rep-bagel-tag${cls}">${count === 1 ? "1 Bagel" : count + " Bagels"}</span>`;
   }
