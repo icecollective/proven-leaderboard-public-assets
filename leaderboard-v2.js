@@ -30,7 +30,6 @@
   
   let allDeals = [];
   let apiMeta = null;
-  let loginGoalStatusData = null; // this rep's goal-status, bundled into the payload
   let previousYearDeals = [];
   let previousYearDetailsMap = new Map();
   let showYoy = false;
@@ -3364,11 +3363,9 @@
   }
 
   // Decide whether to show the goal prompt after the board loads.
-  async function maybePromptGoals() {
+  async function maybePromptGoals(statusPromise) {
     try {
-      // Prefer the status bundled into the payload (no round-trip); fall back to a
-      // direct fetch only if it wasn't present for some reason.
-      const s = loginGoalStatusData || await fetchGoalStatus();
+      const s = await (statusPromise || fetchGoalStatus());
       if (!s || s.authRequired || s.exempt) return;          // not logged in / exempt
       if (!s.needWeek && !s.needMonth && !s.needYear) return; // all set
       showGoalPrompt(s);
@@ -3404,8 +3401,6 @@
       err.authRequired = true;
       throw err;
     }
-
-    loginGoalStatusData = payload.goalStatus || null; // bundled — no extra round-trip
 
     apiMeta = {
       lastUpdated: payload.lastUpdated,
@@ -6118,6 +6113,8 @@
     // Fire the goal-status check up front, in parallel with the payload, so the
     // prompt can appear the moment the board renders instead of waiting on a
     // second serial round-trip after load.
+    // Fetch goal-status in parallel with the payload so the board never waits on it.
+    const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
     try {
       await loadApiData();
       await loadDownlineIfNeeded();
@@ -6125,7 +6122,7 @@
       renderLeaderboard();
       hideLoginOverlay();
       startSessionHeartbeat();
-      maybePromptGoals(); // uses the goal-status bundled into the payload (no extra trip)
+      maybePromptGoals(goalStatusPromise);
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
