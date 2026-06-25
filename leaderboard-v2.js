@@ -3281,6 +3281,16 @@
   function hideLoginOverlay() {
     const o = document.getElementById("pl-login-overlay");
     if (o) o.style.display = "none";
+    scrollPageToTop();
+  }
+
+  // Reset the page to the very top after a modal closes. Focusing the phone/code/
+  // goal inputs makes iOS scroll the page down; blur + scroll-to-0 (plus a follow-up
+  // once the keyboard finishes animating away) puts it fully back at the top.
+  function scrollPageToTop() {
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+    window.scrollTo(0, 0);
+    setTimeout(function () { window.scrollTo(0, 0); }, 350);
   }
 
   // ---- Goal prompt on login -------------------------------------------------
@@ -3357,6 +3367,7 @@
             repGoals[norm] = g;
           }
           o.style.display = "none";
+          scrollPageToTop();
           if (isLeaderboardReady) renderLeaderboard(); // else boot will render once loaded
         }
         else { setMsg((r && r.error) || "Couldn't save. Try again.", true); btn.disabled = false; }
