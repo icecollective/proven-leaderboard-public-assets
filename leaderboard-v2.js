@@ -49,6 +49,7 @@
   let riot2025Names = null;
   let recruitingNames = null;
   let activeSortMode = "tableau"; // "tableau", "internal", or "previousYear"
+  let sortBeforeSelfgen = null;   // sort to restore when leaving the SelfGen view
   let tableauData = {};
   let tableauOffices = {}; // office-level tableau totals: {ytd:{ice,riot,plata},...}
   let tableauMap = new Map();
@@ -3815,9 +3816,12 @@
         // click or turning bagels off changes it).
         if (activeSortMode !== "bagels") {
           if (activeView === "selfgen") {
+            // Remember the sort we had before SelfGen so we can restore it on exit.
+            if (activeSortMode !== "selfGen" && activeSortMode !== "previousYearSelfGen") {
+              sortBeforeSelfgen = activeSortMode;
+            }
             activeSortMode = "selfGen";
-          }
-          if (activeView === "groups") {
+          } else if (activeView === "groups") {
             activeSortMode = "currentContribution";
           }
         }
@@ -3825,6 +3829,18 @@
         // Auto turn Tableau back on when landing in a tableau-capable view
         // (unless intentionally off / blocked by mobile YOY/MOM); off otherwise.
         applyTableauAutoState();
+
+        // Leaving SelfGen for another view: the SelfGen-only sort doesn't apply here.
+        // Restore the sort used before SelfGen; if that's unavailable, fall back to the
+        // Tableau sort (when the Tableau column is shown) else internal CS.
+        if (activeSortMode !== "bagels" && activeView !== "selfgen" &&
+            (activeSortMode === "selfGen" || activeSortMode === "previousYearSelfGen")) {
+          const prior = sortBeforeSelfgen;
+          sortBeforeSelfgen = null;
+          activeSortMode = (prior && prior !== "selfGen" && prior !== "previousYearSelfGen")
+            ? prior
+            : (showTableau ? "tableau" : "currentContribution");
+        }
         if (!showTableau && activeSortMode === "tableau") {
           activeSortMode = "currentContribution";
         }
