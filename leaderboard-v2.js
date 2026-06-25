@@ -3321,6 +3321,24 @@
     const res = await fetch(API_URL + "?action=goalStatus&token=" + encodeURIComponent(getSessionToken()));
     return res.json();
   }
+
+  // Fire-and-forget page-view ping. Throttled to once per device per PST day so it
+  // doesn't spam the log; the server also dedupes once per rep per day. Best-effort:
+  // wrapped so a failure never affects the board.
+  function pacificDateStr() {
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function logPageView() {
+    try {
+      const token = getSessionToken();
+      if (!token) return;
+      const today = pacificDateStr();
+      if (localStorage.getItem("pvViewLogged") === today) return; // already pinged today on this device
+      localStorage.setItem("pvViewLogged", today);
+      fetch(API_URL + "?action=logView&token=" + encodeURIComponent(token)).catch(function () {});
+    } catch (e) { /* never block the board on view logging */ }
+  }
   async function submitGoalsForLogin(vals) {
     const q = Object.keys(vals).map(k => k + "=" + encodeURIComponent(vals[k])).join("&");
     const res = await fetch(API_URL + "?action=submitGoals&token=" + encodeURIComponent(getSessionToken()) + "&" + q);
@@ -6207,6 +6225,7 @@
       hideLoginOverlay();
       startSessionHeartbeat();
       maybePromptGoals(goalStatusPromise);
+      logPageView();
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
