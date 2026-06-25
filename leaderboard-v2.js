@@ -4229,9 +4229,10 @@
   // Add org-tree reps who haven't sold yet (no internal CS, usually no Tableau),
   // so they still appear on the board with 0s. Reps already shown (any sale) are
   // skipped; intentionally-removed reps stay hidden via HIDDEN_REPS. General view
-  // only (like addTableauRecruitingRepsToRows).
+  // shows them in the list; Groups view needs them in `rows` so the group drill
+  // (which filters rows by downline) includes them too.
   function addOrgTreeRepsToRows(rows) {
-    if (activeView !== "general") return rows;
+    if (activeView !== "general" && activeView !== "groups") return rows;
 
     const existing = new Set(rows.map(row => normalizeName(row.name)));
 
