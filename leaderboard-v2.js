@@ -671,6 +671,18 @@
     const t = getTableauRowForDateMode(normalizeName(row && row.name), key);
     return t ? (Number(t.sra) || 0) : 0;
   }
+  // Plata "bagel" estimate from weekly Tableau SRA (lower bound, shown as "≥N").
+  function plataBagelInfo(norm) {
+    const w = getTableauRowForDateMode(norm, "wtd");
+    const l = getTableauRowForDateMode(norm, "lastWeek");
+    const soldThisWeek = !!(w && (Number(w.sra) || 0) > 0);
+    const soldLastWeek = !!(l && (Number(l.sra) || 0) > 0);
+    return {
+      count: getBagelData().plataBagels(soldThisWeek, soldLastWeek),
+      cold: !soldThisWeek && !soldLastWeek, // no SRA this week or last -> yellow
+      soldThisWeek: soldThisWeek
+    };
+  }
 
   function isGroupDrillDownView() {
     return activeView === "groups" && (!!activeGroupDrillLeader || activeInactiveDrill);
@@ -1153,8 +1165,15 @@
     let target = null, current = 0, label = "";
     if (activeDateMode === "wtd") {
       target = goal.weeklyCs;
-      label = "CS";
-      current = Number(row && row.cs) || 0; // internal CS for the active (WTD) range
+      if (isPlataRep(norm)) {
+        // Plata has no internal CS — measure the weekly goal against Tableau SRA.
+        label = "SRA";
+        const trow = getTableauRowForDateMode(norm, "wtd");
+        current = trow ? (Number(trow.sra) || 0) : 0;
+      } else {
+        label = "CS";
+        current = Number(row && row.cs) || 0; // internal CS for the active (WTD) range
+      }
     } else if (activeDateMode === "mtd" || activeDateMode === "ytd") {
       target = activeDateMode === "mtd" ? goal.monthly : goal.yearly;
       const metric = (goal.metric || "SRA").toLowerCase(); // sra | cap | cs
@@ -1731,6 +1750,14 @@
     });
 
     const earliestNum = dayNum(earliest);
+    // Completed weekdays so far this week (Mon..yesterday, excluding Sundays) —
+    // used for the Plata lower-bound estimate.
+    const mondayNum = dayNum(formatDate(getMondayOfWeek(new Date(todayStr + "T12:00:00"))));
+    const completedThisWeek = (() => {
+      const lo = mondayNum, hi = todayNum - 1;
+      if (hi < lo) return 0;
+      return Math.max(0, (hi - lo + 1) - countSundays(lo, hi));
+    })();
     bagelDataCache = {
       bagels(norm) {
         const d = lastDate.get(norm);
@@ -1742,7 +1769,14 @@
       bageledLastWeek(norm) { return !inLastWeek.has(norm); },
       bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); },
       soldThisWeek(norm) { return inThisWeek.has(norm); }, // a sale this week clears the cold flag
-      hasEverSold(norm) { return lastDate.has(norm); } // any credited deal this year
+      hasEverSold(norm) { return lastDate.has(norm); }, // any credited deal this year
+      // Plata lower-bound bagel estimate (no daily data, only weekly Tableau SRA):
+      // sold this week -> 0; else 6 (full prior week) only if they also didn't
+      // sell last week, plus the weekdays completed so far this week.
+      plataBagels(soldThisWeek, soldLastWeek) {
+        if (soldThisWeek) return 0;
+        return (soldLastWeek ? 0 : 6) + completedThisWeek;
+      }
     };
     return bagelDataCache;
   }
@@ -1753,7 +1787,13 @@
   function bagelTagHtmlForName(name) {
     if (!bagelsOn) return "";
     const norm = normalizeName(name);
-    if (!norm || isPlataRep(norm) || getInactiveSet().has(norm)) return "";
+    if (!norm || getInactiveSet().has(norm)) return "";
+    // Plata: lower-bound estimate from weekly Tableau SRA ("≥N Bagels", yellow when cold).
+    if (isPlataRep(norm)) {
+      const info = plataBagelInfo(norm);
+      if (info.soldThisWeek) return `<span class="rep-bagel-tag">0 Bagels</span>`;
+      return `<span class="rep-bagel-tag${info.cold ? " bagel-week" : ""}">&ge;${info.count} Bagels</span>`;
+    }
     const b = getBagelData();
     // Never sold this year -> "Hasn't Sold" (red), ranked as the most bagels.
     if (!b.hasEverSold(norm)) return `<span class="rep-bagel-tag bagel-neversold">Hasn't Sold</span>`;
@@ -1804,7 +1844,11 @@
   // ("not included") — they carry no bagel data, only sort to the bottom.
   function getRowBagels(row) {
     const norm = normalizeName(row && row.name);
-    if (!norm || isPlataRep(norm) || row.isPlataOnly || isRowInactive(row)) return null;
+    if (!norm || isRowInactive(row)) return null;
+    if (isPlataRep(norm) || row.isPlataOnly) {
+      const info = plataBagelInfo(norm);
+      return { count: info.count, plata: true, neverSold: false, lastWeek: info.cold, twoWeeks: false };
+    }
     const b = getBagelData();
     const soldThisWeek = b.soldThisWeek(norm);
     return {
@@ -1846,8 +1890,7 @@
   // ties -> Internal CS, SRA, CAP, IC, Name. Plata and (when shown) inactive reps
   // sink to the bottom, ordered among themselves by the same tie-breakers.
   function bagelBottomRank(row) {
-    const norm = normalizeName(row && row.name);
-    if (isPlataRep(norm) || row.isPlataOnly) return 2;
+    // Plata now ranks with everyone (by their ≥N estimate), not pinned to the bottom.
     if (showInactive && isRowInactive(row)) return 1;
     return 0;
   }
@@ -1860,7 +1903,10 @@
     const bagelScore = r => {
       const g = getRowBagels(r);
       if (!g) return 0;
-      return g.neverSold ? Infinity : (g.count || 0);
+      if (g.neverSold) return Infinity;
+      // Plata is a lower bound ("≥N") — rank just above an Ice/Riot rep with exactly N.
+      if (g.plata) return (g.count || 0) + 0.5;
+      return g.count || 0;
     };
     const ba = ra === 0 ? bagelScore(a) : -1;
     const bb = rb === 0 ? bagelScore(b) : -1;
@@ -2355,8 +2401,8 @@
         ${repCardPeriodTile(periods.ytd, isPlata, isExpert)}
         ${repCardPeriodTile(periods.mtd, isPlata, isExpert)}
         ${repCardPeriodTile(periods.wtd, isPlata, isExpert)}
-        ${repCardPrTile("PR Month CS", isPlata ? "na" : data.bestMonth.cs, isExpert ? data.bestMonth : null, isPlata ? "" : repPrSub(profile.name, "month"))}
-        ${repCardPrTile("PR Week CS", isPlata ? "na" : data.bestWeek.cs, isExpert ? data.bestWeek : null, isPlata ? "" : repPrSub(profile.name, "week"))}
+        ${repCardPrTile("PR Month CS", isPlata ? "—" : data.bestMonth.cs, isExpert ? data.bestMonth : null, isPlata ? "No Internal Data" : repPrSub(profile.name, "month"))}
+        ${repCardPrTile("PR Week CS", isPlata ? "—" : data.bestWeek.cs, isExpert ? data.bestWeek : null, isPlata ? "No Internal Data" : repPrSub(profile.name, "week"))}
         ${ytdCsRankHtml}
         ${repCardRankTile("YTD SRA Rank", data.ytdSraRank, "SRA", data.ytdSraValue)}
         ${repCardRankTile("YTD CAP Rank", data.ytdCapRank, "CAP", data.ytdCapValue)}
