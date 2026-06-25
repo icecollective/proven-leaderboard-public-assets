@@ -1581,6 +1581,7 @@
     const todayNum = dayNum(todayStr);
     const lastWeek = getDateRange("lastWeek");        // most recent completed Mon–Sun
     const twoStart = addDays(lastWeek.start, -7);      // start of the week before that
+    const thisWeek = getDateRange("wtd");             // current (in-progress) Mon–today
 
     // Sunday detection by day-index residue (derived, TZ-safe).
     const todayDow = new Date(todayNum * 86400000).getUTCDay();
@@ -1595,6 +1596,7 @@
     const lastDate = new Map();        // norm -> latest credited-deal date string
     const inLastWeek = new Set();      // had a credited deal in the last completed week
     const inTwoWeeks = new Set();      // ...in either of the last two completed weeks
+    const inThisWeek = new Set();      // ...in the current (in-progress) week
     let earliest = todayStr;
 
     allDeals.forEach(d => {
@@ -1612,6 +1614,7 @@
         if (!cur || date > cur) lastDate.set(norm, date);
         if (date >= lastWeek.start && date <= lastWeek.end) inLastWeek.add(norm);
         if (date >= twoStart && date <= lastWeek.end) inTwoWeeks.add(norm);
+        if (date >= thisWeek.start && date <= thisWeek.end) inThisWeek.add(norm);
       });
     });
 
@@ -1626,6 +1629,7 @@
       },
       bageledLastWeek(norm) { return !inLastWeek.has(norm); },
       bageledTwoWeeks(norm) { return !inTwoWeeks.has(norm); },
+      soldThisWeek(norm) { return inThisWeek.has(norm); }, // a sale this week clears the cold flag
       hasEverSold(norm) { return lastDate.has(norm); } // any credited deal this year
     };
     return bagelDataCache;
@@ -1642,7 +1646,7 @@
     // Never sold this year -> "Hasn't Sold" (red), ranked as the most bagels.
     if (!b.hasEverSold(norm)) return `<span class="rep-bagel-tag bagel-neversold">Hasn't Sold</span>`;
     const count = b.bagels(norm);
-    const colored = count > 0;
+    const colored = count > 0 && !b.soldThisWeek(norm); // a sale this week = not cold
     const cls = (colored && b.bageledTwoWeeks(norm)) ? " bagel-2week"
               : (colored && b.bageledLastWeek(norm)) ? " bagel-week" : "";
     return `<span class="rep-bagel-tag${cls}">${count === 1 ? "1 Bagel" : count + " Bagels"}</span>`;
@@ -1690,11 +1694,13 @@
     const norm = normalizeName(row && row.name);
     if (!norm || isPlataRep(norm) || row.isPlataOnly || isRowInactive(row)) return null;
     const b = getBagelData();
+    const soldThisWeek = b.soldThisWeek(norm);
     return {
       count: b.bagels(norm),
       neverSold: !b.hasEverSold(norm),
-      lastWeek: b.bageledLastWeek(norm),
-      twoWeeks: b.bageledTwoWeeks(norm)
+      // A sale this week means they're not "cold" — clear the yellow/red flags.
+      lastWeek: b.bageledLastWeek(norm) && !soldThisWeek,
+      twoWeeks: b.bageledTwoWeeks(norm) && !soldThisWeek
     };
   }
 
