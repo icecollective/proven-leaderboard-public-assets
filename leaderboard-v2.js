@@ -526,7 +526,48 @@
   function finishLeaderboardRender() {
     updateBagelButtonState();
     updateMexicoUI();
+    applyExclusiveToggleStates();
     requestAnimationFrame(updateLeaderboardStickyOffsets);
+  }
+
+  // Mutual exclusion between the comparison toggles (YOY/MOM/COC) and the
+  // Bagels/Mexico skins — neither pair can be on together. Also, when ONLY Plata
+  // is selected, fade the views (Groups/SelfGen) and date modes (Today/Custom)
+  // that Plata's Tableau data can't drive. Runs every render after the other
+  // button-state updates so it has the final say on disabled state.
+  function applyExclusiveToggleStates() {
+    const cmpActive = isComparisonMode();          // YOY / MOM / COC on
+    const bmActive = bagelsOn || mexicoOn;         // Bagels / Mexico skin on
+
+    // Comparison on -> fade Bagels + Mexico.
+    [document.getElementById("bagel-toggle"), document.getElementById("mexico-toggle")]
+      .forEach(btn => {
+        if (!btn) return;
+        btn.disabled = cmpActive;
+        btn.classList.toggle("disabled", cmpActive);
+      });
+
+    // Bagels/Mexico on -> fade YOY + MOM (and COC, on top of its own range gate).
+    const yoyBtn = document.getElementById("yoy-toggle");
+    const momBtn = document.getElementById("mom-toggle");
+    const cocBtn = document.getElementById("coc-toggle");
+    if (yoyBtn) { yoyBtn.disabled = bmActive; yoyBtn.classList.toggle("disabled", bmActive); }
+    if (momBtn) { momBtn.disabled = bmActive; momBtn.classList.toggle("disabled", bmActive); }
+    if (cocBtn && bmActive) { cocBtn.disabled = true; cocBtn.classList.add("disabled"); }
+
+    // Only Plata selected -> Groups/SelfGen views and Today/Custom dates are unusable.
+    const onlyPlata = isOnlyPlataOfficeSelected();
+    const fadeByLabel = (containerId, labels) => {
+      const c = document.getElementById(containerId);
+      if (!c) return;
+      Array.prototype.slice.call(c.querySelectorAll("button")).forEach(b => {
+        if (labels.indexOf(b.textContent.trim()) === -1) return;
+        b.disabled = onlyPlata;
+        b.classList.toggle("mexico-faded", onlyPlata);
+      });
+    };
+    fadeByLabel("view-tabs", ["Groups", "SelfGen"]);
+    fadeByLabel("date-tabs", ["Today", "Custom"]);
   }
 
   function updateLeaderboardMeta(filteredDealsCount) {
@@ -740,7 +781,12 @@
   }
 
   function canUsePlataToggle() {
-    return activeView === "general" && canShowTableauButton();
+    // Plata works on General, Setters, Experts (we know who's an Expert from the
+    // Tableau Experts list). NOT Groups/group drills, NOT SelfGen, and not while a
+    // comparison (YOY/MOM/COC) is on — Tableau data has no prior-period column.
+    return ["general", "setters", "experts"].includes(activeView) &&
+      canShowTableauButton() &&
+      !isComparisonMode();
   }
 
   function wouldHaveActiveOfficeAfterToggle(officeId, turningOn) {
@@ -1791,8 +1837,8 @@
     // Plata: lower-bound estimate from weekly Tableau SRA ("≥N Bagels", yellow when cold).
     if (isPlataRep(norm)) {
       const info = plataBagelInfo(norm);
-      if (info.soldThisWeek) return `<span class="rep-bagel-tag bagel-sold">Sold this week</span>`;
-      return `<span class="rep-bagel-tag${info.cold ? " bagel-week" : ""}">&ge;${info.count} Bagels</span>`;
+      if (info.soldThisWeek) return `<span class="rep-bagel-tag bagel-sold">Sold</span>`;
+      return `<span class="rep-bagel-tag${info.cold ? " bagel-week" : ""}">&ge; ${info.count} Bagels</span>`;
     }
     const b = getBagelData();
     // Never sold this year -> "Hasn't Sold" (red), ranked as the most bagels.
@@ -1905,7 +1951,9 @@
       const g = getRowBagels(r);
       if (!g) return 0;
       if (g.neverSold) return Infinity;
-      // Plata is a lower bound ("≥N") — rank just above an Ice/Riot rep with exactly N.
+      // Plata "Sold" (sold this week -> estimate 0) ranks just BELOW a 0-bagel rep.
+      if (g.plata && (g.count || 0) === 0) return -0.5;
+      // Plata estimate is a lower bound ("≥N") — rank just above an Ice/Riot rep with exactly N.
       if (g.plata) return (g.count || 0) + 0.5;
       return g.count || 0;
     };
@@ -1969,6 +2017,7 @@
     mexicoReturn = captureViewState();
     mexicoOn = true;
     bagelsOn = false;                // Mexico is its own skin
+    showYoy = false; showMom = false; showCoc = false; // comparison can't share the Mexico skin
     activeDateMode = "ytd";          // Mexico is ALWAYS YTD (installs vs 35/15), ignore the time filter
     if (activeView === "selfgen") activeView = "general"; // SelfGen isn't a Mexico view
     activeSortMode = "currentContribution"; // default Mexico sort = qualifying %, not name
@@ -1977,8 +2026,18 @@
     updateBagelButtonState();
     updateMexicoUI();
     renderLeaderboard();
+    scrollLeaderboardToTop();   // re-show the top selectors when entering Mexico
     // Preload the Second System form in the background so the modal opens instantly.
     try { ensureSecondSystemOverlay(); } catch (e) {}
+  }
+
+  // Scroll the page so the leaderboard's top selectors are fully in view again.
+  function scrollLeaderboardToTop() {
+    var anchor = document.getElementById("pv-topbar") || document.getElementById("leaderboard-app");
+    if (!anchor) return;
+    var y = (window.pageYOffset || document.documentElement.scrollTop || 0);
+    var top = anchor.getBoundingClientRect().top + y;
+    window.scrollTo({ top: Math.max(0, top - 8), behavior: "smooth" });
   }
   // Mexico Rep toggle: name <-> qualifying-% sort.
   function toggleMexicoNameSort() {
@@ -4649,16 +4708,20 @@
     `;
   }
 
-  function buildUniqueTotalCell(value, comparisonPct = null, leftNotes = null) {
+  function buildUniqueTotalCell(value, comparisonPct = null, leftNotes = null, showExclPlata = false) {
     const leftBase = leftNotes && leftNotes.length
       ? `<div class="cs-notes-stack">${leftNotes.join("")}</div>`
       : `<div class="cs-notes-stack"></div>`;
     const leftHtml = injectPctIntoStack(leftBase, comparisonPct);
+    // Tiny note under the number: this internal total leaves out Plata SRAs.
+    // Absolutely positioned so it doesn't shift the centered total.
+    const exclNote = showExclPlata ? `<span class="cs-excl-plata">Excl. Plata</span>` : "";
 
     return `
       <div class="cs-cell">
         ${leftHtml}
         <span class="cs-main">${value}</span>
+        ${exclNote}
       </div>
     `;
   }
@@ -5901,6 +5964,9 @@
       const uniqueTotalComparisonPct = comparisonActive
         ? getComparisonPercent(totalUniqueCs, totalPreviousUniqueCs)
         : null;
+      // Show "Excl. Plata" under the total only when Plata SRAs are actually on the
+      // board (Plata rows present with an SRA) — they're left out of this total.
+      const showExclPlata = rows.some(r => r.isPlataOnly && getRowDisplayCs(r) > 0);
 
       bodyRows.push(`
         <div class="leaderboard-row total-row" style="grid-template-columns:${cols};">
@@ -5910,12 +5976,14 @@
           ? buildUniqueTotalCell(
             totalUniqueCs,
             uniqueTotalComparisonPct,
-            expertTotalNotes
+            expertTotalNotes,
+            showExclPlata
           )
           : buildUniqueTotalCell(
             currentTotalValue,
             totalComparisonPct,
-            buildCurrentTotalNotesForView(rows, currentCreditTotals)
+            buildCurrentTotalNotesForView(rows, currentCreditTotals),
+            showExclPlata
           )}</div>
          ${comparisonActive ? `<div>${useUniqueCsTotals
           ? buildUniqueTotalCell(

@@ -42,6 +42,18 @@
     opacity:0.45;
     cursor:not-allowed;
   }
+
+  /* Mutual exclusion: faded comparison toggles (YOY/MOM/COC) and Bagels/Mexico,
+     plus view/date buttons faded when only Plata is selected. */
+  #yoy-toggle.disabled, #yoy-toggle:disabled,
+  #mom-toggle.disabled, #mom-toggle:disabled,
+  #coc-toggle.disabled, #coc-toggle:disabled,
+  .bagel-toggle.disabled, .bagel-toggle:disabled {
+    opacity:0.4;
+    cursor:not-allowed;
+    pointer-events:none;
+  }
+  #date-tabs button.mexico-faded { opacity:.4; pointer-events:none; }
   
   #custom-date-wrapper input {
     padding:8px;
@@ -169,6 +181,21 @@
     font-weight:400;
     text-align:center;
     color:#9ca3af;
+  }
+
+  /* "Excl. Plata" — tiny note under the total number. Absolutely positioned so it
+     never shifts the vertical centering of the total. Smaller than .cs-note-left. */
+  .cs-excl-plata {
+    position:absolute;
+    left:50%;
+    top:calc(50% + 11px);
+    transform:translateX(-50%);
+    font-size:7px;
+    line-height:1;
+    font-weight:600;
+    color:#94a3b8;
+    white-space:nowrap;
+    pointer-events:none;
   }
   
   .cs-notes-right {
