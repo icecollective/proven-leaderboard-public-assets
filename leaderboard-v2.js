@@ -2090,6 +2090,10 @@
     const panel = document.getElementById("mexico-panel");
     const back = document.getElementById("mexico-back");
     if (dateTabs) dateTabs.style.display = mexicoOn ? "none" : "";
+    // The Custom date inputs live in a separate element — hide them under Mexico
+    // (Mexico is always YTD), and re-show only if we're back on the Custom tab.
+    const customWrap = document.getElementById("custom-date-wrapper");
+    if (customWrap) customWrap.style.display = (!mexicoOn && activeDateMode === "custom") ? "flex" : "none";
     if (panel) panel.style.display = mexicoOn ? "flex" : "none";
     // Hide the Mexico Back button inside a group/inactive drill — that view's own
     // "← Back" is the single exit; you land back in Groups (still Mexico) where the
