@@ -539,13 +539,15 @@
     const cmpActive = isComparisonMode();          // YOY / MOM / COC on
     const bmActive = bagelsOn || mexicoOn;         // Bagels / Mexico skin on
     const onlyPlata = isOnlyPlataOfficeSelected(); // only the Plata office selected
+    const inInactiveDrill = activeView === "groups" && activeInactiveDrill;
 
-    // Comparison on -> fade Bagels + Mexico.
+    // Comparison on OR in the Inactive Reps drill -> fade Bagels + Mexico.
+    const fadeBM = cmpActive || inInactiveDrill;
     [document.getElementById("bagel-toggle"), document.getElementById("mexico-toggle")]
       .forEach(btn => {
         if (!btn) return;
-        btn.disabled = cmpActive;
-        btn.classList.toggle("disabled", cmpActive);
+        btn.disabled = fadeBM;
+        btn.classList.toggle("disabled", fadeBM);
       });
 
     // Bagels/Mexico on OR only Plata selected -> fade YOY + MOM (+ COC, on top of its
@@ -558,18 +560,28 @@
     if (momBtn) { momBtn.disabled = fadeCmp; momBtn.classList.toggle("disabled", fadeCmp); }
     if (cocBtn && fadeCmp) { cocBtn.disabled = true; cocBtn.classList.add("disabled"); }
 
-    // Only Plata selected -> Groups/SelfGen views and Today/Custom dates are unusable.
-    const fadeByLabel = (containerId, labels) => {
+    // Per-button fade by a predicate(label) -> boolean.
+    const fadeBy = (containerId, shouldFade) => {
       const c = document.getElementById(containerId);
       if (!c) return;
       Array.prototype.slice.call(c.querySelectorAll("button")).forEach(b => {
-        if (labels.indexOf(b.textContent.trim()) === -1) return;
-        b.disabled = onlyPlata;
-        b.classList.toggle("mexico-faded", onlyPlata);
+        const label = b.textContent.trim();
+        const fade = shouldFade(label);
+        if (fade === null) return; // not a button we manage
+        b.disabled = fade;
+        b.classList.toggle("mexico-faded", fade);
       });
     };
-    fadeByLabel("view-tabs", ["Groups", "SelfGen"]);
-    fadeByLabel("date-tabs", ["Today", "Custom"]);
+    // Only Plata -> Groups/SelfGen views unusable.
+    fadeBy("view-tabs", label =>
+      (label === "Groups" || label === "SelfGen") ? onlyPlata : null);
+    // Only Plata -> Today/Custom faded; Inactive drill -> Today/WTD faded.
+    fadeBy("date-tabs", label => {
+      if (label === "Today") return onlyPlata || inInactiveDrill;
+      if (label === "Custom") return onlyPlata;
+      if (label === "WTD") return inInactiveDrill;
+      return null;
+    });
   }
 
   function updateLeaderboardMeta(filteredDealsCount) {
@@ -4619,6 +4631,21 @@
     return rows;
   }
 
+  // Plata reps belong to no group, so the only group drill they appear in is the
+  // whole-team "Inactive Reps" drill — and only the INACTIVE ones (active Plata
+  // show on the main board). Caller gates on date mode (not Custom/YOY/MOM).
+  function addInactivePlataRows(rows) {
+    const existing = new Set(rows.map(r => normalizeName(r.name)));
+    const inactive = getInactiveSet();
+    tableauMap.forEach((tableauRow, norm) => {
+      if (HIDDEN_REPS.has(norm) || existing.has(norm) || !isPlataRep(norm)) return;
+      if (!hasTableauRowData(tableauRow) || !inactive.has(norm)) return;
+      existing.add(norm);
+      rows.push({ ...buildEmptyInternalRow(tableauRow.name, tableauRow), isPlataOnly: true });
+    });
+    return rows;
+  }
+
   function getCreditTotalsFromDeals(deals, rows, year = "current") {
     const visibleNames = new Set(rows.map(row => normalizeName(row.name)));
 
@@ -5248,6 +5275,12 @@
       let drillRows = inactiveDrillDownline
         ? rows.filter(isRowInactive)
         : getInactiveDisplayRows(rows);
+      // Plata reps show only in the whole-team Inactive drill, on a real Tableau
+      // period (not Today/Custom) and not while a comparison (YOY/MOM/COC) is active.
+      if (!inactiveDrillLeader && !isComparisonMode() &&
+          ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
+        drillRows = addInactivePlataRows(drillRows);
+      }
       if (groupsRepType !== "general") drillRows = drillRows.filter(rowMatchesActiveView);
       if (inactiveDrillDownline) {
         const leaderN = normalizeName(inactiveDrillLeader);
@@ -5349,7 +5382,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : getCurrentComparisonLabel("CS"))}
+      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
   </div>
         ${useGroupsComparison ? `
@@ -5478,7 +5511,7 @@
     <button
       class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
-      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : getCurrentComparisonLabel("CS"))}
+      ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
   </div>
         ${useGroupsComparison ? `
