@@ -849,6 +849,13 @@
     font-size:11px; color:#b45309; font-weight:600; text-align:center;
     background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:7px 12px; line-height:1.4;
   }
+  #mexico-panel .mexico-disclaimer .mexico-ss-link {
+    color:#b45309; font-weight:800; text-decoration:underline; cursor:pointer;
+  }
+  /* Mexico install count + "N Second Systems" stacked, centered against the title */
+  .rep-row-sub.mex-sub-ss { display:flex; align-items:center; gap:6px; }
+  .rep-row-sub.mex-sub-ss .mex-inst-stack { display:flex; flex-direction:column; line-height:1.2; }
+  .rep-row-sub.mex-sub-ss .mex-ss-note { font-size:9px; font-weight:700; color:#b45309; white-space:nowrap; }
   .mexico-col-head {
     display:flex; align-items:center; justify-content:center;
     font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.07em;
@@ -1251,24 +1258,24 @@
     font-family:'Inter',system-ui,sans-serif; transition:color .15s, border-color .15s;
   }
   #pv-help-btn:hover { color:#475569; border-color:rgba(15,23,42,.4); }
-  #pv-help-overlay {
+  .pv-frame-modal {
     position:fixed; inset:0; z-index:10000; display:none;
     align-items:center; justify-content:center; padding:18px;
     background:rgba(15,23,42,.55); font-family:'Inter',system-ui,sans-serif;
   }
-  #pv-help-overlay .pv-help-card {
+  .pv-frame-modal .pv-help-card {
     position:relative; width:100%; max-width:420px; height:80vh; max-height:640px;
     background:#fff; border-radius:18px; overflow:hidden;
     box-shadow:0 24px 60px rgba(0,0,0,.35);
   }
-  #pv-help-overlay .pv-help-close {
+  .pv-frame-modal .pv-help-close {
     position:absolute; top:8px; right:10px; z-index:2; width:28px; height:28px;
     border:none; border-radius:50%; background:rgba(15,23,42,.06); color:#475569;
     font-size:20px; line-height:1; cursor:pointer;
   }
-  #pv-help-overlay .pv-help-close:hover { background:rgba(15,23,42,.12); }
-  #pv-help-overlay .pv-help-frame { width:100%; height:100%; border:0; display:block; position:relative; z-index:1; }
-  #pv-help-overlay .pv-help-spin {
+  .pv-frame-modal .pv-help-close:hover { background:rgba(15,23,42,.12); }
+  .pv-frame-modal .pv-help-frame { width:100%; height:100%; border:0; display:block; position:relative; z-index:1; }
+  .pv-frame-modal .pv-help-spin {
     position:absolute; top:50%; left:50%; width:26px; height:26px; margin:-13px 0 0 -13px; z-index:0;
     border:3px solid #e2e8f0; border-top-color:#0f172a; border-radius:50%;
     animation:pvHelpSpin .8s linear infinite;

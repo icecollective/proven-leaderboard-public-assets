@@ -65,6 +65,7 @@
   let mexicoOn = false;            // "Mexico" incentive-trip skin (YTD installs vs 35/15 thresholds)
   let mexicoReturn = null;         // captured view state to restore on the Mexico Back button
   let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
+  let secondSystemsByName = new Map(); // normalized name -> # approved Second Systems (reporter + named party)
   let activePreviousYearDownlineNames = null;
   let previousMonthDetailsMap = new Map();
   let momDateRanges = null;
@@ -1030,11 +1031,20 @@
       const norm = normalizeName(displayName);
       const inst = mexicoInstalls(norm);
       const req = mexicoRequired(norm);
+      const ss = mexicoSecondSystems(norm);
       const pct = Math.max(0, Math.min(100, Math.round((inst / req) * 100)));
       const done = inst >= req;
       const mSub = mexicoRoleOffice(displayName);
       const goalLabel = `<span class="rep-goal-label">${inst}<span>/${req} Installs</span></span>`;
-      const subLine = `<div class="rep-row-sub">${mSub ? escapeHtml(mSub) + " · " : ""}${goalLabel}</div>`;
+      let subLine;
+      if (ss > 0) {
+        // Install count gets a "N Second Systems" line under it; the stack is
+        // vertically centered against the office/title.
+        const ssLabel = `<span class="mex-ss-note">${ss} Second System${ss === 1 ? "" : "s"}</span>`;
+        subLine = `<div class="rep-row-sub mex-sub-ss">${mSub ? `<span class="mex-role">${escapeHtml(mSub)}</span>` : ""}<span class="mex-inst-stack">${goalLabel}${ssLabel}</span></div>`;
+      } else {
+        subLine = `<div class="rep-row-sub">${mSub ? escapeHtml(mSub) + " · " : ""}${goalLabel}</div>`;
+      }
       const bar = `<div class="rep-goal-track"><div class="rep-goal-fill${done ? " done" : ""}" style="width:${pct}%"></div></div>`;
       return `<div class="rep-name-cell has-goal">${nameEl}${subLine}${bar}</div>`;
     }
@@ -1808,7 +1818,11 @@
     const t = getTableauRowForDateMode(norm, "ytd") || {};
     return { ic: Number(t.ic) || 0, sra: Number(t.sra) || 0, cap: Number(t.cap) || 0 };
   }
-  function mexicoInstalls(norm) { return mexicoTableau(norm).ic; }
+  function mexicoSecondSystems(norm) { return secondSystemsByName.get(norm) || 0; }
+  // Installs NET of approved Second Systems (Tableau double-counts those).
+  function mexicoInstalls(norm) {
+    return Math.max(0, mexicoTableau(norm).ic - mexicoSecondSystems(norm));
+  }
   function mexicoProgress(norm) {
     const req = mexicoRequired(norm);
     return req > 0 ? mexicoInstalls(norm) / req : 0;
@@ -3196,6 +3210,15 @@
       (Array.isArray(payload.tableauExperts) ? payload.tableauExperts : [])
         .map(n => normalizeName(n)).filter(Boolean)
     );
+    // Approved Second Systems: count 1 against the reporter AND the named
+    // setter/expert (each inflated Tableau install gets deducted from both).
+    secondSystemsByName = new Map();
+    (Array.isArray(payload.secondSystems) ? payload.secondSystems : []).forEach(ss => {
+      [ss && ss.reporter, ss && ss.otherParty].forEach(nm => {
+        const norm = normalizeName(nm);
+        if (norm) secondSystemsByName.set(norm, (secondSystemsByName.get(norm) || 0) + 1);
+      });
+    });
     prStatsCache = null;
     inactiveSetCache = null;
     everClosedCache = null;
@@ -3762,6 +3785,7 @@
     } catch (e) {}
     ov = document.createElement("div");
     ov.id = "pv-help-overlay";
+    ov.className = "pv-frame-modal";
     ov.innerHTML =
       '<div class="pv-help-card">' +
         '<button class="pv-help-close" type="button" aria-label="Close">&times;</button>' +
@@ -3782,6 +3806,30 @@
   // Build + start loading the iframe in the background (stays hidden) so the
   // modal is instant when the rep actually taps "?".
   function preloadHelpModal() { ensureHelpOverlay(); }
+
+  // Second System report modal (opened from the Mexico disclaimer link).
+  function ensureSecondSystemOverlay() {
+    var ov = document.getElementById("pv-ss-overlay");
+    if (ov) return ov;
+    ov = document.createElement("div");
+    ov.id = "pv-ss-overlay";
+    ov.className = "pv-frame-modal";
+    ov.innerHTML =
+      '<div class="pv-help-card">' +
+        '<button class="pv-help-close" type="button" aria-label="Close">&times;</button>' +
+        '<div class="pv-help-spin" id="pv-ss-spin"></div>' +
+        '<iframe class="pv-help-frame" title="Report a Second System"></iframe>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.style.display = "none"; });
+    ov.querySelector(".pv-help-close").addEventListener("click", function () { ov.style.display = "none"; });
+    var frame = ov.querySelector(".pv-help-frame");
+    frame.addEventListener("load", function () { var s = document.getElementById("pv-ss-spin"); if (s) s.style.display = "none"; });
+    frame.src = API_URL + "?page=secondsystem";
+    return ov;
+  }
+  function openSecondSystemModal() { ensureSecondSystemOverlay().style.display = "flex"; }
+  window.openSecondSystemModal = openSecondSystemModal;
 
   // One-time DOM reshuffle to match the Proven design: All Offices button,
   // Tableau as a top-right corner toggle, and the date controls as a T-island
@@ -3886,8 +3934,11 @@
       mexPanel.innerHTML =
         '<img class="mexico-img" src="' + MEXICO_IMG_URL + '" alt="The Block Trip — Cabo San Lucas, Mexico">' +
         '<div class="mexico-disclaimer">This Tableau data does not account for Second Systems. ' +
-        'If you know you have a Second System, self-deduct it or request that it be accounted for.</div>';
+        'If you know you have a Second System, self-deduct it or ' +
+        '<a href="#" class="mexico-ss-link">request that it be accounted for.</a></div>';
       dateTabs.parentNode.insertBefore(mexPanel, dateTabs.nextSibling);
+      var ssLink = mexPanel.querySelector(".mexico-ss-link");
+      if (ssLink) ssLink.addEventListener("click", function (e) { e.preventDefault(); openSecondSystemModal(); });
     }
 
     // Mexico "Back" button to the LEFT of the office selectors.
