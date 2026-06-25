@@ -4161,9 +4161,9 @@
       var refreshBtn = document.createElement("button");
       refreshBtn.id = "pv-refresh-btn";
       refreshBtn.type = "button";
-      // Inline SVG (stroke = currentColor) so it's the EXACT same grey as the "?"
-      // and never gets emoji-colored by the browser.
-      refreshBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+      // U+21BB + U+FE0E (text-presentation selector) so the browser renders it as a
+      // monochrome glyph in our grey, not as a colored emoji.
+      refreshBtn.textContent = "↻︎";
       refreshBtn.setAttribute("aria-label", "Refresh data");
       refreshBtn.addEventListener("click", refreshData);
 
@@ -6259,7 +6259,7 @@
       if (e && e.authRequired) showLoginOverlay();
     } finally {
       isRefreshing = false;
-      if (btn) btn.classList.remove("pv-spinning");
+      if (btn) { btn.classList.remove("pv-spinning"); btn.blur(); } // drop focus so it isn't "stuck selected" on mobile
     }
   }
 

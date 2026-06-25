@@ -1302,9 +1302,13 @@
     width:20px; height:20px; padding:0; margin:4px 0 0 0; border-radius:50%;
     display:inline-flex; align-items:center; justify-content:center;
     border:1px solid rgba(15,23,42,.22); background:transparent; color:#94a3b8;
-    cursor:pointer; transition:color .15s, border-color .15s;
+    font-size:13px; line-height:1; cursor:pointer; transition:color .15s, border-color .15s;
+    -webkit-tap-highlight-color:transparent; outline:none;
   }
-  #pv-refresh-btn:hover { color:#475569; border-color:rgba(15,23,42,.4); }
+  /* Only color on real hover (desktop) — avoids the "stuck selected" look on mobile
+     where :hover sticks after a tap. Reset focus so it doesn't read as selected. */
+  @media (hover:hover) { #pv-refresh-btn:hover { color:#475569; border-color:rgba(15,23,42,.4); } }
+  #pv-refresh-btn:focus, #pv-refresh-btn:focus-visible { outline:none; color:#94a3b8; border-color:rgba(15,23,42,.22); }
   #pv-refresh-btn.pv-spinning { animation:pv-spin .7s linear infinite; pointer-events:none; }
   @keyframes pv-spin { to { transform:rotate(360deg); } }
   .pv-frame-modal {
