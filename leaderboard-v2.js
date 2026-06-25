@@ -5468,14 +5468,11 @@
       </div>
     `;
 
-      let inactiveNames = getInactiveSet();
-      if (inactiveDrillDownline) {
-        const leaderN = normalizeName(inactiveDrillLeader);
-        inactiveNames = new Set([...inactiveNames].filter(n => inactiveDrillDownline.has(n) && n !== leaderN));
-      } else {
-        // Whole-team drill: total stats also respect the office selection.
-        inactiveNames = new Set([...inactiveNames].filter(n => repInOfficeUmbrella(n)));
-      }
+      // The total must reflect EXACTLY the reps shown — the office/lens/period
+      // filters are already applied to drillRows, so derive the stat names from it.
+      // (Otherwise the total counts inactive reps that were filtered out of the view,
+      // e.g. Ice/Riot setters showing up under an all-Plata Experts lens.)
+      const inactiveNames = new Set(drillRows.map(r => normalizeName(r.name)).filter(Boolean));
       const inCurrent = groupContext.computeGroupStats(
         groupContext.filterDownlineForYear(inactiveNames, "2026", groupContext.useComparison),
         groupContext.currentPeriodDeals, "current"
