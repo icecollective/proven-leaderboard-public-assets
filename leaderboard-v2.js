@@ -3363,10 +3363,20 @@
   }
 
   // Decide whether to show the goal prompt after the board loads.
+  // TEMPORARY (tutorial video): add ?goaldemo=1 to the page URL to force the weekly
+  // goal popup to appear even for exempt / already-submitted reps. Remove later.
+  function goalDemoForced() {
+    try { return /[?&]goaldemo=1\b/.test(window.location.search || ""); } catch (e) { return false; }
+  }
+
   async function maybePromptGoals(statusPromise) {
     try {
       const s = await (statusPromise || fetchGoalStatus());
-      if (!s || s.authRequired || s.exempt) return;          // not logged in / exempt
+      if (!s || s.authRequired) return;                      // not logged in
+      if (goalDemoForced()) {                                // demo override: week only
+        s.exempt = false; s.needWeek = true; s.needMonth = false; s.needYear = false;
+      }
+      if (s.exempt) return;                                  // exempt (Justin / Kelton)
       if (!s.needWeek && !s.needMonth && !s.needYear) return; // all set
       showGoalPrompt(s);
     } catch (e) { /* never block the board on a goal-check failure */ }
