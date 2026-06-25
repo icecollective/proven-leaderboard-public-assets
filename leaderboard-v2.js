@@ -3363,9 +3363,9 @@
   }
 
   // Decide whether to show the goal prompt after the board loads.
-  async function maybePromptGoals() {
+  async function maybePromptGoals(statusPromise) {
     try {
-      const s = await fetchGoalStatus();
+      const s = await (statusPromise || fetchGoalStatus());
       if (!s || s.authRequired || s.exempt) return;          // not logged in / exempt
       if (!s.needWeek && !s.needMonth && !s.needYear) return; // all set
       showGoalPrompt(s);
@@ -6110,6 +6110,10 @@
   // Load data + render, or show the login overlay if the session is missing/expired.
   async function bootLeaderboard() {
     showLoadingOverlay();
+    // Fire the goal-status check up front, in parallel with the payload, so the
+    // prompt can appear the moment the board renders instead of waiting on a
+    // second serial round-trip after load.
+    const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
     try {
       await loadApiData();
       await loadDownlineIfNeeded();
@@ -6117,7 +6121,7 @@
       renderLeaderboard();
       hideLoginOverlay();
       startSessionHeartbeat();
-      maybePromptGoals();
+      maybePromptGoals(goalStatusPromise);
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
