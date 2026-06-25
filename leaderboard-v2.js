@@ -2291,15 +2291,8 @@
         </div>`
       : "";
 
-    if (profile.isPlata) {
-      return `
-        <div class="rep-card-meta rep-card-meta-row">
-          ${officeHtml}
-        </div>
-        ${groupHtml}
-      `;
-    }
-
+    // Plata now carries a real title (Expert/Setter), so it uses the normal
+    // "role · office" meta like everyone else (e.g. "Expert · Plata").
     return `
       <div class="rep-card-meta rep-card-meta-row">
         <span>${escapeHtml(profile.role)}</span>
