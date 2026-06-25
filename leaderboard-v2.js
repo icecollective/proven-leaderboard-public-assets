@@ -1791,7 +1791,7 @@
     // Plata: lower-bound estimate from weekly Tableau SRA ("≥N Bagels", yellow when cold).
     if (isPlataRep(norm)) {
       const info = plataBagelInfo(norm);
-      if (info.soldThisWeek) return `<span class="rep-bagel-tag">0 Bagels</span>`;
+      if (info.soldThisWeek) return `<span class="rep-bagel-tag bagel-sold">Sold this week</span>`;
       return `<span class="rep-bagel-tag${info.cold ? " bagel-week" : ""}">&ge;${info.count} Bagels</span>`;
     }
     const b = getBagelData();
@@ -3230,7 +3230,7 @@
     if (!o) { o = document.createElement("div"); o.id = "pv-goal-overlay"; o.className = "pl-modal"; document.body.appendChild(o); }
     const fields = [];
     if (s.needWeek) fields.push(
-      `<div class="pv-goal-field"><label>This week &mdash; Contracts Signed <span class="pv-goal-hint">(${s.weekLabel})</span></label>` +
+      `<div class="pv-goal-field"><label>This week &mdash; ${s.weekMetric === "SRA" ? "SRA" : "Contracts Signed"} <span class="pv-goal-hint">(${s.weekLabel})</span></label>` +
       `<input id="pv-goal-week" type="number" inputmode="numeric" min="0" placeholder="e.g. 4"></div>`);
     if (s.needMonth) fields.push(
       `<div class="pv-goal-field"><label>${s.monthLabel} &mdash; ${s.metric} goal</label>` +
