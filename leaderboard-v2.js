@@ -3323,20 +3323,18 @@
     return res.json();
   }
 
-  // Fire-and-forget page-view ping. Throttled to once per device per PST day so it
-  // doesn't spam the log; the server also dedupes once per rep per day. Best-effort:
-  // wrapped so a failure never affects the board.
-  function pacificDateStr() {
-    try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date()); }
-    catch (e) { return new Date().toISOString().slice(0, 10); }
-  }
+  // Fire-and-forget page-view ping — logs EVERY check (each open/foreground), not
+  // just once a day. A short in-memory throttle only swallows duplicate fires from a
+  // single open (e.g. iOS firing visibilitychange twice). Best-effort: a failure
+  // never affects the board.
+  let lastViewLogAt = 0;
   function logPageView() {
     try {
       const token = getSessionToken();
       if (!token) return;
-      const today = pacificDateStr();
-      if (localStorage.getItem("pvViewLogged") === today) return; // already pinged today on this device
-      localStorage.setItem("pvViewLogged", today);
+      const now = Date.now();
+      if (now - lastViewLogAt < 15000) return; // de-dupe rapid repeat fires (~15s)
+      lastViewLogAt = now;
       fetch(API_URL + "?action=logView&token=" + encodeURIComponent(token)).catch(function () {});
     } catch (e) { /* never block the board on view logging */ }
   }
@@ -6280,6 +6278,14 @@
       startSessionHeartbeat();
       maybePromptGoals(goalStatusPromise);
       logPageView();
+      // Also count it as a "check" each time the web app is brought back to the
+      // foreground (reps reopen it without a full page reload).
+      if (!window.__pvViewVisListener) {
+        window.__pvViewVisListener = true;
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") logPageView();
+        });
+      }
       if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
     } catch (error) {
       if (error && error.authRequired) {
