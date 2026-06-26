@@ -4393,8 +4393,16 @@
       plataBtn.classList.toggle("disabled", !canSelectPlata);
     }
 
-    // Keep the same label (incl. the date) so the button never changes size — just fade it.
-    const labelDate = dataset ? formatShortDate(dataset.lastUpdated) : "";
+    // Keep the same label (incl. the date) so the button never changes size — just
+    // fade it. The active mode may have no Tableau dataset (Today/Custom), so fall
+    // back to the date from any available Tableau period — it's the same import date.
+    const rawDate = (dataset && dataset.lastUpdated)
+      || (tableauData.ytd && tableauData.ytd.lastUpdated)
+      || (tableauData.mtd && tableauData.mtd.lastUpdated)
+      || (tableauData.wtd && tableauData.wtd.lastUpdated)
+      || (tableauData.lastWeek && tableauData.lastWeek.lastUpdated)
+      || "";
+    const labelDate = rawDate ? formatShortDate(rawDate) : "";
     btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
     if (!shouldShowTableau) {
       setShowTableau(false);
