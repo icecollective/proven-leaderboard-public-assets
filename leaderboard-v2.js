@@ -111,7 +111,8 @@
     "kelton higgins",
     "adam lloyd",
     "ruan meyer",
-    "luke sanders"
+    "luke sanders",
+    "jake behunin"
   ]);
 
   const MARKET_LEADER_NAMES = new Set([
@@ -1540,7 +1541,7 @@
     if (!norm || HIDDEN_REPS.has(norm)) return false;
     if (EXCLUDED_GROUP_LEADERS.has(norm)) return false;
     if (OFFICE_GROUP_LABELS.has(norm)) return false;
-    return getGroupLeaderYtdTotal(leaderName) >= 25;
+    return getGroupLeaderYtdTotal(leaderName) >= 45;
   }
 
   function getLowestQualifyingGroup(repName) {
@@ -2863,8 +2864,8 @@
     }
 
     function qualifiesByYtd(ytdCurrent, ytdPrevious) {
-      if (useComparison) return ytdCurrent.total >= 25 || ytdPrevious.total >= 25;
-      return ytdCurrent.total >= 25;
+      if (useComparison) return ytdCurrent.total >= 45 || ytdPrevious.total >= 45;
+      return ytdCurrent.total >= 45;
     }
 
     function buildGroupRow(name, current, previous, downline) {
