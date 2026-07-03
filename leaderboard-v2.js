@@ -66,6 +66,11 @@
   let bagelDataCache = null;       // per-normalized-name bagel info, computed from real "today"
   let mexicoOn = false;            // "Mexico" incentive-trip skin (YTD installs vs 35/15 thresholds)
   let mexicoReturn = null;         // captured view state to restore on the Mexico Back button
+  let compsOn = false;             // "Comps" internal-competitions view (list + detail)
+  let compsReturn = null;          // captured view state to restore on the Comps Back button
+  let activeCompId = null;         // null = comps list; otherwise the open competition id
+  let competitions = [];           // payload.competitions — config only; scoring is client-side from allDeals
+  let loggedInRepName = "";        // display name from goalStatus (drives comp office visibility)
   let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
   let secondSystemsByName = new Map(); // normalized name -> # approved Second Systems (reporter + named party)
   let activePreviousYearDownlineNames = null;
@@ -2109,11 +2114,11 @@
     const dateTabs = document.getElementById("date-tabs");
     const panel = document.getElementById("mexico-panel");
     const back = document.getElementById("mexico-back");
-    if (dateTabs) dateTabs.style.display = mexicoOn ? "none" : "";
+    if (dateTabs) dateTabs.style.display = (mexicoOn || compsOn) ? "none" : "";
     // The Custom date inputs live in a separate element — hide them under Mexico
     // (Mexico is always YTD), and re-show only if we're back on the Custom tab.
     const customWrap = document.getElementById("custom-date-wrapper");
-    if (customWrap) customWrap.style.display = (!mexicoOn && activeDateMode === "custom") ? "flex" : "none";
+    if (customWrap) customWrap.style.display = (!mexicoOn && !compsOn && activeDateMode === "custom") ? "flex" : "none";
     if (panel) panel.style.display = mexicoOn ? "flex" : "none";
     // Hide the Mexico Back button inside a group/inactive drill — that view's own
     // "← Back" is the single exit; you land back in Groups (still Mexico) where the
@@ -2128,6 +2133,233 @@
         if (b.textContent.trim() === "SelfGen") b.classList.toggle("mexico-faded", mexicoOn);
       });
     }
+  }
+
+  // ============================== COMPS ==============================
+  // Internal team-vs-team competitions. Config (teams, dates, metric,
+  // visibility) ships in payload.competitions from the "Proven Competitions"
+  // sheet; SCORING happens here from allDeals — a Set = deal where the rep is
+  // the setter, a Close = deal where they're the expert, "both" counts each
+  // touch as a point (self-gen = set + close = 2). Entered via the Comps
+  // button under Mexico; Back steps detail -> list -> prior view.
+
+  function onCompsButtonClick() {
+    if (compsOn) return;
+    if (mexicoOn) exitMexico(); // leave the Mexico skin first so its return-state unwinds cleanly
+    compsReturn = captureViewState();
+    compsOn = true;
+    activeCompId = null;
+    bagelsOn = false;
+    updateBagelButtonState();
+    updateMexicoUI();
+    renderLeaderboard();
+    scrollLeaderboardToTop();
+  }
+
+  function onCompsBack() {
+    if (activeCompId) { // detail -> list
+      activeCompId = null;
+      renderLeaderboard();
+      scrollLeaderboardToTop();
+      return;
+    }
+    exitComps();
+  }
+
+  function exitComps() {
+    const ret = compsReturn;
+    compsOn = false;
+    compsReturn = null;
+    activeCompId = null;
+    updateCompsUI();
+    updateMexicoUI(); // re-show the date controls
+    if (ret) restoreViewState(ret);
+    else renderLeaderboard();
+  }
+
+  // Show/hide the Comps chrome: hide the view (Type) tabs and the office
+  // toggles (roster-based comps ignore both), show the Back button.
+  function updateCompsUI() {
+    const back = document.getElementById("comps-back");
+    if (back) back.style.display = compsOn ? "inline-flex" : "none";
+    const officeTabs = document.getElementById("office-tabs");
+    if (officeTabs) officeTabs.classList.toggle("pv-comps-mode", compsOn);
+    const viewTabs = document.getElementById("view-tabs");
+    if (viewTabs) viewTabs.style.display = compsOn ? "none" : "";
+    const btn = document.getElementById("comps-toggle");
+    if (btn) btn.classList.toggle("active", compsOn);
+  }
+
+  function compTodayYmd_() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+
+  function compShortDate_(ymd) {
+    const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(ymd || ""));
+    return m ? parseInt(m[1], 10) + "/" + parseInt(m[2], 10) : String(ymd || "");
+  }
+
+  function compMetricLabel(comp) {
+    if (comp.metric === "sets") return "CS Sets";
+    if (comp.metric === "closes") return "CS Closes";
+    return "CS Sets + Closes";
+  }
+
+  function compStatusInfo(comp) {
+    const today = compTodayYmd_();
+    if (comp.start && today < comp.start) return { key: "upcoming", label: "UPCOMING", sub: "Starts " + compShortDate_(comp.start) };
+    if (comp.end && today > comp.end) return { key: "final", label: "FINAL", sub: "Ended " + compShortDate_(comp.end) };
+    return { key: "live", label: "LIVE", sub: comp.end ? "Ends " + compShortDate_(comp.end) : "" };
+  }
+
+  // Comps the logged-in rep may see: visibility [] = everyone; otherwise the
+  // rep's office (derived the same way board rows are) must be listed. If we
+  // don't know who's viewing (goalStatus failed / admin without an office),
+  // fail open and show everything.
+  function visibleCompetitions() {
+    ensureOfficeNameSets();
+    const myNorm = normalizeName(loggedInRepName);
+    let myOffice = "";
+    if (myNorm) {
+      if (iceCollectiveNames.has(myNorm)) myOffice = "Ice Collective";
+      else if (riotNames.has(myNorm)) myOffice = "Riot";
+    }
+    return competitions.filter(comp => {
+      const vis = Array.isArray(comp.visibility) ? comp.visibility : [];
+      if (!vis.length || !myOffice) return true;
+      return vis.some(v => normalizeName(v) === normalizeName(myOffice));
+    });
+  }
+
+  // One pass over allDeals -> ranked teams with ranked rep breakdowns.
+  function computeCompStandings(comp) {
+    const wantSets = comp.metric !== "closes";
+    const wantCloses = comp.metric !== "sets";
+    const teams = (comp.teams || []).map(t => ({
+      name: t.name,
+      total: 0,
+      reps: (t.reps || []).map(r => ({ name: r, norm: normalizeName(r), sets: 0, closes: 0, score: 0 }))
+    }));
+    const repIndex = new Map(); // normalized rep -> rep record (first roster hit wins)
+    teams.forEach(t => t.reps.forEach(r => { if (r.norm && !repIndex.has(r.norm)) repIndex.set(r.norm, r); }));
+    const range = { start: comp.start, end: comp.end };
+    allDeals.forEach(deal => {
+      if (!dealInDateRange(deal, range)) return;
+      if (wantSets && isValidSetterName(deal.setter)) {
+        const rec = repIndex.get(normalizeName(deal.setter));
+        if (rec) rec.sets++;
+      }
+      if (wantCloses) {
+        const rec = repIndex.get(normalizeName(deal.expert));
+        if (rec) rec.closes++;
+      }
+    });
+    teams.forEach(t => {
+      t.reps.forEach(r => {
+        r.score = (wantSets ? r.sets : 0) + (wantCloses ? r.closes : 0);
+        t.total += r.score;
+      });
+      t.reps.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    });
+    teams.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    return teams;
+  }
+
+  function buildCompsListHtml() {
+    const comps = visibleCompetitions().slice().sort((a, b) => {
+      const order = { live: 0, upcoming: 1, final: 2 };
+      const sa = order[compStatusInfo(a).key], sb = order[compStatusInfo(b).key];
+      if (sa !== sb) return sa - sb;
+      return String(a.start).localeCompare(String(b.start));
+    });
+    let cards;
+    if (!comps.length) {
+      cards = `<div class="comps-empty">No competitions right now — check back soon.</div>`;
+    } else {
+      cards = comps.map(comp => {
+        const st = compStatusInfo(comp);
+        const standings = computeCompStandings(comp);
+        const score = standings.map(t =>
+          `<span class="comp-card-team"><span class="comp-card-team-name">${escapeHtml(t.name)}</span>` +
+          `<span class="comp-card-team-score">${t.total}</span></span>`
+        ).join(`<span class="comp-card-vs">·</span>`);
+        return `<button type="button" class="comp-card comp-${st.key}" data-comp-open="${escapeAttr(comp.id)}">
+          <div class="comp-card-top">
+            <span class="comp-status-chip comp-chip-${st.key}">${st.label}</span>
+            <span class="comp-card-dates">${compShortDate_(comp.start)} – ${compShortDate_(comp.end)}${st.sub ? " · " + escapeHtml(st.sub) : ""}</span>
+          </div>
+          <div class="comp-card-name">${escapeHtml(comp.name)}</div>
+          <div class="comp-card-meta">${escapeHtml(compMetricLabel(comp))} · ${standings.length} teams</div>
+          <div class="comp-card-score">${score}</div>
+        </button>`;
+      }).join("");
+    }
+    return `<div class="comps-wrap">
+      <div class="comps-heading">Competitions</div>
+      <div class="comps-subheading">Internal comps · scored on internal CS</div>
+      ${cards}
+    </div>`;
+  }
+
+  function buildCompDetailHtml(comp) {
+    const st = compStatusInfo(comp);
+    const standings = computeCompStandings(comp);
+    const maxTotal = Math.max(1, standings.length ? standings[0].total : 0);
+    const showSplit = comp.metric === "both";
+    const teamsHtml = standings.map((team, i) => {
+      const leading = i === 0 && team.total > 0 && standings.length > 1 && team.total > standings[1].total;
+      const pct = Math.round((team.total / maxTotal) * 100);
+      const repRows = team.reps.map(rep => {
+        const sub = showSplit ? `<span class="comp-rep-split">${rep.sets} sets · ${rep.closes} closes</span>` : "";
+        return `<div class="comp-rep-row">
+          <button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(rep.name)}">${escapeHtml(rep.name)}</button>
+          ${sub}
+          <span class="comp-rep-score">${rep.score}</span>
+        </div>`;
+      }).join("");
+      return `<div class="comp-team${leading ? " comp-team-leading" : ""}">
+        <div class="comp-team-head">
+          <span class="comp-team-rank">${i + 1}</span>
+          <span class="comp-team-name">${escapeHtml(team.name)}</span>
+          <span class="comp-team-total">${team.total}</span>
+        </div>
+        <div class="comp-team-bar"><div class="comp-team-bar-fill" style="width:${pct}%"></div></div>
+        <div class="comp-team-reps">${repRows}</div>
+      </div>`;
+    }).join("");
+    return `<div class="comps-wrap">
+      <div class="comp-detail-head">
+        <div class="comp-card-top">
+          <span class="comp-status-chip comp-chip-${st.key}">${st.label}</span>
+          <span class="comp-card-dates">${compShortDate_(comp.start)} – ${compShortDate_(comp.end)}${st.sub ? " · " + escapeHtml(st.sub) : ""}</span>
+        </div>
+        <div class="comp-detail-name">${escapeHtml(comp.name)}</div>
+        <div class="comp-card-meta">${escapeHtml(compMetricLabel(comp))}</div>
+        ${comp.description ? `<div class="comp-detail-desc">${escapeHtml(comp.description)}</div>` : ""}
+      </div>
+      ${teamsHtml}
+    </div>`;
+  }
+
+  function renderCompsView() {
+    const grid = document.querySelector(".leaderboard-grid");
+    if (!grid) return;
+    let comp = null;
+    if (activeCompId) {
+      comp = visibleCompetitions().find(c => c.id === activeCompId) || null;
+      if (!comp) activeCompId = null; // comp hidden/removed since — fall back to the list
+    }
+    grid.innerHTML = comp ? buildCompDetailHtml(comp) : buildCompsListHtml();
+    grid.querySelectorAll("[data-comp-open]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeCompId = btn.getAttribute("data-comp-open");
+        renderLeaderboard();
+        scrollLeaderboardToTop();
+      });
+    });
+    updateCompsUI();
   }
 
   // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
@@ -3486,6 +3718,7 @@
       (Array.isArray(payload.tableauExperts) ? payload.tableauExperts : [])
         .map(n => normalizeName(n)).filter(Boolean)
     );
+    competitions = Array.isArray(payload.competitions) ? payload.competitions : [];
     // Approved Second Systems: count 1 against the reporter AND the named
     // setter/expert (each inflated Tableau install gets deducted from both).
     secondSystemsByName = new Map();
@@ -4233,8 +4466,16 @@
       mexicoBtn.textContent = "Mexico";
       mexicoBtn.addEventListener("click", onMexicoButtonClick);
 
+      var compsBtn = document.createElement("button");
+      compsBtn.id = "comps-toggle";
+      compsBtn.type = "button";
+      compsBtn.className = "bagel-toggle comps-toggle";
+      compsBtn.textContent = "Comps";
+      compsBtn.addEventListener("click", onCompsButtonClick);
+
       bagelStack.appendChild(bagelBtn);
       bagelStack.appendChild(mexicoBtn);
+      bagelStack.appendChild(compsBtn);
       tpillEl.appendChild(bagelStack);
       updateBagelButtonState();
     }
@@ -4267,7 +4508,21 @@
       backBtn.addEventListener("click", exitMexico);
       officeTabsEl.insertBefore(backBtn, officeTabsEl.firstChild);
     }
+
+    // Comps "Back" button — same spot/styling as the Mexico Back button. Steps
+    // back one level: comp detail -> comps list -> the view you came from.
+    if (officeTabsEl && !document.getElementById("comps-back")) {
+      var compsBackBtn = document.createElement("button");
+      compsBackBtn.id = "comps-back";
+      compsBackBtn.type = "button";
+      compsBackBtn.className = "group-drill-back comps-back";
+      compsBackBtn.textContent = "← Back";
+      compsBackBtn.style.display = "none";
+      compsBackBtn.addEventListener("click", onCompsBack);
+      officeTabsEl.insertBefore(compsBackBtn, officeTabsEl.firstChild);
+    }
     updateMexicoUI();
+    updateCompsUI();
 
     setupControlScrollFade();
     setupCustomDateRow();
@@ -5198,6 +5453,9 @@
   }
     
   function renderLeaderboard() {
+    // Comps replaces the whole board (list or detail) — none of the filter /
+    // date / comparison machinery below applies to it.
+    if (compsOn) { renderCompsView(); return; }
     updateTableauToggle();
 
     // Recompute the comparison ranges fresh each render (the Custom range used by
@@ -6278,6 +6536,10 @@
     // second serial round-trip after load.
     // Fetch goal-status in parallel with the payload so the board never waits on it.
     const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
+    // Remember who's logged in (name only) — comp visibility keys off their office.
+    if (goalStatusPromise) goalStatusPromise.then(s => {
+      if (s && s.name) { loggedInRepName = s.name; if (compsOn) renderLeaderboard(); }
+    });
     try {
       await loadApiData();
       await loadDownlineIfNeeded();

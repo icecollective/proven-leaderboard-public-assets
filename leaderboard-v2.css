@@ -1335,3 +1335,88 @@
     animation:pvHelpSpin .8s linear infinite;
   }
   @keyframes pvHelpSpin { to { transform:rotate(360deg); } }
+
+  /* ============================== COMPS ============================== */
+  /* Hide the office toggles while Comps is open (roster-based, offices don't
+     apply); the Back button is the only control that stays. */
+  #office-tabs.pv-comps-mode > *:not(#comps-back) { display:none !important; }
+  #office-tabs .comps-back { margin-right:8px; }
+
+  /* Direct child of the flex-centering .leaderboard-grid — cap width like
+     .leaderboard-column, but stay transparent (each card is its own surface). */
+  .comps-wrap { display:flex; flex-direction:column; gap:12px; padding:4px 2px 14px; width:100%; max-width:860px; }
+  .comps-heading { font-size:20px; font-weight:800; color:#0f172a; letter-spacing:-.01em; }
+  .comps-subheading {
+    font-size:11px; font-weight:600; color:#94a3b8; margin-top:-8px;
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+  .comps-empty {
+    background:#f8fafc; border:1px dashed #cbd5e1; border-radius:14px;
+    padding:26px 16px; text-align:center; color:#64748b; font-weight:600; font-size:13px;
+  }
+
+  /* --- list cards --- */
+  .comp-card {
+    display:block; width:100%; text-align:left; cursor:pointer;
+    background:#fff; border:1px solid #e7ebf2; border-radius:14px;
+    padding:12px 14px; box-shadow:0 1px 3px rgba(15,23,42,.06);
+    transition:box-shadow .12s ease, border-color .12s ease;
+  }
+  .comp-card:hover { border-color:#cbd3e0; box-shadow:0 3px 10px rgba(15,23,42,.10); }
+  .comp-card-top { display:flex; align-items:center; gap:8px; }
+  .comp-status-chip {
+    font-size:9px; font-weight:800; letter-spacing:.08em; border-radius:6px;
+    padding:2px 7px; line-height:1.4;
+  }
+  .comp-chip-live { background:#dcfce7; color:#15803d; }
+  .comp-chip-upcoming { background:#e0e7ff; color:#3730a3; }
+  .comp-chip-final { background:#f1f5f9; color:#64748b; }
+  .comp-card-dates { font-size:10.5px; font-weight:600; color:#94a3b8; }
+  .comp-card-name { font-size:16px; font-weight:800; color:#0f172a; margin-top:6px; }
+  .comp-card-meta { font-size:11px; font-weight:600; color:#64748b; margin-top:2px; }
+  .comp-card-score {
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px;
+    padding-top:8px; border-top:1px solid #f1f5f9;
+  }
+  .comp-card-team { display:inline-flex; align-items:baseline; gap:6px; }
+  .comp-card-team-name { font-size:12px; font-weight:700; color:#334155; }
+  .comp-card-team-score { font-size:15px; font-weight:800; color:#102c57; }
+  .comp-card-vs { color:#cbd5e1; font-weight:700; }
+
+  /* --- detail view --- */
+  .comp-detail-head {
+    background:#fff; border:1px solid #e7ebf2; border-radius:14px;
+    padding:12px 14px; box-shadow:0 1px 3px rgba(15,23,42,.06);
+  }
+  .comp-detail-name { font-size:19px; font-weight:800; color:#0f172a; margin-top:6px; letter-spacing:-.01em; }
+  .comp-detail-desc { font-size:12px; color:#64748b; font-weight:500; margin-top:6px; line-height:1.45; }
+
+  .comp-team {
+    background:#fff; border:1px solid #e7ebf2; border-radius:14px;
+    padding:12px 14px; box-shadow:0 1px 3px rgba(15,23,42,.06);
+  }
+  .comp-team-leading { border-color:#102c57; box-shadow:0 3px 12px rgba(16,44,87,.14); }
+  .comp-team-head { display:flex; align-items:center; gap:10px; }
+  .comp-team-rank {
+    flex:0 0 auto; width:22px; height:22px; border-radius:7px; background:#f1f5f9;
+    color:#64748b; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center;
+  }
+  .comp-team-leading .comp-team-rank { background:#102c57; color:#fff; }
+  .comp-team-name { flex:1 1 auto; font-size:15px; font-weight:800; color:#0f172a; min-width:0; }
+  .comp-team-total { font-size:20px; font-weight:800; color:#102c57; }
+  .comp-team-bar { height:6px; border-radius:4px; background:#f1f5f9; margin:9px 0 4px; overflow:hidden; }
+  .comp-team-bar-fill {
+    height:100%; border-radius:4px; min-width:2px;
+    background:linear-gradient(90deg,#28457e,#102c57);
+  }
+  .comp-team-leading .comp-team-bar-fill { background:linear-gradient(90deg,#16a34a,#15803d); }
+
+  .comp-team-reps { display:flex; flex-direction:column; }
+  .comp-rep-row {
+    display:flex; align-items:center; gap:8px; padding:7px 2px;
+    border-bottom:1px solid #f1f5f9; font-size:13px;
+  }
+  .comp-rep-row:last-child { border-bottom:none; }
+  .comp-rep-row .rep-card-name-button { flex:1 1 auto; text-align:left; min-width:0; }
+  .comp-rep-split { font-size:10.5px; font-weight:600; color:#94a3b8; white-space:nowrap; }
+  .comp-rep-score { font-size:14px; font-weight:800; color:#0f172a; min-width:22px; text-align:right; }
