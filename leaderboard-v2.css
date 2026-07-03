@@ -857,9 +857,12 @@
   /* Bagels + Mexico stacked just to the LEFT of the T-pill (absolute, anchored to
      the T-pill so the date island stays centered and YOY/MOM are untouched). */
   .pv-bagel-stack {
-    position:absolute; right:100%; top:7px; margin-right:10px;
+    position:absolute; right:100%; top:3px; margin-right:10px;
     display:flex; flex-direction:column; gap:4px; z-index:3;
   }
+  /* Mobile island is shorter — nudge the stack up so the gap above Bagels
+     matches the gap below Comps. */
+  @media (max-width:760px) { .pv-bagel-stack { top:0; } }
   /* Scoped under #date-tabs .pv-bagel-stack so these win over the generic
      "#date-tabs .pv-tpill button" rule (the stack lives inside the T-pill). */
   #date-tabs .pv-bagel-stack .bagel-toggle {
