@@ -2399,7 +2399,7 @@
     btn.id = "lp-toggle";
     btn.type = "button";
     btn.className = "bagel-toggle lp-toggle";
-    btn.innerHTML = "Ldrshp<br>Pay";
+    btn.textContent = "Override";
     btn.addEventListener("click", openLdrshpPay);
     stack.appendChild(btn);
     tpill.appendChild(stack);
@@ -2480,7 +2480,7 @@
 
     o.innerHTML = `<div class="lp-card">
       <button type="button" class="lp-close" aria-label="Close">&times;</button>
-      <div class="lp-title">Leadership Pay</div>
+      <div class="lp-title">Override</div>
       ${adminSel}
       <div class="lp-total-label">TOTAL EARNED</div>
       <div class="lp-total">${lpMoney(t.earned)}</div>
