@@ -547,6 +547,7 @@
 
   function finishLeaderboardRender() {
     updateBagelButtonState();
+    ensureLdrshpPayButton();
     updateMexicoUI();
     applyExclusiveToggleStates();
     requestAnimationFrame(updateLeaderboardStickyOffsets);
@@ -2427,7 +2428,11 @@
 
   function lpTierIndex(d) {
     let idx = 0;
-    (d.tiers || []).forEach((t, i) => { if ((Number(d.points) || 0) >= (Number(t.min) || 0)) idx = i; });
+    (d.tiers || []).forEach((t, i) => {
+      const setsOk = (Number(d.points) || 0) >= (Number(t.min) || 0);
+      const persOk = (Number(d.personal) || 0) >= (Number(t.personalMin) || 0);
+      if (setsOk && persOk) idx = i;
+    });
     return idx;
   }
 
@@ -2436,11 +2441,12 @@
     if (tierIdx >= tiers.length - 1) return `<div class="lp-next-tier">Top tier reached</div>`;
     const next = tiers[tierIdx + 1];
     const setsNeeded = Math.max(0, (Number(next.min) || 0) - (Number(d.points) || 0));
-    const persNeeded = next.personalMin != null
-      ? Math.max(0, Number(next.personalMin) - (Number(d.personal) || 0)) : null;
-    let req = `${setsNeeded} more set${setsNeeded === 1 ? "" : "s"} PTO'd`;
-    if (persNeeded != null && persNeeded > 0) req += ` or ${persNeeded} more personal PTO'd`;
-    return `<div class="lp-next-tier">Next tier (${lpMoney(next.comp)}/set): ${req}</div>`;
+    const persNeeded = Math.max(0, (Number(next.personalMin) || 0) - (Number(d.personal) || 0));
+    const parts = [];
+    if (setsNeeded > 0) parts.push(`${setsNeeded} more set${setsNeeded === 1 ? "" : "s"} PTO'd`);
+    if (persNeeded > 0) parts.push(`${persNeeded} more personal PTO'd`);
+    if (!parts.length) parts.push("requirements met");
+    return `<div class="lp-next-tier">Next tier: ${parts.join(" and ")}</div>`;
   }
 
   function openLdrshpPay() {
@@ -2530,9 +2536,10 @@
       </div>
       <div class="lp-body">
       <div class="lp-section" id="lp-section-tier">
+        <div class="lp-tier-title">${escapeHtml(d.tierLabel || "Setter Bonus")}</div>
         <div class="lp-points">Sets PTO'd: <b>${Number(d.points) || 0}</b> · Personal PTO'd: <b>${Number(d.personal) || 0}</b></div>
         ${lpNextTierNote(d, tierIdx)}
-        <div class="lp-tier-row lp-tier-head"><span>Sets PTO'd</span><span>Personal PTO'd</span><span>Per Set</span></div>
+        <div class="lp-tier-row lp-tier-head"><span>SETS PTO'd</span><span>PERSONAL PTO'd</span><span>PER SET</span></div>
         ${tierRows}
       </div>
       <div class="lp-section" id="lp-section-deals" hidden>${dealRows || '<div class="lp-deal-sub">No deals yet.</div>'}</div>
@@ -6739,6 +6746,7 @@
     // second serial round-trip after load.
     // Fetch goal-status in parallel with the payload so the board never waits on it.
     const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
+    if (getSessionToken()) fetchSetterBonus(); // parallel with the payload — button appears sooner
     // Remember who's logged in (name only) — comp visibility keys off their office.
     if (goalStatusPromise) goalStatusPromise.then(s => {
       if (s && s.name) { loggedInRepName = s.name; if (compsOn) renderLeaderboard(); }
@@ -6751,7 +6759,6 @@
       hideLoginOverlay();
       startSessionHeartbeat();
       maybePromptGoals(goalStatusPromise);
-      fetchSetterBonus();
       logPageView();
       // Also count it as a "check" each time the web app is brought back to the
       // foreground (reps reopen it without a full page reload).

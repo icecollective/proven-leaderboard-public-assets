@@ -1484,7 +1484,8 @@
     padding:6px 10px; border-radius:8px; font-size:12.5px; font-weight:600; color:#334155;
   }
   .lp-tier-row span:last-child { text-align:right; }
-  .lp-tier-head { color:#94a3b8; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+  .lp-tier-head { color:#94a3b8; font-size:10px; font-weight:700; letter-spacing:.07em; }
+  .lp-tier-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:4px; }
   .lp-tier-current { background:#102c57; color:#fff; }
 
   .lp-deal-row {
