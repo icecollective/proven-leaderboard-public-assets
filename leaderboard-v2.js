@@ -2566,7 +2566,7 @@
       </div>
       <div class="lp-body">
       <div class="lp-section" id="lp-section-tier">
-        <div class="lp-tier-title">${escapeHtml(d.tierLabel || "Setter Bonus")}</div>
+        <div class="lp-tier-title">${escapeHtml(d.tierLabel || "Rookie Setter Bonus")}</div>
         <div class="lp-points">Sets PTO'd: <b>${Number(d.points) || 0}</b> · Personal PTO'd: <b>${Number(d.personal) || 0}</b></div>
         ${lpNextTierNote(d, tierIdx)}
         <div class="lp-tier-row lp-tier-head"><span>SETS PTO'd</span><span>PERSONAL PTO'd</span><span>PER SET</span></div>
