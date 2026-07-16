@@ -2443,8 +2443,8 @@
     const setsNeeded = Math.max(0, (Number(next.min) || 0) - (Number(d.points) || 0));
     const persNeeded = Math.max(0, (Number(next.personalMin) || 0) - (Number(d.personal) || 0));
     const parts = [];
-    if (setsNeeded > 0) parts.push(`${setsNeeded} more set${setsNeeded === 1 ? "" : "s"} PTO'd`);
-    if (persNeeded > 0) parts.push(`${persNeeded} more personal PTO'd`);
+    if (setsNeeded > 0) parts.push(`${setsNeeded} more set${setsNeeded === 1 ? "" : "s"}`);
+    if (persNeeded > 0) parts.push(`${persNeeded} more personal`);
     if (!parts.length) parts.push("requirements met");
     return `<div class="lp-next-tier">Next tier: ${parts.join(" and ")}</div>`;
   }
@@ -2571,6 +2571,7 @@
         ${lpNextTierNote(d, tierIdx)}
         <div class="lp-tier-row lp-tier-head"><span>SETS PTO'd</span><span>PERSONAL PTO'd</span><span>PER SET</span></div>
         ${tierRows}
+        ${(d.rules && d.rules.length) ? `<div class="lp-rules">${d.rules.map((rule, i) => `<div class="lp-rule">${i + 1}. ${escapeHtml(rule)}</div>`).join("")}</div>` : ""}
       </div>
       <div class="lp-section" id="lp-section-deals" hidden>${dealRows || '<div class="lp-deal-sub">No deals yet.</div>'}</div>
       </div>

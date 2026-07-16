@@ -1553,3 +1553,5 @@
   .lp-month-chev { color:#94a3b8; font-size:11px; transition:transform .15s ease; }
   .lp-month-open .lp-month-chev { transform:rotate(180deg); }
   .lp-month-deals { padding:2px 12px 6px; }
+  .lp-rules { margin-top:10px; padding-top:8px; border-top:1px solid #f1f5f9; }
+  .lp-rule { font-size:10.5px; color:#94a3b8; font-weight:600; line-height:1.55; }
