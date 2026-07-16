@@ -1453,7 +1453,12 @@
   }
   /* padding-right reserves a lane for the scrollbar so it never overlaps the
      tier chart; nowrap keeps "PERSONAL PTO'd" on one line on mobile. */
-  .lp-body { flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:4px; padding-right:10px; margin-right:-6px; }
+  .lp-body { flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:4px; padding-right:12px; margin-right:-12px;
+    scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; }
+  /* Always-visible gray thumb (iOS's default overlay scrollbar is invisible). */
+  .lp-body::-webkit-scrollbar { width:6px; }
+  .lp-body::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+  .lp-body::-webkit-scrollbar-track { background:transparent; }
   .lp-close {
     position:absolute; top:10px; right:12px; width:32px; height:32px;
     border:none; background:#f1f5f9; border-radius:50%; font-size:18px;
