@@ -2411,10 +2411,36 @@
     return m ? parseInt(m[1], 10) + "/" + parseInt(m[2], 10) : String(ymd || "");
   }
 
+  function lpPayMonths(d, payDate) {
+    const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const seen = new Set();
+    (d.rows || []).forEach(r => {
+      if (r.paidDate !== payDate) return;
+      const m = /^\d{4}-(\d{2})-\d{2}$/.exec(String(r.ptoDate || ""));
+      if (m) seen.add(parseInt(m[1], 10) - 1);
+    });
+    const list = [...seen].sort((a, b) => a - b).map(i => MONTHS[i]);
+    if (!list.length) return "";
+    if (list.length === 1) return list[0];
+    return list.slice(0, -1).join(", ") + " & " + list[list.length - 1];
+  }
+
   function lpTierIndex(d) {
     let idx = 0;
     (d.tiers || []).forEach((t, i) => { if ((Number(d.points) || 0) >= (Number(t.min) || 0)) idx = i; });
     return idx;
+  }
+
+  function lpNextTierNote(d, tierIdx) {
+    const tiers = d.tiers || [];
+    if (tierIdx >= tiers.length - 1) return `<div class="lp-next-tier">Top tier reached</div>`;
+    const next = tiers[tierIdx + 1];
+    const setsNeeded = Math.max(0, (Number(next.min) || 0) - (Number(d.points) || 0));
+    const persNeeded = next.personalMin != null
+      ? Math.max(0, Number(next.personalMin) - (Number(d.personal) || 0)) : null;
+    let req = `${setsNeeded} more set${setsNeeded === 1 ? "" : "s"} PTO'd`;
+    if (persNeeded != null && persNeeded > 0) req += ` or ${persNeeded} more personal PTO'd`;
+    return `<div class="lp-next-tier">Next tier (${lpMoney(next.comp)}/set): ${req}</div>`;
   }
 
   function openLdrshpPay() {
@@ -2434,13 +2460,15 @@
     // "Upcoming" = scheduled on a future pay day; otherwise show the most recent pay.
     let payLine;
     if (t.upcoming > 0) {
+      const months = lpPayMonths(d, t.upcomingDate);
       payLine = `<div class="lp-pay-label">UPCOMING PAY</div>
         <div class="lp-pay-amt">${lpMoney(t.upcoming)}</div>
-        <div class="lp-pay-sub">pays ${lpDate(t.upcomingDate)} at PTO</div>`;
+        <div class="lp-pay-sub">${months ? months + " PTO paid on " : "pays "}${lpDate(t.upcomingDate)}</div>`;
     } else if (t.lastPaid > 0) {
+      const months = lpPayMonths(d, t.lastPaidDate);
       payLine = `<div class="lp-pay-label">MOST RECENT PAY</div>
         <div class="lp-pay-amt">${lpMoney(t.lastPaid)}</div>
-        <div class="lp-pay-sub">paid ${lpDate(t.lastPaidDate)}</div>`;
+        <div class="lp-pay-sub">${months ? months + " PTO paid on " : "paid "}${lpDate(t.lastPaidDate)}</div>`;
     } else {
       payLine = `<div class="lp-pay-label">UPCOMING PAY</div>
         <div class="lp-pay-amt">—</div>
@@ -2499,8 +2527,9 @@
         <button type="button" class="lp-section-btn" data-lp-section="deals">Deal Breakdown</button>
       </div>
       <div class="lp-section" id="lp-section-tier" hidden>
-        <div class="lp-points">Qualifying installs: <b>${Number(d.points) || 0}</b></div>
-        <div class="lp-tier-row lp-tier-head"><span>Sets Installed</span><span>Personal</span><span>Per Set</span></div>
+        <div class="lp-points">Sets PTO'd: <b>${Number(d.points) || 0}</b> · Personal PTO'd: <b>${Number(d.personal) || 0}</b></div>
+        ${lpNextTierNote(d, tierIdx)}
+        <div class="lp-tier-row lp-tier-head"><span>Sets PTO'd</span><span>Personal PTO'd</span><span>Per Set</span></div>
         ${tierRows}
       </div>
       <div class="lp-section" id="lp-section-deals" hidden>${dealRows || '<div class="lp-deal-sub">No deals yet.</div>'}</div>

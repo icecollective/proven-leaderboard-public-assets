@@ -1514,3 +1514,8 @@
     background:#fffbeb; border-radius:6px; padding:2px 7px; display:inline-block;
   }
   .lp-deal-flow b { color:#0f172a; }
+  .lp-next-tier {
+    font-size:11.5px; font-weight:700; color:#047857; background:#ecfdf5;
+    border:1px solid #a7f3d0; border-radius:8px; padding:5px 10px; margin-bottom:8px;
+    display:inline-block;
+  }
