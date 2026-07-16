@@ -2523,16 +2523,18 @@
       <div class="lp-paid-sub">${lpMoney(t.paid)} paid to date</div>
       <div class="lp-pay-box">${payLine}</div>
       <div class="lp-actions">
-        <button type="button" class="lp-section-btn" data-lp-section="tier">Tier Progress</button>
+        <button type="button" class="lp-section-btn active" data-lp-section="tier">Tier Progress</button>
         <button type="button" class="lp-section-btn" data-lp-section="deals">Deal Breakdown</button>
       </div>
-      <div class="lp-section" id="lp-section-tier" hidden>
+      <div class="lp-body">
+      <div class="lp-section" id="lp-section-tier">
         <div class="lp-points">Sets PTO'd: <b>${Number(d.points) || 0}</b> · Personal PTO'd: <b>${Number(d.personal) || 0}</b></div>
         ${lpNextTierNote(d, tierIdx)}
         <div class="lp-tier-row lp-tier-head"><span>Sets PTO'd</span><span>Personal PTO'd</span><span>Per Set</span></div>
         ${tierRows}
       </div>
       <div class="lp-section" id="lp-section-deals" hidden>${dealRows || '<div class="lp-deal-sub">No deals yet.</div>'}</div>
+      </div>
     </div>`;
 
     o.querySelector(".lp-close").addEventListener("click", closeLdrshpPay);
@@ -2548,10 +2550,9 @@
     o.querySelectorAll(".lp-section-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const key = btn.getAttribute("data-lp-section");
-        o.querySelectorAll(".lp-section-btn").forEach(b => b.classList.toggle("active", b === btn && !b.classList.contains("active")));
-        const showing = btn.classList.contains("active");
+        o.querySelectorAll(".lp-section-btn").forEach(b => b.classList.toggle("active", b === btn));
         o.querySelectorAll(".lp-section").forEach(s => { s.hidden = true; });
-        if (showing) o.querySelector("#lp-section-" + key).hidden = false;
+        o.querySelector("#lp-section-" + key).hidden = false;
       });
     });
     o.style.display = "flex";
