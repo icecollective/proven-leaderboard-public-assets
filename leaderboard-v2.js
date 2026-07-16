@@ -3898,6 +3898,22 @@
     }, 60000);
   }
 
+  // ---- payload cache (stale-while-revalidate) ------------------------------
+  // The board paints instantly from the last payload this browser saw, then a
+  // background fetch swaps in fresh numbers. Cleared whenever auth is rejected.
+  const PAYLOAD_CACHE_KEY = "pl_payload_cache_v1";
+  function readPayloadCache() {
+    try { const raw = localStorage.getItem(PAYLOAD_CACHE_KEY); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+  }
+  function writePayloadCache(payload) {
+    try {
+      const raw = JSON.stringify(payload);
+      if (raw.length < 4500000) localStorage.setItem(PAYLOAD_CACHE_KEY, raw); // stay under the ~5MB quota
+    } catch (e) { /* quota/private mode — cache is best-effort */ }
+  }
+  function clearPayloadCache() { try { localStorage.removeItem(PAYLOAD_CACHE_KEY); } catch (e) {} }
+
   async function loadApiData() {
     const res = await fetch(API_URL + "?token=" + encodeURIComponent(getSessionToken()));
     const payload = await res.json();
@@ -3906,7 +3922,11 @@
       err.authRequired = true;
       throw err;
     }
+    applyApiPayload(payload);
+    writePayloadCache(payload);
+  }
 
+  function applyApiPayload(payload) {
     apiMeta = {
       lastUpdated: payload.lastUpdated,
       recordCount: payload.recordCount
@@ -6751,6 +6771,40 @@
     if (goalStatusPromise) goalStatusPromise.then(s => {
       if (s && s.name) { loggedInRepName = s.name; if (compsOn) renderLeaderboard(); }
     });
+    // Stale-while-revalidate: paint instantly from the cached payload, then
+    // refresh in the background. Auth rejection clears everything and drops to
+    // the login screen (so kicked/blocked reps don't keep a stale board).
+    const cachedPayload = getSessionToken() ? readPayloadCache() : null;
+    if (cachedPayload) {
+      try {
+        applyApiPayload(cachedPayload);
+        await loadDownlineIfNeeded();
+        isLeaderboardReady = true;
+        renderLeaderboard();
+        hideLoginOverlay();
+        hideLoadingOverlay();
+        startSessionHeartbeat();
+        maybePromptGoals(goalStatusPromise);
+        logPageView();
+        if (!window.__pvViewVisListener) {
+          window.__pvViewVisListener = true;
+          document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "visible") logPageView();
+          });
+        }
+        if (!window.__pvHelpPreloaded) { window.__pvHelpPreloaded = true; setTimeout(preloadHelpModal, 1500); }
+        loadApiData().then(() => {
+          if (isLeaderboardReady) renderLeaderboard(); // fresh numbers, same view
+        }).catch(err => {
+          if (err && err.authRequired) {
+            clearPayloadCache();
+            try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+            showLoginOverlay();
+          } // transient network errors: keep showing the cached board
+        });
+        return;
+      } catch (e) { clearPayloadCache(); /* corrupted cache -> normal network path */ }
+    }
     try {
       await loadApiData();
       await loadDownlineIfNeeded();
