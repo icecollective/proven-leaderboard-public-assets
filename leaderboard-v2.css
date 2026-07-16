@@ -1542,3 +1542,14 @@
     margin:-15px 0 0 -15px; border:3px solid #e2e8f0; border-top-color:#102c57;
     border-radius:50%; animation:pvHelpSpin .8s linear infinite; z-index:6;
   }
+  /* Deal Breakdown month cards (accordion) */
+  .lp-month { border:1px solid #e7ebf2; border-radius:12px; margin-bottom:8px; overflow:hidden; background:#fff; }
+  .lp-month-head {
+    width:100%; display:flex; align-items:center; gap:8px; padding:10px 12px;
+    background:#f8fafc; border:none; cursor:pointer; text-align:left;
+  }
+  .lp-month-name { flex:1 1 auto; font-weight:800; font-size:13px; color:#0f172a; }
+  .lp-month-meta { font-size:11px; font-weight:700; color:#64748b; white-space:nowrap; }
+  .lp-month-chev { color:#94a3b8; font-size:11px; transition:transform .15s ease; }
+  .lp-month-open .lp-month-chev { transform:rotate(180deg); }
+  .lp-month-deals { padding:2px 12px 6px; }

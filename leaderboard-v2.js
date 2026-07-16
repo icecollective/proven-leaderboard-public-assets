@@ -2487,7 +2487,7 @@
         <span>${escapeHtml(tr.sets)}</span><span>${escapeHtml(tr.personal)}</span><span>${lpMoney(tr.comp)}</span>
       </div>`).join("");
 
-    const dealRows = (d.rows || []).map(r => {
+    const buildDealRow = r => {
       let status;
       if (!(r.bonus > 0)) status = `<span class="lp-status lp-status-none">—</span>`; // no pay attached, ever — just acknowledged
       else if (!r.paidDate) status = `<span class="lp-status lp-status-pending">Pending</span>`;
@@ -2511,7 +2511,37 @@
           ${status}
         </div>
       </div>`;
-    }).join("");
+    };
+
+    // Deal Breakdown: grouped by PTO month (newest first) as tappable accordion
+    // cards, plus an "All Deals" card styled the same way.
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthGroups = new Map();
+    (d.rows || []).forEach(r => {
+      const m = /^(\d{4})-(\d{2})/.exec(String(r.ptoDate || ""));
+      const key = m ? m[1] + "-" + m[2] : "0000-00";
+      if (!monthGroups.has(key)) monthGroups.set(key, []);
+      monthGroups.get(key).push(r);
+    });
+    const monthCard = (label, rows) => {
+      const total = rows.reduce((a, r) => a + (Number(r.bonus) || 0), 0);
+      return `<div class="lp-month">
+        <button type="button" class="lp-month-head">
+          <span class="lp-month-name">${escapeHtml(label)}</span>
+          <span class="lp-month-meta">${rows.length} deal${rows.length === 1 ? "" : "s"} · ${lpMoney(total)}</span>
+          <span class="lp-month-chev">▾</span>
+        </button>
+        <div class="lp-month-deals" hidden>${rows.map(buildDealRow).join("")}</div>
+      </div>`;
+    };
+    const monthKeys = [...monthGroups.keys()].sort().reverse();
+    const dealRows = (d.rows || []).length
+      ? [monthCard("All Deals", d.rows)].concat(monthKeys.map(k => {
+          const m = /^(\d{4})-(\d{2})$/.exec(k);
+          const label = m && m[2] !== "00" ? MONTH_NAMES[parseInt(m[2], 10) - 1] + " " + m[1] : "Other";
+          return monthCard(label, monthGroups.get(k));
+        })).join("")
+      : "";
 
     // Leader switcher: the backend sends only the leaders this viewer may see
     // (their org-chart downline; admins get everyone). Hidden when there's
@@ -2547,6 +2577,13 @@
     </div>`;
 
     o.querySelector(".lp-close").addEventListener("click", closeLdrshpPay);
+    o.querySelectorAll(".lp-month-head").forEach(head => {
+      head.addEventListener("click", () => {
+        const deals = head.nextElementSibling;
+        deals.hidden = !deals.hidden;
+        head.parentElement.classList.toggle("lp-month-open", !deals.hidden);
+      });
+    });
     const asSel = o.querySelector("#lp-as");
     if (asSel) {
       asSel.addEventListener("change", async () => {
