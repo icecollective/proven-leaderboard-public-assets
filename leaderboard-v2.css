@@ -1531,3 +1531,14 @@
     border:1px solid #a7f3d0; border-radius:8px; padding:5px 10px; margin-bottom:8px;
     display:inline-block;
   }
+
+  /* Leader-switch loading state: dim the card + centered spinner. */
+  .lp-card.lp-loading::after {
+    content:""; position:absolute; inset:0; background:rgba(255,255,255,.65);
+    border-radius:18px; z-index:5;
+  }
+  .lp-card.lp-loading::before {
+    content:""; position:absolute; top:50%; left:50%; width:30px; height:30px;
+    margin:-15px 0 0 -15px; border:3px solid #e2e8f0; border-top-color:#102c57;
+    border-radius:50%; animation:pvHelpSpin .8s linear infinite; z-index:6;
+  }

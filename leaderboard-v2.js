@@ -2550,10 +2550,15 @@
     const asSel = o.querySelector("#lp-as");
     if (asSel) {
       asSel.addEventListener("change", async () => {
+        const card = o.querySelector(".lp-card");
+        if (card) card.classList.add("lp-loading");  // spinner while the leader's data loads
+        asSel.disabled = true;
         try {
           const j = await fetchSetterBonusAs(asSel.value);
-          if (j && j.ok) { setterBonusData = j; openLdrshpPay(); }
+          if (j && j.ok) { setterBonusData = j; openLdrshpPay(); return; } // re-render replaces the card
         } catch (e) { /* keep current view */ }
+        if (card) card.classList.remove("lp-loading");
+        asSel.disabled = false;
       });
     }
     o.querySelectorAll(".lp-section-btn").forEach(btn => {
