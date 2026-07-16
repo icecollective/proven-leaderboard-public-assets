@@ -71,6 +71,7 @@
   let activeCompId = null;         // null = comps list; otherwise the open competition id
   let competitions = [];           // payload.competitions — config only; scoring is client-side from allDeals
   let loggedInRepName = "";        // display name from goalStatus (drives comp office visibility)
+  let setterBonusData = null;      // ?action=setterBonus response for the logged-in rep (null = not eligible / not loaded)
   let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
   let secondSystemsByName = new Map(); // normalized name -> # approved Second Systems (reporter + named party)
   let activePreviousYearDownlineNames = null;
@@ -2360,6 +2361,146 @@
       });
     });
     updateCompsUI();
+  }
+
+  // ============================== LDRSHP PAY (setter bonus) ==============================
+  // Private per-rep override tracking. Data comes from the token-gated
+  // ?action=setterBonus endpoint (never the shared payload — it's money).
+  // The button only exists for reps who appear in the sheet's Setter Leader
+  // column; everyone else never sees a trace of the feature.
+
+  async function fetchSetterBonus() {
+    try {
+      const t = getSessionToken();
+      if (!t) return;
+      const res = await fetch(API_URL + "?action=setterBonus&token=" + encodeURIComponent(t));
+      const j = await res.json();
+      if (j && j.ok && j.eligible) {
+        setterBonusData = j;
+        ensureLdrshpPayButton();
+      }
+    } catch (e) { /* no data -> no button */ }
+  }
+
+  // Two-line "Ldrshp / Pay" pill floating just RIGHT of the date T-island —
+  // mirrors the Bagels/Mexico/Comps stack on the left, landing under SelfGen.
+  function ensureLdrshpPayButton() {
+    if (!setterBonusData || document.getElementById("lp-toggle")) return;
+    const tpill = document.querySelector("#date-tabs .pv-tpill");
+    if (!tpill) return;
+    const stack = document.createElement("div");
+    stack.className = "pv-lp-stack";
+    const btn = document.createElement("button");
+    btn.id = "lp-toggle";
+    btn.type = "button";
+    btn.className = "bagel-toggle lp-toggle";
+    btn.innerHTML = "Ldrshp<br>Pay";
+    btn.addEventListener("click", openLdrshpPay);
+    stack.appendChild(btn);
+    tpill.appendChild(stack);
+  }
+
+  function lpMoney(n) { return "$" + Math.round(Number(n) || 0).toLocaleString("en-US"); }
+  function lpDate(ymd) {
+    const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(ymd || ""));
+    return m ? parseInt(m[1], 10) + "/" + parseInt(m[2], 10) : String(ymd || "");
+  }
+
+  function lpTierIndex(d) {
+    let idx = 0;
+    (d.tiers || []).forEach((t, i) => { if ((Number(d.points) || 0) >= (Number(t.min) || 0)) idx = i; });
+    return idx;
+  }
+
+  function openLdrshpPay() {
+    const d = setterBonusData;
+    if (!d) return;
+    let o = document.getElementById("lp-overlay");
+    if (!o) {
+      o = document.createElement("div");
+      o.id = "lp-overlay";
+      o.className = "pl-modal";
+      document.body.appendChild(o);
+      o.addEventListener("click", e => { if (e.target === o) closeLdrshpPay(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeLdrshpPay(); });
+    }
+
+    const t = d.totals || {};
+    // "Upcoming" = scheduled on a future pay day; otherwise show the most recent pay.
+    let payLine;
+    if (t.upcoming > 0) {
+      payLine = `<div class="lp-pay-label">UPCOMING PAY</div>
+        <div class="lp-pay-amt">${lpMoney(t.upcoming)}</div>
+        <div class="lp-pay-sub">pays ${lpDate(t.upcomingDate)} at PTO</div>`;
+    } else if (t.lastPaid > 0) {
+      payLine = `<div class="lp-pay-label">MOST RECENT PAY</div>
+        <div class="lp-pay-amt">${lpMoney(t.lastPaid)}</div>
+        <div class="lp-pay-sub">paid ${lpDate(t.lastPaidDate)}</div>`;
+    } else {
+      payLine = `<div class="lp-pay-label">UPCOMING PAY</div>
+        <div class="lp-pay-amt">—</div>
+        <div class="lp-pay-sub">nothing scheduled yet</div>`;
+    }
+
+    const tierIdx = lpTierIndex(d);
+    const tierRows = (d.tiers || []).map((tr, i) =>
+      `<div class="lp-tier-row${i === tierIdx ? " lp-tier-current" : ""}">
+        <span>${escapeHtml(tr.sets)}</span><span>${escapeHtml(tr.personal)}</span><span>${lpMoney(tr.comp)}</span>
+      </div>`).join("");
+
+    const dealRows = (d.rows || []).map(r => {
+      let status;
+      if (!r.paidDate) status = `<span class="lp-status lp-status-pending">Pending</span>`;
+      else if (r.bonus > 0 && t.upcomingDate && r.paidDate === t.upcomingDate) status = `<span class="lp-status lp-status-sched">Pays ${lpDate(r.paidDate)}</span>`;
+      else status = `<span class="lp-status lp-status-paid">Paid ${lpDate(r.paidDate)}</span>`;
+      const note = r.notes ? ` · ${escapeHtml(r.notes)}` : "";
+      return `<div class="lp-deal-row">
+        <div class="lp-deal-main">
+          <div class="lp-deal-customer">${escapeHtml(r.customer || "—")}</div>
+          <div class="lp-deal-sub">#${r.point} · ${escapeHtml(r.setter)} · PTO ${lpDate(r.ptoDate)}${note}</div>
+        </div>
+        <div class="lp-deal-right">
+          <div class="lp-deal-amt${r.bonus > 0 ? "" : " lp-deal-zero"}">${lpMoney(r.bonus)}</div>
+          ${status}
+        </div>
+      </div>`;
+    }).join("");
+
+    o.innerHTML = `<div class="lp-card">
+      <button type="button" class="lp-close" aria-label="Close">&times;</button>
+      <div class="lp-title">Leadership Pay</div>
+      <div class="lp-total-label">TOTAL EARNED</div>
+      <div class="lp-total">${lpMoney(t.earned)}</div>
+      <div class="lp-paid-sub">${lpMoney(t.paid)} paid to date</div>
+      <div class="lp-pay-box">${payLine}</div>
+      <div class="lp-actions">
+        <button type="button" class="lp-section-btn" data-lp-section="tier">Tier Progress</button>
+        <button type="button" class="lp-section-btn" data-lp-section="deals">Deal Breakdown</button>
+      </div>
+      <div class="lp-section" id="lp-section-tier" hidden>
+        <div class="lp-points">Qualifying installs: <b>${Number(d.points) || 0}</b></div>
+        <div class="lp-tier-row lp-tier-head"><span>Sets Installed</span><span>Personal</span><span>Per Set</span></div>
+        ${tierRows}
+      </div>
+      <div class="lp-section" id="lp-section-deals" hidden>${dealRows || '<div class="lp-deal-sub">No deals yet.</div>'}</div>
+    </div>`;
+
+    o.querySelector(".lp-close").addEventListener("click", closeLdrshpPay);
+    o.querySelectorAll(".lp-section-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-lp-section");
+        o.querySelectorAll(".lp-section-btn").forEach(b => b.classList.toggle("active", b === btn && !b.classList.contains("active")));
+        const showing = btn.classList.contains("active");
+        o.querySelectorAll(".lp-section").forEach(s => { s.hidden = true; });
+        if (showing) o.querySelector("#lp-section-" + key).hidden = false;
+      });
+    });
+    o.style.display = "flex";
+  }
+
+  function closeLdrshpPay() {
+    const o = document.getElementById("lp-overlay");
+    if (o) o.style.display = "none";
   }
 
   // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
@@ -6548,6 +6689,7 @@
       hideLoginOverlay();
       startSessionHeartbeat();
       maybePromptGoals(goalStatusPromise);
+      fetchSetterBonus();
       logPageView();
       // Also count it as a "check" each time the web app is brought back to the
       // foreground (reps reopen it without a full page reload).
