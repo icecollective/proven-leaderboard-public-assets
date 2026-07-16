@@ -2455,14 +2455,14 @@
 
     const dealRows = (d.rows || []).map(r => {
       let status;
-      if (!r.paidDate) status = `<span class="lp-status lp-status-pending">Pending</span>`;
-      else if (r.bonus > 0 && t.upcomingDate && r.paidDate === t.upcomingDate) status = `<span class="lp-status lp-status-sched">Pays ${lpDate(r.paidDate)}</span>`;
+      if (!(r.bonus > 0)) status = `<span class="lp-status lp-status-none">—</span>`; // no pay attached, ever — just acknowledged
+      else if (!r.paidDate) status = `<span class="lp-status lp-status-pending">Pending</span>`;
+      else if (t.upcomingDate && r.paidDate === t.upcomingDate) status = `<span class="lp-status lp-status-sched">Pays ${lpDate(r.paidDate)}</span>`;
       else status = `<span class="lp-status lp-status-paid">Paid ${lpDate(r.paidDate)}</span>`;
-      const note = r.notes ? ` · ${escapeHtml(r.notes)}` : "";
       return `<div class="lp-deal-row">
         <div class="lp-deal-main">
           <div class="lp-deal-customer">${escapeHtml(r.customer || "—")}</div>
-          <div class="lp-deal-sub">#${r.point} · ${escapeHtml(r.setter)} · PTO ${lpDate(r.ptoDate)}${note}</div>
+          <div class="lp-deal-sub">#${r.point} · ${escapeHtml(r.setter)} · PTO ${lpDate(r.ptoDate)}</div>
         </div>
         <div class="lp-deal-right">
           <div class="lp-deal-amt${r.bonus > 0 ? "" : " lp-deal-zero"}">${lpMoney(r.bonus)}</div>
