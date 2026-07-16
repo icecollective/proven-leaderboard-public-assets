@@ -2369,12 +2369,17 @@
   // The button only exists for reps who appear in the sheet's Setter Leader
   // column; everyone else never sees a trace of the feature.
 
+  async function fetchSetterBonusAs(asName) {
+    const t = getSessionToken();
+    if (!t) return null;
+    const res = await fetch(API_URL + "?action=setterBonus&token=" + encodeURIComponent(t) +
+      (asName ? "&as=" + encodeURIComponent(asName) : ""));
+    return res.json();
+  }
+
   async function fetchSetterBonus() {
     try {
-      const t = getSessionToken();
-      if (!t) return;
-      const res = await fetch(API_URL + "?action=setterBonus&token=" + encodeURIComponent(t));
-      const j = await res.json();
+      const j = await fetchSetterBonusAs("");
       if (j && j.ok && j.eligible) {
         setterBonusData = j;
         ensureLdrshpPayButton();
@@ -2466,9 +2471,17 @@
       </div>`;
     }).join("");
 
+    // Admin-only "View as" switcher (backend sends `leaders` only to admins).
+    const adminSel = (d.leaders && d.leaders.length)
+      ? `<div class="lp-admin-row"><label>Viewing as</label><select id="lp-as">${
+          d.leaders.map(n => `<option value="${escapeAttr(n)}"${normalizeName(n) === normalizeName(d.name) ? " selected" : ""}>${escapeHtml(n)}</option>`).join("")
+        }</select></div>`
+      : "";
+
     o.innerHTML = `<div class="lp-card">
       <button type="button" class="lp-close" aria-label="Close">&times;</button>
       <div class="lp-title">Leadership Pay</div>
+      ${adminSel}
       <div class="lp-total-label">TOTAL EARNED</div>
       <div class="lp-total">${lpMoney(t.earned)}</div>
       <div class="lp-paid-sub">${lpMoney(t.paid)} paid to date</div>
@@ -2486,6 +2499,15 @@
     </div>`;
 
     o.querySelector(".lp-close").addEventListener("click", closeLdrshpPay);
+    const asSel = o.querySelector("#lp-as");
+    if (asSel) {
+      asSel.addEventListener("change", async () => {
+        try {
+          const j = await fetchSetterBonusAs(asSel.value);
+          if (j && j.ok) { setterBonusData = j; openLdrshpPay(); }
+        } catch (e) { /* keep current view */ }
+      });
+    }
     o.querySelectorAll(".lp-section-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const key = btn.getAttribute("data-lp-section");
