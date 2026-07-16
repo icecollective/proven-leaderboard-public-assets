@@ -2507,9 +2507,11 @@
       </div>`;
     }).join("");
 
-    // Admin-only "View as" switcher (backend sends `leaders` only to admins).
-    const adminSel = (d.leaders && d.leaders.length)
-      ? `<div class="lp-admin-row"><label>Viewing as</label><select id="lp-as">${
+    // Leader switcher: the backend sends only the leaders this viewer may see
+    // (their org-chart downline; admins get everyone). Hidden when there's
+    // nobody to switch to.
+    const adminSel = (d.leaders && d.leaders.length > 1)
+      ? `<div class="lp-admin-row"><label>Leader</label><select id="lp-as">${
           d.leaders.map(n => `<option value="${escapeAttr(n)}"${normalizeName(n) === normalizeName(d.name) ? " selected" : ""}>${escapeHtml(n)}</option>`).join("")
         }</select></div>`
       : "";
