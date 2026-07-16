@@ -2459,10 +2459,18 @@
       else if (!r.paidDate) status = `<span class="lp-status lp-status-pending">Pending</span>`;
       else if (t.upcomingDate && r.paidDate === t.upcomingDate) status = `<span class="lp-status lp-status-sched">Pays ${lpDate(r.paidDate)}</span>`;
       else status = `<span class="lp-status lp-status-paid">Paid ${lpDate(r.paidDate)}</span>`;
+      // Split-margin equation: gross - (flows to other leaders) = what you kept.
+      let flowLine = "";
+      if (r.flows && r.flows.length) {
+        const gross = r.bonus + r.flows.reduce((a, f) => a + (Number(f.amount) || 0), 0);
+        const parts = r.flows.map(f => `${lpMoney(f.amount)} → ${escapeHtml(f.leader)}`).join(" − ");
+        flowLine = `<div class="lp-deal-flow">${lpMoney(gross)} − ${parts} = <b>${lpMoney(r.bonus)}</b></div>`;
+      }
       return `<div class="lp-deal-row">
         <div class="lp-deal-main">
           <div class="lp-deal-customer">${escapeHtml(r.customer || "—")}</div>
           <div class="lp-deal-sub">#${r.point} · ${escapeHtml(r.setter)} · PTO ${lpDate(r.ptoDate)}</div>
+          ${flowLine}
         </div>
         <div class="lp-deal-right">
           <div class="lp-deal-amt${r.bonus > 0 ? "" : " lp-deal-zero"}">${lpMoney(r.bonus)}</div>
