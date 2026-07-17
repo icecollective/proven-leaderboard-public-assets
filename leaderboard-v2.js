@@ -2616,16 +2616,23 @@
     if (o) o.style.display = "none";
   }
 
-  // A rep is INACTIVE this week if they have NONE of: weekly internal CS,
+  // A rep is INACTIVE only after TWO consecutive dry weeks (this week AND last
+  // week) with none of: internal CS, Tableau activity, or a submitted weekly
+  // goal. One checked box in either week keeps them active.
+  // (Original single-week rule below, now applied across both weeks:)
+  //
   // Tableau CS/SRA/CAP this week, or a submitted weekly goal. (Plata excluded.)
   // Always judged on the CURRENT WEEK regardless of the active date tab.
   function getInactiveSet() {
     if (inactiveSetCache) return inactiveSetCache;
     const set = new Set();
     const wtdRange = getDateRange("wtd");
-    const wtdContrib = {}; // norm -> Set(dealId) of this-week contributions
+    const lastWeekRange = getDateRange("lastWeek");
+    // Two-week activity window: last Monday through this Sunday.
+    const twoWeekRange = { start: lastWeekRange.start, end: wtdRange.end };
+    const wtdContrib = {}; // norm -> Set(dealId) of contributions in the 2-week window
     allDeals.forEach(d => {
-      if (!dealInDateRange(d, wtdRange)) return;
+      if (!dealInDateRange(d, twoWeekRange)) return;
       const id = getDealId(d);
       if (!id) return;
       const e = normalizeName(d.expert), s = normalizeName(d.setter);
@@ -2647,10 +2654,13 @@
       // the normal rules below, so a dry week makes them inactive.
       if (!getBagelData().hasEverSold(norm) && !hasTableauDataForNorm(norm)) return;
       const goal = repGoals[norm];
-      if (goal && goal.weeklyCs != null && Number(goal.weeklyCs) > 0) return; // has weekly goal
-      if (wtdContrib[norm] && wtdContrib[norm].size > 0) return;              // weekly internal CS
+      if (goal && goal.weeklyCs != null && Number(goal.weeklyCs) > 0) return;     // this week's goal
+      if (goal && goal.lastWeekCs != null && Number(goal.lastWeekCs) > 0) return; // last week's goal
+      if (wtdContrib[norm] && wtdContrib[norm].size > 0) return;                  // internal CS either week
       const t = getTableauRowForDateMode(norm, "wtd");
-      if (t && ((Number(t.cs) || 0) > 0 || (Number(t.sra) || 0) > 0 || (Number(t.cap) || 0) > 0)) return; // weekly tableau
+      if (t && ((Number(t.cs) || 0) > 0 || (Number(t.sra) || 0) > 0 || (Number(t.cap) || 0) > 0)) return; // this week's tableau
+      const tl = getTableauRowForDateMode(norm, "lastWeek");
+      if (tl && ((Number(tl.cs) || 0) > 0 || (Number(tl.sra) || 0) > 0 || (Number(tl.cap) || 0) > 0)) return; // last week's tableau
       set.add(norm);
     });
     inactiveSetCache = set;
