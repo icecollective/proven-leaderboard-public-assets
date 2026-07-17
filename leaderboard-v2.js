@@ -2544,9 +2544,10 @@
       : "";
 
     // Leader switcher: the backend sends only the leaders this viewer may see
-    // (their org-chart downline; admins get everyone). Hidden when there's
-    // nobody to switch to.
-    const adminSel = (d.leaders && d.leaders.length > 1)
+    // (their org-chart downline; admins get everyone). ALWAYS shown — even with
+    // one option — so it's never ambiguous whose pay is on screen (e.g. a
+    // non-qualifying leader viewing their sub-leader's pay).
+    const adminSel = (d.leaders && d.leaders.length)
       ? `<div class="lp-admin-row"><label>Leader</label><select id="lp-as">${
           d.leaders.map(n => `<option value="${escapeAttr(n)}"${normalizeName(n) === normalizeName(d.name) ? " selected" : ""}>${escapeHtml(n)}</option>`).join("")
         }</select></div>`
