@@ -1495,11 +1495,12 @@
   .lp-tier-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:4px; }
   .lp-tier-current { background:#102c57; color:#fff; }
 
+  /* Each deal reads as its own card (rows were blurring together). */
   .lp-deal-row {
-    display:flex; align-items:center; gap:10px; padding:9px 2px;
-    border-bottom:1px solid #f1f5f9;
+    display:flex; align-items:center; gap:10px; padding:9px 12px;
+    background:#f8fafc; border:1px solid #e7ebf2; border-radius:10px;
+    margin:7px 0;
   }
-  .lp-deal-row:last-child { border-bottom:none; }
   .lp-deal-main { flex:1 1 auto; min-width:0; }
   .lp-deal-customer { font-size:13.5px; font-weight:700; color:#0f172a; }
   .lp-deal-sub { font-size:11px; font-weight:600; color:#94a3b8; margin-top:1px; }
@@ -1551,6 +1552,6 @@
   .lp-month-meta { font-size:11px; font-weight:700; color:#64748b; white-space:nowrap; }
   .lp-month-chev { color:#94a3b8; font-size:11px; transition:transform .15s ease; }
   .lp-month-open .lp-month-chev { transform:rotate(180deg); }
-  .lp-month-deals { padding:2px 12px 6px; }
+  .lp-month-deals { padding:2px 10px 8px; }
   .lp-rules { margin-top:10px; padding-top:8px; border-top:1px solid #f1f5f9; }
   .lp-rule { font-size:10.5px; color:#94a3b8; font-weight:600; line-height:1.55; }
