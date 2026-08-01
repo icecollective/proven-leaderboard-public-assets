@@ -2283,7 +2283,13 @@
     });
     let cards;
     if (!comps.length) {
-      cards = `<div class="comps-empty">No competitions right now — check back soon.</div>`;
+      if (!identityResolved && competitions.length) {
+        // Restricted comps are withheld until we know the viewer — show a
+        // loading state instead of a premature "no competitions".
+        cards = `<div class="comps-empty comps-loading"><span class="comps-loading-spinner"></span>Checking for live competitions…</div>`;
+      } else {
+        cards = `<div class="comps-empty">No competitions right now — check back soon.</div>`;
+      }
     } else {
       cards = comps.map(comp => {
         const st = compStatusInfo(comp);
