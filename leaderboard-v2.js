@@ -71,6 +71,7 @@
   let activeCompId = null;         // null = comps list; otherwise the open competition id
   let competitions = [];           // payload.competitions — config only; scoring is client-side from allDeals
   let loggedInRepName = "";        // display name from goalStatus (drives comp office visibility)
+  let identityResolved = false;    // goalStatus settled — until then, office-restricted comps stay hidden (no flash)
   let setterBonusData = null;      // ?action=setterBonus response for the logged-in rep (null = not eligible / not loaded)
   let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
   let secondSystemsByName = new Map(); // normalized name -> # approved Second Systems (reporter + named party)
@@ -2217,12 +2218,15 @@
   }
 
   // Comps the logged-in rep may see: visibility [] = everyone; otherwise the
-  // rep's office (derived the same way board rows are) must be listed. If we
-  // don't know who's viewing (goalStatus failed / admin without an office),
-  // fail open and show everything.
+  // rep's office (derived the same way board rows are) must be listed. Admins
+  // (HIDDEN_REPS) always see everything. Until goalStatus settles we hide
+  // office-restricted comps rather than fail open — comps appearing a beat
+  // late beats comps flashing and disappearing. After it settles, a viewer we
+  // still can't place fails open.
   function visibleCompetitions() {
     ensureOfficeNameSets();
     const myNorm = normalizeName(loggedInRepName);
+    if (myNorm && HIDDEN_REPS.has(myNorm)) return competitions.slice();
     let myOffice = "";
     if (myNorm) {
       if (iceCollectiveNames.has(myNorm)) myOffice = "Ice Collective";
@@ -2230,7 +2234,8 @@
     }
     return competitions.filter(comp => {
       const vis = Array.isArray(comp.visibility) ? comp.visibility : [];
-      if (!vis.length || !myOffice) return true;
+      if (!vis.length) return true;
+      if (!myOffice) return identityResolved;
       return vis.some(v => normalizeName(v) === normalizeName(myOffice));
     });
   }
@@ -6822,9 +6827,16 @@
     const goalStatusPromise = getSessionToken() ? fetchGoalStatus().catch(() => null) : null;
     if (getSessionToken()) fetchSetterBonus(); // parallel with the payload — button appears sooner
     // Remember who's logged in (name only) — comp visibility keys off their office.
-    if (goalStatusPromise) goalStatusPromise.then(s => {
-      if (s && s.name) { loggedInRepName = s.name; if (compsOn) renderLeaderboard(); }
-    });
+    // Always mark identity resolved (even on failure) so restricted comps stop hiding.
+    if (goalStatusPromise) {
+      goalStatusPromise.then(s => {
+        if (s && s.name) loggedInRepName = s.name;
+        identityResolved = true;
+        if (compsOn) renderLeaderboard();
+      });
+    } else {
+      identityResolved = true;
+    }
     // Stale-while-revalidate: paint instantly from the cached payload, then
     // refresh in the background. Auth rejection clears everything and drops to
     // the login screen (so kicked/blocked reps don't keep a stale board).
