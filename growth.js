@@ -156,7 +156,8 @@
   var scopeType = "all";       // all | ice | riot | pods
   var activePod = null;        // pod leader name while drilled in
   var minPodSize = 5;
-  var monthKey = "";           // "YYYY-MM", set at boot
+  // Which lines show on the 12-month chart (legend chips toggle these).
+  var chartVisible = { cs: true, sra: true, cap: true, installs: true, active: true, recruits: false };
 
   var officeSets = null;       // { ice:Set, riot:Set } of normalized names
   var rosterNorms = [];        // all recruiting names (normalized, hidden excluded)
@@ -305,34 +306,73 @@
       } }
   ];
 
-  // Metric value series across trailing months (for sparkline + delta), cached
-  // per render since computeMonthStats walks all deals per month.
-  function metricSeries(metric, months, set) {
-    return months.map(function (mk) {
-      var r = metric.compute(mk, set);
-      return r.value == null ? 0 : r.value;
-    });
+  // ---- 12-month chart (inline SVG, no libs) --------------------------------
+  var CHART_METRICS = [
+    { key: "cs",       label: "CS",           color: "#0f172a" },
+    { key: "sra",      label: "SRA",          color: "#2563eb" },
+    { key: "cap",      label: "CAP",          color: "#7c3aed" },
+    { key: "installs", label: "Installs",     color: "#059669" },
+    { key: "active",   label: "Active Reps",  color: "#d97706" },
+    { key: "recruits", label: "New Recruits", color: "#db2777" }
+  ];
+
+  function buildStatsByMonth(months, set) {
+    var m = {};
+    months.forEach(function (mk) { m[mk] = computeMonthStats(mk, set); });
+    return m;
   }
 
-  // ---- sparkline (inline SVG, no libs) ------------------------------------
-  function sparklineSvg(values) {
-    var w = 100, h = 30, pad = 2;
-    var max = Math.max.apply(null, values.concat([1]));
-    var step = (w - pad * 2) / Math.max(values.length - 1, 1);
-    var pts = values.map(function (v, i) {
-      var x = pad + i * step;
-      var y = h - pad - (v / max) * (h - pad * 2);
-      return [x.toFixed(1), y.toFixed(1)];
+  function niceMax(v) {
+    if (v <= 4) return 4;
+    var p = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v / p;
+    var m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 5 ? 5 : 10;
+    return m * p;
+  }
+
+  function yearChartSvg(months, series) {
+    var w = 1060, h = 250, padL = 42, padR = 14, padT = 12, padB = 28;
+    var innerW = w - padL - padR, innerH = h - padT - padB;
+    var visible = CHART_METRICS.filter(function (m) { return chartVisible[m.key] && series[m.key]; });
+    var max = 1;
+    visible.forEach(function (m) {
+      series[m.key].forEach(function (v) { if (v > max) max = v; });
     });
-    var line = pts.map(function (p) { return p.join(","); }).join(" ");
-    var area = "M" + pts[0].join(",") + " L" + pts.map(function (p) { return p.join(","); }).join(" L") +
-               " L" + pts[pts.length - 1][0] + "," + (h - pad) + " L" + pts[0][0] + "," + (h - pad) + " Z";
-    var last = pts[pts.length - 1];
-    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
-      '<path d="' + area + '" fill="rgba(15,23,42,.07)"></path>' +
-      '<polyline points="' + line + '" fill="none" stroke="#0f172a" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
-      '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.2" fill="#0f172a"></circle>' +
-      '</svg>';
+    max = niceMax(max);
+
+    var x = function (i) { return padL + (i / Math.max(months.length - 1, 1)) * innerW; };
+    var y = function (v) { return padT + innerH - (v / max) * innerH; };
+
+    var parts = ['<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">'];
+    // gridlines + y labels at 0/25/50/75/100%
+    for (var g = 0; g <= 4; g++) {
+      var gv = (max / 4) * g;
+      var gy = y(gv);
+      parts.push('<line x1="' + padL + '" y1="' + gy + '" x2="' + (w - padR) + '" y2="' + gy + '" stroke="#eef1f6" stroke-width="1"></line>');
+      parts.push('<text x="' + (padL - 8) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="11" fill="#94a3b8">' + Math.round(gv) + "</text>");
+    }
+    // x labels (month abbreviations)
+    months.forEach(function (mk, i) {
+      parts.push('<text x="' + x(i) + '" y="' + (h - 8) + '" text-anchor="middle" font-size="11" fill="#94a3b8">' + MONTH_NAMES[+mk.slice(5, 7) - 1] + "</text>");
+    });
+    // one line + end dot per visible metric
+    visible.forEach(function (m) {
+      var pts = series[m.key].map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); }).join(" ");
+      parts.push('<polyline points="' + pts + '" fill="none" stroke="' + m.color + '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></polyline>');
+      var lastV = series[m.key][series[m.key].length - 1];
+      parts.push('<circle cx="' + x(series[m.key].length - 1) + '" cy="' + y(lastV) + '" r="3" fill="' + m.color + '"></circle>');
+    });
+    parts.push("</svg>");
+    return parts.join("");
+  }
+
+  function legendHtml(series) {
+    return '<div class="gr-legend">' + CHART_METRICS.map(function (m) {
+      if (!series[m.key]) return "";
+      var on = chartVisible[m.key];
+      return '<button type="button" class="gr-chip' + (on ? " gr-chip-on" : "") + '" data-line="' + m.key + '">' +
+        '<span class="gr-chip-dot" style="background:' + m.color + '"></span>' + esc(m.label) + "</button>";
+    }).join("") + "</div>";
   }
 
   // ---- rendering -----------------------------------------------------------
@@ -363,28 +403,53 @@
     });
   }
 
-  function metricCardHtml(metric, months, set) {
-    var now = metric.compute(monthKey, set);
+  var PACEABLE = { cs: true, sra: true, cap: true, installs: true };
+
+  function metricCardHtml(metric, mk, set, opts) {
+    opts = opts || {};
+    var now = metric.compute(mk, set);
     var html = '<div class="gr-card"><div class="gr-card-label">' + esc(metric.label) + "</div>";
     if (now.value == null) {
       html += '<div class="gr-card-value">—</div><div class="gr-card-delta"></div><div class="gr-card-note">' + esc(now.note || "") + "</div></div>";
       return html;
     }
     html += '<div class="gr-card-value">' + now.value + (now.suffix ? " <small>" + esc(now.suffix) + "</small>" : "") + "</div>";
-    var prev = metric.compute(shiftMonth(monthKey, -1), set).value;
-    if (prev == null || prev === now.value) {
-      html += '<div class="gr-card-delta gr-flat">' + (prev == null ? "" : "even vs " + monthLabel(shiftMonth(monthKey, -1))) + "</div>";
+
+    var prevMk = shiftMonth(mk, -1);
+    var prev = metric.compute(prevMk, set).value;
+    if (opts.pace) {
+      // Mid-month: a straight-line projection reads better than an apples-to-
+      // oranges delta against a finished month.
+      if (PACEABLE[metric.key]) {
+        var today = new Date();
+        var daysIn = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        var elapsed = Math.max(today.getDate(), 1);
+        if (elapsed / daysIn < 0.15) {
+          // A straight-line projection off 1-4 days is noise, not a trend.
+          html += '<div class="gr-card-delta gr-flat">month to date · too early to project</div>';
+        } else {
+          var proj = Math.round((now.value / elapsed) * daysIn);
+          var cls = prev == null ? "gr-flat" : proj >= prev ? "gr-up" : "gr-down";
+          html += '<div class="gr-card-delta ' + cls + '">on pace for ~' + proj + (prev != null ? " (last month " + prev + ")" : "") + "</div>";
+        }
+      } else {
+        html += '<div class="gr-card-delta gr-flat">month to date</div>';
+      }
+    } else if (prev == null || prev === now.value) {
+      html += '<div class="gr-card-delta gr-flat">' + (prev == null ? "" : "even vs " + monthLabel(prevMk)) + "</div>";
     } else {
       var diff = now.value - prev;
-      html += '<div class="gr-card-delta ' + (diff > 0 ? "gr-up" : "gr-down") + '">' + (diff > 0 ? "+" : "") + diff + " vs " + monthLabel(shiftMonth(monthKey, -1)) + "</div>";
+      html += '<div class="gr-card-delta ' + (diff > 0 ? "gr-up" : "gr-down") + '">' + (diff > 0 ? "+" : "") + diff + " vs " + monthLabel(prevMk) + "</div>";
     }
     if (now.note) html += '<div class="gr-card-note">' + esc(now.note) + "</div>";
-    html += '<div class="gr-spark">' + sparklineSvg(metricSeries(metric, months, set)) + "</div></div>";
+    html += "</div>";
     return html;
   }
 
   function render() {
-    var months = trailingMonths(monthKey, 12);
+    var curMk = currentMonthKey();
+    var lastMk = shiftMonth(curMk, -1);
+    var months = trailingMonths(curMk, 12);
     var scope = currentScope();
 
     var tabs = [
@@ -397,10 +462,6 @@
       return '<button type="button" class="gr-tab' + (scopeType === t.id ? " gr-on" : "") + '" data-scope="' + t.id + '"' + (t.disabled ? " disabled title=\"Coming soon\"" : "") + ">" + esc(t.label) + "</button>";
     }).join("");
 
-    var monthOpts = trailingMonths(currentMonthKey(), 12).slice().reverse().map(function (mk) {
-      return '<option value="' + mk + '"' + (mk === monthKey ? " selected" : "") + ">" + esc(monthLabel(mk)) + "</option>";
-    }).join("");
-
     var controls =
       '<div class="gr-controls">' +
         '<div class="gr-tabs">' + tabs + "</div>" +
@@ -410,7 +471,6 @@
               [3, 5, 10].map(function (n) { return '<option value="' + n + '"' + (n === minPodSize ? " selected" : "") + ">" + n + "+</option>"; }).join("") +
               "</select>"
             : "") +
-          '<label for="gr-month">Month</label><select id="gr-month">' + monthOpts + "</select>" +
         "</div>" +
       "</div>";
 
@@ -422,10 +482,10 @@
         .sort(function (a, b) { return b.set.size - a.set.size; });
       body = pods.length
         ? '<div class="gr-pod-list">' + pods.map(function (p) {
-            var stats = computeMonthStats(monthKey, p.set);
+            var stats = computeMonthStats(curMk, p.set);
             return '<button type="button" class="gr-pod" data-pod="' + esc(p.name) + '">' +
               '<div class="gr-pod-name">' + esc(p.name) + "</div>" +
-              '<div class="gr-pod-meta">' + rosterCountFor(p.set) + " reps · " + stats.cs + " CS · " + stats.active + " active in " + esc(monthLabel(monthKey)) + "</div>" +
+              '<div class="gr-pod-meta">' + rosterCountFor(p.set) + " reps · " + stats.cs + " CS · " + stats.active + " active in " + esc(monthLabel(curMk)) + "</div>" +
               "</button>";
           }).join("") + "</div>"
         : '<div class="gr-card-note">No pods with ' + minPodSize + '+ reps.</div>';
@@ -433,15 +493,34 @@
       var backBtn = (scopeType === "pods" && activePod)
         ? '<button type="button" class="gr-back" id="gr-back">← All pods</button><div class="gr-scope-title">' + esc(scope.label) + "</div>"
         : "";
-      body = backBtn + '<div class="gr-grid">' +
-        METRICS.map(function (m) { return metricCardHtml(m, months, scope.set); }).join("") +
-        "</div>";
+
+      // Year chart series (one computeMonthStats pass per month).
+      var stats = buildStatsByMonth(months, scope.set);
+      var series = {};
+      CHART_METRICS.forEach(function (m) {
+        if (m.key === "recruits") {
+          series.recruits = logStartDate
+            ? months.map(function (mk) { return newRecruitsIn(mk, scope.set).length; })
+            : null;
+        } else {
+          series[m.key] = months.map(function (mk) { return stats[mk][m.key]; });
+        }
+      });
+
+      body = backBtn +
+        '<div class="gr-section">Past 12 Months</div>' +
+        legendHtml(series) +
+        '<div class="gr-chart">' + yearChartSvg(months, series) + "</div>" +
+        '<div class="gr-section">Last Month — ' + esc(monthLabel(lastMk)) + "</div>" +
+        '<div class="gr-grid">' + METRICS.map(function (m) { return metricCardHtml(m, lastMk, scope.set); }).join("") + "</div>" +
+        '<div class="gr-section">This Month — ' + esc(monthLabel(curMk)) + " <span>trending</span></div>" +
+        '<div class="gr-grid">' + METRICS.map(function (m) { return metricCardHtml(m, curMk, scope.set, { pace: true }); }).join("") + "</div>";
     }
 
     appEl().innerHTML =
       '<div class="gr-head"><div class="gr-title">Proven Growth<span>DASHBOARD</span></div>' +
       '<div class="gr-viewer">' + esc(viewerName || "") + "</div></div>" +
-      '<div class="gr-sub">' + esc(scope.label) + " · " + esc(monthLabel(monthKey)) + " · internal deal data</div>" +
+      '<div class="gr-sub">' + esc(scope.label) + " · internal deal data</div>" +
       controls + body;
     wire();
   }
@@ -457,8 +536,6 @@
         render();
       });
     });
-    var monthSel = app.querySelector("#gr-month");
-    if (monthSel) monthSel.addEventListener("change", function () { monthKey = monthSel.value; render(); });
     var sizeSel = app.querySelector("#gr-podsize");
     if (sizeSel) sizeSel.addEventListener("change", function () { minPodSize = +sizeSel.value; render(); });
     app.querySelectorAll(".gr-pod").forEach(function (btn) {
@@ -466,6 +543,13 @@
     });
     var back = app.querySelector("#gr-back");
     if (back) back.addEventListener("click", function () { activePod = null; render(); });
+    app.querySelectorAll(".gr-chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var k = btn.getAttribute("data-line");
+        chartVisible[k] = !chartVisible[k];
+        render();
+      });
+    });
   }
 
   // ---- boot ----------------------------------------------------------------
@@ -496,7 +580,6 @@
       rosterNorms = recruitingRows.map(function (r) { return normalizeName(r.name); })
         .filter(function (n) { return n && !isHidden(n); });
       buildOfficeSets();
-      if (!monthKey) monthKey = currentMonthKey();
 
       if (DEBUG) {
         var vocab = { sra: {}, cap: {}, install: {} };
