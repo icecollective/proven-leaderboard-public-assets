@@ -71,6 +71,7 @@
   let activeCompId = null;         // null = comps list; otherwise the open competition id
   let competitions = [];           // payload.competitions — config only; scoring is client-side from allDeals
   let loggedInRepName = "";        // display name from goalStatus (drives comp office visibility)
+  let compEditorFlag = false;      // goalStatus.compEditor — may edit Manual comps
   let identityResolved = false;    // goalStatus settled — until then, office-restricted comps stay hidden (no flash)
   let setterBonusData = null;      // ?action=setterBonus response for the logged-in rep (null = not eligible / not loaded)
   let tableauExperts = new Set();  // normalized names of reps treated as Experts for Mexico (from the "Tableau Experts" sheet tab)
@@ -2205,6 +2206,7 @@
   }
 
   function compMetricLabel(comp) {
+    if (comp.metric === "manual") return "Custom Scoring";
     if (comp.metric === "sets") return "CS Sets";
     if (comp.metric === "closes") return "CS Closes";
     return "CS Sets + Closes";
@@ -2241,7 +2243,19 @@
   }
 
   // One pass over allDeals -> ranked teams with ranked rep breakdowns.
+  // Manual comps skip the deal scan entirely: totals come straight from the
+  // server-entered scores (comp.scores) and reps are display-only roster names.
   function computeCompStandings(comp) {
+    if (comp.metric === "manual") {
+      const scores = comp.scores || {};
+      const teams = (comp.teams || []).map(t => ({
+        name: t.name,
+        total: Number(scores[t.name]) || 0,
+        reps: (t.reps || []).map(r => ({ name: r, sets: 0, closes: 0, score: null }))
+      }));
+      teams.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+      return teams;
+    }
     const wantSets = comp.metric !== "closes";
     const wantCloses = comp.metric !== "sets";
     const teams = (comp.teams || []).map(t => ({
@@ -2326,10 +2340,12 @@
       const pct = Math.round((team.total / maxTotal) * 100);
       const repRows = team.reps.map(rep => {
         const sub = showSplit ? `<span class="comp-rep-split">${rep.sets} sets · ${rep.closes} closes</span>` : "";
+        // Manual comps score the TEAM, not the reps — roster names only.
+        const score = rep.score == null ? "" : `<span class="comp-rep-score">${rep.score}</span>`;
         return `<div class="comp-rep-row">
           <button type="button" class="rep-card-name-button" data-rep-card-name="${escapeAttr(rep.name)}">${escapeHtml(rep.name)}</button>
           ${sub}
-          <span class="comp-rep-score">${rep.score}</span>
+          ${score}
         </div>`;
       }).join("");
       return `<div class="comp-team${leading ? " comp-team-leading" : ""}">
@@ -2351,6 +2367,9 @@
         <div class="comp-detail-name">${escapeHtml(comp.name)}</div>
         <div class="comp-card-meta">${escapeHtml(compMetricLabel(comp))}</div>
         ${comp.description ? `<div class="comp-detail-desc">${escapeHtml(comp.description)}</div>` : ""}
+        ${compEditorFlag && comp.metric === "manual"
+          ? `<button type="button" class="comp-edit-btn" data-comp-edit="${escapeAttr(comp.id)}">✎ Edit Comp</button>`
+          : ""}
       </div>
       ${teamsHtml}
     </div>`;
@@ -2372,7 +2391,117 @@
         scrollLeaderboardToTop();
       });
     });
+    grid.querySelectorAll("[data-comp-edit]").forEach(btn => {
+      btn.addEventListener("click", () => openCompEditor(btn.getAttribute("data-comp-edit")));
+    });
     updateCompsUI();
+  }
+
+  // ---- Manual-comp editor (authorized editors only) -----------------------
+  // The ✎ Edit Comp button (compEditorFlag + metric "manual") opens this
+  // modal: set each team's score, or add a team (optional member list) —
+  // including mid-comp. Both calls are token-gated server actions that log
+  // every change to the Score History tab; the response carries the updated
+  // comp so the board refreshes instantly instead of waiting on the payload.
+
+  function patchCompetition_(updated) {
+    if (!updated || !updated.id) return;
+    const i = competitions.findIndex(c => c.id === updated.id);
+    if (i >= 0) competitions[i] = updated; else competitions.push(updated);
+  }
+
+  function closeCompEditor() {
+    const o = document.getElementById("ce-overlay");
+    if (o) o.remove();
+  }
+
+  function openCompEditor(compId) {
+    let o = document.getElementById("ce-overlay");
+    if (!o) {
+      o = document.createElement("div");
+      o.id = "ce-overlay";
+      o.className = "pl-modal";
+      document.body.appendChild(o);
+      o.addEventListener("click", e => { if (e.target === o) closeCompEditor(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeCompEditor(); });
+    }
+    o.style.display = "flex";
+    renderCompEditor_(o, compId, "");
+  }
+
+  function renderCompEditor_(o, compId, statusMsg) {
+    const comp = competitions.find(c => c.id === compId);
+    if (!comp) { closeCompEditor(); return; }
+    const scores = comp.scores || {};
+    const scoreRows = (comp.teams || []).map((t, i) => `
+      <div class="ce-score-row">
+        <span class="ce-team-name">${escapeHtml(t.name)}</span>
+        <input type="number" inputmode="numeric" class="ce-score-input" data-ce-team="${escapeAttr(t.name)}"
+          value="${Number(scores[t.name]) || 0}">
+      </div>`).join("");
+    o.innerHTML = `<div class="lp-card ce-card">
+      <button type="button" class="lp-close" aria-label="Close">&times;</button>
+      <div class="lp-title">Edit · ${escapeHtml(comp.name)}</div>
+      <div class="ce-status${statusMsg && /✓/.test(statusMsg) ? " ce-status-ok" : ""}">${escapeHtml(statusMsg || "")}</div>
+      <div class="ce-section-label">TEAM SCORES</div>
+      ${scoreRows || `<div class="ce-empty">No teams yet — add the first one below.</div>`}
+      ${scoreRows ? `<button type="button" class="ce-btn" id="ce-save">Save Scores</button>` : ""}
+      <div class="ce-section-label">ADD A TEAM</div>
+      <input type="text" class="ce-text-input" id="ce-new-team" placeholder="Team name" autocomplete="off">
+      <textarea class="ce-text-input ce-members" id="ce-new-members" rows="3"
+        placeholder="Members (optional) — one per line"></textarea>
+      <button type="button" class="ce-btn ce-btn-secondary" id="ce-add">Add Team</button>
+      <div class="ce-note">Every save is logged to the comp's history with who changed what.</div>
+    </div>`;
+    o.querySelector(".lp-close").addEventListener("click", closeCompEditor);
+
+    const saveBtn = o.querySelector("#ce-save");
+    if (saveBtn) saveBtn.addEventListener("click", async () => {
+      const payload = {};
+      o.querySelectorAll(".ce-score-input").forEach(inp => {
+        payload[inp.getAttribute("data-ce-team")] = Number(inp.value) || 0;
+      });
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const res = await fetch(API_URL + "?action=compSetScores&token=" + encodeURIComponent(getSessionToken()) +
+          "&comp=" + encodeURIComponent(compId) + "&scores=" + encodeURIComponent(JSON.stringify(payload)));
+        const j = await res.json();
+        if (j && j.ok) {
+          patchCompetition_(j.comp);
+          if (compsOn) renderLeaderboard();
+          renderCompEditor_(o, compId, "Scores saved ✓");
+        } else {
+          renderCompEditor_(o, compId, (j && j.error) || "Save failed — try again.");
+        }
+      } catch (e) {
+        renderCompEditor_(o, compId, "Save failed — check your connection.");
+      }
+    });
+
+    const addBtn = o.querySelector("#ce-add");
+    addBtn.addEventListener("click", async () => {
+      const name = o.querySelector("#ce-new-team").value.trim();
+      const members = o.querySelector("#ce-new-members").value.trim();
+      if (!name) { renderCompEditor_(o, compId, "Give the team a name first."); return; }
+      addBtn.disabled = true;
+      addBtn.textContent = "Adding…";
+      try {
+        const res = await fetch(API_URL + "?action=compAddTeam&token=" + encodeURIComponent(getSessionToken()) +
+          "&comp=" + encodeURIComponent(compId) + "&team=" + encodeURIComponent(name) +
+          "&reps=" + encodeURIComponent(members));
+        const j = await res.json();
+        if (j && j.ok) {
+          patchCompetition_(j.comp);
+          if (compsOn) renderLeaderboard();
+          renderCompEditor_(o, compId, '"' + name + '" added ✓');
+        } else {
+          renderCompEditor_(o, compId, (j && j.error) || "Couldn't add the team — try again.");
+        }
+      } catch (e) {
+        renderCompEditor_(o, compId, "Couldn't add the team — check your connection.");
+      }
+    });
   }
 
   // ============================== LDRSHP PAY (setter bonus) ==============================
@@ -6837,6 +6966,7 @@
     if (goalStatusPromise) {
       goalStatusPromise.then(s => {
         if (s && s.name) loggedInRepName = s.name;
+        compEditorFlag = !!(s && s.compEditor);
         identityResolved = true;
         if (compsOn) renderLeaderboard();
       });

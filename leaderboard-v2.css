@@ -1559,3 +1559,57 @@
   .lp-month-deals { padding:2px 10px 8px; }
   .lp-rules { margin-top:10px; padding-top:8px; border-top:1px solid #f1f5f9; }
   .lp-rule { font-size:10.5px; color:#94a3b8; font-weight:600; line-height:1.55; }
+
+  /* ============================== MANUAL COMP EDITOR ============================== */
+  /* ✎ Edit Comp button on the comp detail head (authorized editors only). */
+  .comp-edit-btn {
+    margin-top:10px; padding:7px 14px; cursor:pointer;
+    background:linear-gradient(180deg,#28457e,#102c57); color:#fff;
+    border:1px solid #0c2344; border-radius:9px;
+    font-weight:800; font-size:11.5px; letter-spacing:.02em;
+    box-shadow:0 2px 6px rgba(16,44,87,.22);
+  }
+  .comp-edit-btn:hover { filter:brightness(1.1); }
+
+  /* Editor modal reuses the lp-card shell but sizes to its content. */
+  #ce-overlay { background:rgba(15,23,42,.55); }
+  .lp-card.ce-card {
+    height:auto; max-height:88vh; overflow-y:auto; display:block;
+    scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent;
+  }
+  .ce-status { min-height:16px; font-size:11.5px; font-weight:700; color:#b91c1c; margin-top:6px; }
+  .ce-status-ok { color:#15803d; }
+  .ce-section-label {
+    font-size:10px; font-weight:800; color:#64748b; letter-spacing:.09em;
+    margin:14px 0 6px; padding-top:12px; border-top:1px solid #f1f5f9;
+  }
+  .ce-score-row {
+    display:flex; align-items:center; gap:10px; padding:6px 0;
+    border-bottom:1px solid #f1f5f9;
+  }
+  .ce-score-row:last-of-type { border-bottom:none; }
+  .ce-team-name { flex:1 1 auto; font-size:13.5px; font-weight:700; color:#0f172a; min-width:0; }
+  .ce-score-input {
+    flex:0 0 84px; width:84px; padding:8px 10px; text-align:right;
+    font-size:15px; font-weight:800; color:#0f172a;
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; outline:none;
+  }
+  .ce-score-input:focus { border-color:#94a3b8; background:#fff; }
+  .ce-empty { font-size:12px; color:#94a3b8; font-weight:600; padding:6px 0; }
+  .ce-text-input {
+    display:block; width:100%; padding:9px 11px; margin-bottom:8px;
+    font-size:13.5px; font-weight:600; color:#0f172a; font-family:inherit;
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; outline:none;
+  }
+  .ce-text-input:focus { border-color:#94a3b8; background:#fff; }
+  .ce-members { resize:vertical; min-height:60px; }
+  .ce-btn {
+    display:block; width:100%; padding:10px 14px; cursor:pointer; margin-top:8px;
+    background:linear-gradient(180deg,#28457e,#102c57); color:#fff;
+    border:1px solid #0c2344; border-radius:10px;
+    font-weight:800; font-size:13px;
+  }
+  .ce-btn:hover { filter:brightness(1.1); }
+  .ce-btn:disabled { opacity:.6; cursor:default; }
+  .ce-btn-secondary { background:linear-gradient(180deg,#334155,#1e293b); border-color:#0f172a; }
+  .ce-note { font-size:10.5px; color:#94a3b8; font-weight:600; margin-top:12px; line-height:1.5; }
