@@ -1613,3 +1613,15 @@
   .ce-btn:disabled { opacity:.6; cursor:default; }
   .ce-btn-secondary { background:linear-gradient(180deg,#334155,#1e293b); border-color:#0f172a; }
   .ce-note { font-size:10.5px; color:#94a3b8; font-weight:600; margin-top:12px; line-height:1.5; }
+  .ce-team-edit {
+    flex:0 0 30px; width:30px; height:30px; cursor:pointer;
+    background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px;
+    color:#475569; font-size:13px; line-height:1;
+  }
+  .ce-team-edit:hover { background:#e2e8f0; }
+  .ce-btn-danger { background:linear-gradient(180deg,#dc2626,#b91c1c); border-color:#991b1b; }
+  .ce-back {
+    display:block; width:100%; margin-top:12px; padding:6px; cursor:pointer;
+    background:none; border:none; font-size:12px; font-weight:700; color:#64748b;
+  }
+  .ce-back:hover { color:#0f172a; }

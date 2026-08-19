@@ -2436,6 +2436,8 @@
     const scoreRows = (comp.teams || []).map((t, i) => `
       <div class="ce-score-row">
         <span class="ce-team-name">${escapeHtml(t.name)}</span>
+        <button type="button" class="ce-team-edit" data-ce-edit-team="${escapeAttr(t.name)}"
+          aria-label="Edit ${escapeAttr(t.name)}">✎</button>
         <input type="number" inputmode="numeric" class="ce-score-input" data-ce-team="${escapeAttr(t.name)}"
           value="${Number(scores[t.name]) || 0}">
       </div>`).join("");
@@ -2454,6 +2456,10 @@
       <div class="ce-note">Every save is logged to the comp's history with who changed what.</div>
     </div>`;
     o.querySelector(".lp-close").addEventListener("click", closeCompEditor);
+
+    o.querySelectorAll("[data-ce-edit-team]").forEach(btn => {
+      btn.addEventListener("click", () => renderCompTeamEditor_(o, compId, btn.getAttribute("data-ce-edit-team"), ""));
+    });
 
     const saveBtn = o.querySelector("#ce-save");
     if (saveBtn) saveBtn.addEventListener("click", async () => {
@@ -2500,6 +2506,80 @@
         }
       } catch (e) {
         renderCompEditor_(o, compId, "Couldn't add the team — check your connection.");
+      }
+    });
+  }
+
+  // Second modal view: edit ONE team — rename, replace the member list, or
+  // delete it entirely (two-tap confirm). Every change lands in Score History.
+  function renderCompTeamEditor_(o, compId, teamName, statusMsg) {
+    const comp = competitions.find(c => c.id === compId);
+    const team = comp && (comp.teams || []).find(t => t.name === teamName);
+    if (!team) { renderCompEditor_(o, compId, statusMsg || ""); return; }
+    o.innerHTML = `<div class="lp-card ce-card">
+      <button type="button" class="lp-close" aria-label="Close">&times;</button>
+      <div class="lp-title">Edit Team · ${escapeHtml(comp.name)}</div>
+      <div class="ce-status${statusMsg && /✓/.test(statusMsg) ? " ce-status-ok" : ""}">${escapeHtml(statusMsg || "")}</div>
+      <div class="ce-section-label">TEAM NAME</div>
+      <input type="text" class="ce-text-input" id="ce-team-name" value="${escapeAttr(team.name)}" autocomplete="off">
+      <div class="ce-section-label">MEMBERS</div>
+      <textarea class="ce-text-input ce-members" id="ce-team-members" rows="5"
+        placeholder="One per line — leave empty for no member list">${escapeHtml((team.reps || []).join("\n"))}</textarea>
+      <button type="button" class="ce-btn" id="ce-team-save">Save Team</button>
+      <button type="button" class="ce-btn ce-btn-danger" id="ce-team-delete">Delete Team</button>
+      <button type="button" class="ce-back" id="ce-back">&larr; Back to comp</button>
+    </div>`;
+    o.querySelector(".lp-close").addEventListener("click", closeCompEditor);
+    o.querySelector("#ce-back").addEventListener("click", () => renderCompEditor_(o, compId, ""));
+
+    const saveBtn = o.querySelector("#ce-team-save");
+    saveBtn.addEventListener("click", async () => {
+      const newName = o.querySelector("#ce-team-name").value.trim();
+      const members = o.querySelector("#ce-team-members").value.trim();
+      if (!newName) { renderCompTeamEditor_(o, compId, teamName, "The team needs a name."); return; }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const res = await fetch(API_URL + "?action=compEditTeam&token=" + encodeURIComponent(getSessionToken()) +
+          "&comp=" + encodeURIComponent(compId) + "&team=" + encodeURIComponent(teamName) +
+          "&newName=" + encodeURIComponent(newName) + "&reps=" + encodeURIComponent(members));
+        const j = await res.json();
+        if (j && j.ok) {
+          patchCompetition_(j.comp);
+          if (compsOn) renderLeaderboard();
+          renderCompEditor_(o, compId, '"' + newName + '" saved ✓');
+        } else {
+          renderCompTeamEditor_(o, compId, teamName, (j && j.error) || "Save failed — try again.");
+        }
+      } catch (e) {
+        renderCompTeamEditor_(o, compId, teamName, "Save failed — check your connection.");
+      }
+    });
+
+    // Delete is armed on the first tap, fires on the second — no native
+    // confirm() (unreliable inside the Webflow embed on iOS).
+    const delBtn = o.querySelector("#ce-team-delete");
+    delBtn.addEventListener("click", async () => {
+      if (!delBtn.dataset.armed) {
+        delBtn.dataset.armed = "1";
+        delBtn.textContent = "Tap again to delete \"" + teamName + "\"";
+        return;
+      }
+      delBtn.disabled = true;
+      delBtn.textContent = "Deleting…";
+      try {
+        const res = await fetch(API_URL + "?action=compDeleteTeam&token=" + encodeURIComponent(getSessionToken()) +
+          "&comp=" + encodeURIComponent(compId) + "&team=" + encodeURIComponent(teamName));
+        const j = await res.json();
+        if (j && j.ok) {
+          patchCompetition_(j.comp);
+          if (compsOn) renderLeaderboard();
+          renderCompEditor_(o, compId, '"' + teamName + '" deleted ✓');
+        } else {
+          renderCompTeamEditor_(o, compId, teamName, (j && j.error) || "Delete failed — try again.");
+        }
+      } catch (e) {
+        renderCompTeamEditor_(o, compId, teamName, "Delete failed — check your connection.");
       }
     });
   }
