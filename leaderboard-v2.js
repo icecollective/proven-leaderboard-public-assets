@@ -5158,17 +5158,18 @@
     }
 
     // Keep the label exactly "Tableau" in every state so the pill never changes
-    // size. The import date is a Justin-only subscript — gated on a normalized
+    // size. The import stamp is a Justin-only subscript — gated on a normalized
     // name match, not s.exempt / HIDDEN_REPS (those also include Kelton + others).
+    // Read Tableau's own lastUpdated only — never payload/apiMeta.lastUpdated
+    // (that is the deals/cache clock).
     const rawDate = (dataset && dataset.lastUpdated)
       || (tableauData.ytd && tableauData.ytd.lastUpdated)
       || (tableauData.mtd && tableauData.mtd.lastUpdated)
       || (tableauData.wtd && tableauData.wtd.lastUpdated)
       || (tableauData.lastWeek && tableauData.lastWeek.lastUpdated)
       || "";
-    const labelDate = rawDate ? formatShortDate(rawDate) : "";
     btn.textContent = "Tableau";
-    syncTableauUpdatedStamp(btn, labelDate);
+    syncTableauUpdatedStamp(btn, rawDate);
     if (!shouldShowTableau) {
       setShowTableau(false);
       btn.classList.remove("active");
@@ -5220,8 +5221,106 @@
   }
   }
 
-  function syncTableauUpdatedStamp(btn, labelDate) {
-    const showStamp = normalizeName(loggedInRepName) === normalizeName("Justin Wall") && !!labelDate;
+  // Tableau import schedule (America/Los_Angeles): 10, 12, 14, 16, 18, 20, 22, 00
+  // — every other hour 10:00am–midnight PT. After midnight until the 10:00 PT
+  // slot, the last expected run is midnight (no overnight slot). lastExpected is
+  // the most recent slot at least 25 minutes in the past (grace for Tableau +
+  // Drive + import).
+  const TABLEAU_IMPORT_TZ = "America/Los_Angeles";
+  const TABLEAU_STAMP_TZ = "America/Los_Angeles";
+  const TABLEAU_IMPORT_HOURS = [0, 10, 12, 14, 16, 18, 20, 22];
+  const TABLEAU_IMPORT_GRACE_MS = 25 * 60 * 1000;
+
+  function getTimeZoneParts(date, timeZone) {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hourCycle: "h23"
+    });
+    const map = {};
+    fmt.formatToParts(date).forEach(p => {
+      if (p.type !== "literal") map[p.type] = p.value;
+    });
+    const hour = Number(map.hour);
+    return {
+      year: Number(map.year),
+      month: Number(map.month),
+      day: Number(map.day),
+      hour: hour === 24 ? 0 : hour,
+      minute: Number(map.minute),
+      second: Number(map.second)
+    };
+  }
+
+  function zonedWallTimeToDate(year, month, day, hour, minute, timeZone) {
+    const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+    const parts = getTimeZoneParts(new Date(utcGuess), timeZone);
+    const asIfUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    return new Date(utcGuess - (asIfUtc - utcGuess));
+  }
+
+  // Real datetimes only (ISO with time, offset or Z preferred). Date-only values
+  // like 8/16/2026 or 2026-08-16 must not become midnight via Date.parse.
+  function parseTableauImportInstant(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) return null;
+    if (/^\d{1,2}-\d{1,2}-\d{2,4}$/.test(s)) return null;
+    if (!/(T\d{1,2}|\d{1,2}:\d{2})/.test(s)) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatTableauStamp(instant) {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: TABLEAU_STAMP_TZ,
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+    const map = {};
+    fmt.formatToParts(instant).forEach(p => { map[p.type] = p.value; });
+    const ap = String(map.dayPeriod || "").toLowerCase().replace(/[^apm]/g, "");
+    return map.month + "/" + map.day + " " + map.hour + ":" + map.minute + ap + " pt";
+  }
+
+  function getLastExpectedTableauImport(now) {
+    const at = now || new Date();
+    const pt = getTimeZoneParts(at, TABLEAU_IMPORT_TZ);
+    const day0 = Date.UTC(pt.year, pt.month - 1, pt.day);
+    let lastExpected = null;
+    for (let dayOffset = -1; dayOffset <= 0; dayOffset++) {
+      const day = new Date(day0 + dayOffset * 86400000);
+      const y = day.getUTCFullYear();
+      const m = day.getUTCMonth() + 1;
+      const d = day.getUTCDate();
+      for (let i = 0; i < TABLEAU_IMPORT_HOURS.length; i++) {
+        const slot = zonedWallTimeToDate(y, m, d, TABLEAU_IMPORT_HOURS[i], 0, TABLEAU_IMPORT_TZ);
+        if (at.getTime() - slot.getTime() >= TABLEAU_IMPORT_GRACE_MS) {
+          if (!lastExpected || slot > lastExpected) lastExpected = slot;
+        }
+      }
+    }
+    return lastExpected;
+  }
+
+  function isTableauImportOnSchedule(instant, now) {
+    if (!instant) return false;
+    const lastExpected = getLastExpectedTableauImport(now);
+    return !!(lastExpected && instant.getTime() >= lastExpected.getTime());
+  }
+
+  function syncTableauUpdatedStamp(btn, rawDate) {
+    const raw = String(rawDate == null ? "" : rawDate).trim();
+    const showStamp = normalizeName(loggedInRepName) === normalizeName("Justin Wall") && !!raw;
     let stamp = document.getElementById("tableau-updated");
     if (!showStamp) {
       if (stamp) stamp.remove();
@@ -5239,7 +5338,11 @@
       stamp.id = "tableau-updated";
       if (wrap) wrap.appendChild(stamp);
     }
-    stamp.textContent = labelDate;
+    const instant = parseTableauImportInstant(raw);
+    stamp.textContent = instant ? formatTableauStamp(instant) : raw;
+    const onSchedule = isTableauImportOnSchedule(instant);
+    stamp.classList.toggle("on-schedule", onSchedule);
+    stamp.classList.toggle("behind", !onSchedule);
   }
   
   function dealInScope(deal) {
