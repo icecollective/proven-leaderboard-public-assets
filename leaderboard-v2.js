@@ -5227,7 +5227,7 @@
   // the most recent slot at least 25 minutes in the past (grace for Tableau +
   // Drive + import).
   const TABLEAU_IMPORT_TZ = "America/Los_Angeles";
-  const TABLEAU_STAMP_TZ = "America/New_York";
+  const TABLEAU_STAMP_TZ = "America/Los_Angeles";
   const TABLEAU_IMPORT_HOURS = [0, 10, 12, 14, 16, 18, 20, 22];
   const TABLEAU_IMPORT_GRACE_MS = 25 * 60 * 1000;
 
@@ -5289,7 +5289,7 @@
     const map = {};
     fmt.formatToParts(instant).forEach(p => { map[p.type] = p.value; });
     const ap = String(map.dayPeriod || "").toLowerCase().replace(/[^apm]/g, "");
-    return map.month + "/" + map.day + " " + map.hour + ":" + map.minute + ap;
+    return map.month + "/" + map.day + " " + map.hour + ":" + map.minute + ap + " pt";
   }
 
   function getLastExpectedTableauImport(now) {
