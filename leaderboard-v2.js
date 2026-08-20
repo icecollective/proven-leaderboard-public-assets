@@ -4916,9 +4916,13 @@
 
       var spacer = document.createElement("div");
       spacer.className = "pv-topspacer";
+      var tabWrap = document.createElement("div");
+      tabWrap.id = "tableau-toggle-wrap";
+      tabWrap.appendChild(tabBtn);
+
       bar.appendChild(leftCol);
       bar.appendChild(spacer);
-      bar.appendChild(tabBtn);
+      bar.appendChild(tabWrap);
       app.insertBefore(bar, app.firstChild);
     }
 
@@ -5153,9 +5157,9 @@
       plataBtn.classList.toggle("disabled", !canSelectPlata);
     }
 
-    // Keep the same label (incl. the date) so the button never changes size — just
-    // fade it. The active mode may have no Tableau dataset (Today/Custom), so fall
-    // back to the date from any available Tableau period — it's the same import date.
+    // Keep the label exactly "Tableau" in every state so the pill never changes
+    // size. The import date is a Justin-only subscript — gated on a normalized
+    // name match, not s.exempt / HIDDEN_REPS (those also include Kelton + others).
     const rawDate = (dataset && dataset.lastUpdated)
       || (tableauData.ytd && tableauData.ytd.lastUpdated)
       || (tableauData.mtd && tableauData.mtd.lastUpdated)
@@ -5163,7 +5167,8 @@
       || (tableauData.lastWeek && tableauData.lastWeek.lastUpdated)
       || "";
     const labelDate = rawDate ? formatShortDate(rawDate) : "";
-    btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
+    btn.textContent = "Tableau";
+    syncTableauUpdatedStamp(btn, labelDate);
     if (!shouldShowTableau) {
       setShowTableau(false);
       btn.classList.remove("active");
@@ -5213,6 +5218,28 @@
     newRepsBtn.style.display = isComparisonMode() ? "inline-block" : "none";
     newRepsBtn.classList.toggle("active", includeNewReps);
   }
+  }
+
+  function syncTableauUpdatedStamp(btn, labelDate) {
+    const showStamp = normalizeName(loggedInRepName) === normalizeName("Justin Wall") && !!labelDate;
+    let stamp = document.getElementById("tableau-updated");
+    if (!showStamp) {
+      if (stamp) stamp.remove();
+      return;
+    }
+    let wrap = document.getElementById("tableau-toggle-wrap");
+    if (!wrap && btn && btn.parentNode) {
+      wrap = document.createElement("div");
+      wrap.id = "tableau-toggle-wrap";
+      btn.parentNode.insertBefore(wrap, btn);
+      wrap.appendChild(btn);
+    }
+    if (!stamp) {
+      stamp = document.createElement("div");
+      stamp.id = "tableau-updated";
+      if (wrap) wrap.appendChild(stamp);
+    }
+    stamp.textContent = labelDate;
   }
   
   function dealInScope(deal) {
@@ -7048,6 +7075,7 @@
         if (s && s.name) loggedInRepName = s.name;
         compEditorFlag = !!(s && s.compEditor);
         identityResolved = true;
+        updateTableauToggle();
         if (compsOn) renderLeaderboard();
       });
     } else {
