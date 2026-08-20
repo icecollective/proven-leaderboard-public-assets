@@ -5158,8 +5158,8 @@
     }
 
     // Keep the label exactly "Tableau" in every state so the pill never changes
-    // size. The import stamp is a Justin-only subscript — gated on a normalized
-    // name match, not s.exempt / HIDDEN_REPS (those also include Kelton + others).
+    // size. The import stamp is a subscript for every viewer whenever Tableau
+    // lastUpdated is non-empty — not gated on name, s.exempt, or HIDDEN_REPS.
     // Read Tableau's own lastUpdated only — never payload/apiMeta.lastUpdated
     // (that is the deals/cache clock).
     const rawDate = (dataset && dataset.lastUpdated)
@@ -5320,7 +5320,7 @@
 
   function syncTableauUpdatedStamp(btn, rawDate) {
     const raw = String(rawDate == null ? "" : rawDate).trim();
-    const showStamp = normalizeName(loggedInRepName) === normalizeName("Justin Wall") && !!raw;
+    const showStamp = !!raw;
     let stamp = document.getElementById("tableau-updated");
     if (!showStamp) {
       if (stamp) stamp.remove();
