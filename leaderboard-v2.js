@@ -5221,14 +5221,14 @@
   }
   }
 
-  // Tableau import schedule (America/Los_Angeles): 10, 12, 14, 16, 18, 20, 22, 00
-  // — every other hour 10:00am–midnight PT. After midnight until the 10:00 PT
-  // slot, the last expected run is midnight (no overnight slot). lastExpected is
+  // Tableau import schedule (America/Los_Angeles): 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 00
+  // — hourly 8:00am–midnight PT. After midnight until the 8:00 PT
+  // slot, the last expected run is midnight (no overnight 1–7am slots). lastExpected is
   // the most recent slot at least 25 minutes in the past (grace for Tableau +
   // Drive + import).
   const TABLEAU_IMPORT_TZ = "America/Los_Angeles";
   const TABLEAU_STAMP_TZ = "America/Los_Angeles";
-  const TABLEAU_IMPORT_HOURS = [0, 10, 12, 14, 16, 18, 20, 22];
+  const TABLEAU_IMPORT_HOURS = [0, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
   const TABLEAU_IMPORT_GRACE_MS = 25 * 60 * 1000;
 
   function getTimeZoneParts(date, timeZone) {
