@@ -824,6 +824,33 @@
     setShowTableau(desired);
   }
 
+  // Date-tab click defaults for periods that have a preferred pairing.
+  // Today / WTD / Last Week reset sort + TAB metric; MTD / YTD / Custom do not.
+  // Called after applyTableauAutoState so auto-off does not wipe these choices.
+  const DATE_TAB_DEFAULTS = {
+    today: { metric: "sra" },
+    wtd: { metric: "cs" },
+    lastWeek: { metric: "cs" }
+  };
+
+  function applyDateTabDefaults(dateMode) {
+    const defaults = DATE_TAB_DEFAULTS[dateMode];
+    if (!defaults) return;
+
+    // Bagel sort stays sticky across date switches (same as view-tab clicks).
+    if (activeSortMode !== "bagels") {
+      activeSortMode = "internal";
+    }
+    activeTableauMetric = defaults.metric;
+
+    // Auto-state can turn Tableau off (e.g. leftover mobile YOY/MOM). Periods
+    // with a TAB metric should keep the column on unless the user explicitly
+    // turned Tableau off, or there is no Tableau data for this context.
+    if (!showTableau && !tableauUserOff && canShowTableauButton()) {
+      setShowTableau(true);
+    }
+  }
+
   function canUsePlataToggle() {
     // Plata works on General, Setters, Experts (we know who's an Expert from the
     // Tableau Experts list). NOT Groups/group drills, NOT SelfGen, and not while a
@@ -4616,6 +4643,9 @@
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
     // off for Custom), respecting an intentional off + mobile YOY/MOM.
     applyTableauAutoState();
+    // Today / WTD / Last Week get their default sort + TAB metric after auto-state
+    // so those defaults stick. MTD / YTD / Custom are left unchanged.
+    applyDateTabDefaults(mode.key);
     if (!showTableau && activeSortMode === "tableau") {
       activeSortMode = "currentContribution";
     }
