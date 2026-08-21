@@ -825,10 +825,10 @@
   }
 
   // Date-tab click defaults for periods that have a preferred pairing.
-  // Today / WTD / Last Week reset sort + TAB metric; MTD / YTD / Custom do not.
+  // Today / WTD / Last Week: sort internal CS + TAB CS. MTD / YTD / Custom do not.
   // Called after applyTableauAutoState so auto-off does not wipe these choices.
   const DATE_TAB_DEFAULTS = {
-    today: { metric: "sra" },
+    today: { metric: "cs" },
     wtd: { metric: "cs" },
     lastWeek: { metric: "cs" }
   };
@@ -4643,7 +4643,7 @@
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
     // off for Custom), respecting an intentional off + mobile YOY/MOM.
     applyTableauAutoState();
-    // Today / WTD / Last Week get their default sort + TAB metric after auto-state
+    // Today / WTD / Last Week get internal CS sort + TAB CS after auto-state
     // so those defaults stick. MTD / YTD / Custom are left unchanged.
     applyDateTabDefaults(mode.key);
     if (!showTableau && activeSortMode === "tableau") {
