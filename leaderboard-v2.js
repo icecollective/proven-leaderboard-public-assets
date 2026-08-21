@@ -88,6 +88,10 @@
   };
   
   let activeTableauMetric = "cap";
+  // True after a Today/WTD/Last Week date-tab default is applied, until the
+  // user clicks a sort header or a Tableau metric. MTD/YTD restore OG
+  // Tableau+CAP only while this is still set.
+  let dateTabDefaultActive = false;
   
   let activeView = "general";
   // Rep-type "lens" applied to the Groups view (and group drill-downs):
@@ -825,23 +829,34 @@
   }
 
   // Date-tab click defaults for periods that have a preferred pairing.
-  // Today / WTD / Last Week: sort internal CS + TAB CS. MTD / YTD / Custom do not.
+  // Today / WTD / Last Week always apply (internal CS + TAB CS).
+  // MTD / YTD restore OG Tableau + TAB CAP only when dateTabDefaultActive
+  // is still set (user has not clicked a sort header or TAB metric since).
+  // Custom is omitted and left unchanged.
   // Called after applyTableauAutoState so auto-off does not wipe these choices.
   const DATE_TAB_DEFAULTS = {
-    today: { metric: "cs" },
-    wtd: { metric: "cs" },
-    lastWeek: { metric: "cs" }
+    today: { metric: "cs", sort: "internal" },
+    wtd: { metric: "cs", sort: "internal" },
+    lastWeek: { metric: "cs", sort: "internal" },
+    mtd: { metric: "cap", sort: "tableau", restoreOg: true },
+    ytd: { metric: "cap", sort: "tableau", restoreOg: true }
   };
+
+  function markUserSortOrMetric() {
+    dateTabDefaultActive = false;
+  }
 
   function applyDateTabDefaults(dateMode) {
     const defaults = DATE_TAB_DEFAULTS[dateMode];
     if (!defaults) return;
+    if (defaults.restoreOg && !dateTabDefaultActive) return;
 
     // Bagel sort stays sticky across date switches (same as view-tab clicks).
     if (activeSortMode !== "bagels") {
-      activeSortMode = "internal";
+      activeSortMode = defaults.sort;
     }
     activeTableauMetric = defaults.metric;
+    dateTabDefaultActive = !defaults.restoreOg;
 
     // Auto-state can turn Tableau off (e.g. leftover mobile YOY/MOM). Periods
     // with a TAB metric should keep the column on unless the user explicitly
@@ -2114,6 +2129,7 @@
   }
   // Mexico Rep toggle: name <-> qualifying-% sort.
   function toggleMexicoNameSort() {
+    markUserSortOrMetric();
     activeSortMode = activeSortMode === "name" ? "currentContribution" : "name";
     renderLeaderboard();
   }
@@ -3322,6 +3338,7 @@
       includePlata,
       activeSortMode,
       activeTableauMetric,
+      dateTabDefaultActive,
       activeGroupDrillLeader,
       activeInactiveDrill,
       inactiveDrillLeader,
@@ -3350,6 +3367,7 @@
     includePlata = state.includePlata;
     activeSortMode = state.activeSortMode;
     activeTableauMetric = state.activeTableauMetric;
+    dateTabDefaultActive = !!state.dateTabDefaultActive;
     activeGroupDrillLeader = state.activeGroupDrillLeader;
     activeInactiveDrill = !!state.activeInactiveDrill;
     inactiveDrillLeader = state.inactiveDrillLeader || null;
@@ -4643,8 +4661,9 @@
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
     // off for Custom), respecting an intentional off + mobile YOY/MOM.
     applyTableauAutoState();
-    // Today / WTD / Last Week get internal CS sort + TAB CS after auto-state
-    // so those defaults stick. MTD / YTD / Custom are left unchanged.
+    // Today / WTD / Last Week get internal CS sort + TAB CS after auto-state.
+    // MTD / YTD restore OG Tableau + TAB CAP only if those short-period
+    // defaults are still in effect. Custom is left unchanged.
     applyDateTabDefaults(mode.key);
     if (!showTableau && activeSortMode === "tableau") {
       activeSortMode = "currentContribution";
@@ -5862,46 +5881,55 @@
   }
   
   function setInternalSort() {
+    markUserSortOrMetric();
     activeSortMode = "internal";
     renderLeaderboard();
   }
   
   function setPreviousYearSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousYear";
     renderLeaderboard();
   }
   
   function setSelfGenSort() {
+    markUserSortOrMetric();
     activeSortMode = "selfGen";
     renderLeaderboard();
   }
   
   function setPreviousYearSelfGenSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousYearSelfGen";
     renderLeaderboard();
   }
   
   function setNameSort() {
+    markUserSortOrMetric();
     activeSortMode = "name";
     renderLeaderboard();
   }
   
   function setCurrentContributionSort() {
+    markUserSortOrMetric();
     activeSortMode = "currentContribution";
     renderLeaderboard();
   }
   
   function setPreviousContributionSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousContribution";
     renderLeaderboard();
   }
   
   function setYoyPercentSort() {
+    markUserSortOrMetric();
     activeSortMode = "yoyPercent";
     renderLeaderboard();
   }
   
   function setTableauSortAndRender() {
+    markUserSortOrMetric();
     if (activeSortMode !== "tableau") {
       activeSortMode = "tableau";
       renderLeaderboard();
@@ -5936,7 +5964,8 @@
   
   function setTableauMetric(metric) {
     if (!TABLEAU_METRICS[metric]) return;
-  
+
+    markUserSortOrMetric();
     activeTableauMetric = metric;
     activeSortMode = "tableau";
   
