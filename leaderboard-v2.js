@@ -153,6 +153,7 @@
   }
   
   function getTableauKeyForDateMode() {
+    if (activeDateMode === "today") return "today";
     if (activeDateMode === "ytd") return "ytd";
     if (activeDateMode === "mtd") return "mtd";
     if (activeDateMode === "wtd") return "wtd";
@@ -165,7 +166,7 @@
   // in the short date modes (everything except YTD, which still shows everyone).
   function rowHasPeriodActivity(row) {
     if ((Number(row && row.cs) || 0) > 0) return true;
-    const key = getTableauKeyForDateMode();          // null for Today / Custom (no Tableau period)
+    const key = getTableauKeyForDateMode();          // null for Custom (no Tableau period)
     if (key) {
       const tr = getTableauRowForDateMode(normalizeName(row && row.name), key);
       if (tr && ((Number(tr.cs) || 0) > 0 || (Number(tr.sra) || 0) > 0 ||
@@ -557,7 +558,7 @@
 
   // Mutual exclusion between the comparison toggles (YOY/MOM/COC) and the
   // Bagels/Mexico skins — neither pair can be on together. Also, when ONLY Plata
-  // is selected, fade the views (Groups/SelfGen) and date modes (Today/Custom)
+  // is selected, fade the views (Groups/SelfGen) and date mode (Custom)
   // that Plata's Tableau data can't drive. Runs every render after the other
   // button-state updates so it has the final say on disabled state.
   function applyExclusiveToggleStates() {
@@ -604,9 +605,9 @@
       if (label === "Groups") return onlyPlata;
       return null;
     });
-    // Only Plata -> Today/Custom faded; Inactive drill -> Today/WTD faded.
+    // Only Plata -> Custom faded; Inactive drill -> Today/WTD faded.
     fadeBy("date-tabs", label => {
-      if (label === "Today") return onlyPlata || inInactiveDrill;
+      if (label === "Today") return inInactiveDrill;
       if (label === "Custom") return onlyPlata;
       if (label === "WTD") return inInactiveDrill;
       return null;
@@ -775,7 +776,7 @@
   function isTableauViewRelevant() {
     if (activeView === "selfgen") return false;
     if (activeView === "groups" && !isGroupDrillDownView()) return false;
-    return ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
+    return ["today", "ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
   }
 
   function canShowTableauButton() {
@@ -4613,7 +4614,7 @@
     rebuildTableauMap();
 
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
-    // off for Today/Custom), respecting an intentional off + mobile YOY/MOM.
+    // off for Custom), respecting an intentional off + mobile YOY/MOM.
     applyTableauAutoState();
     if (!showTableau && activeSortMode === "tableau") {
       activeSortMode = "currentContribution";
@@ -5163,6 +5164,7 @@
     // Read Tableau's own lastUpdated only — never payload/apiMeta.lastUpdated
     // (that is the deals/cache clock).
     const rawDate = (dataset && dataset.lastUpdated)
+      || (tableauData.today && tableauData.today.lastUpdated)
       || (tableauData.ytd && tableauData.ytd.lastUpdated)
       || (tableauData.mtd && tableauData.mtd.lastUpdated)
       || (tableauData.wtd && tableauData.wtd.lastUpdated)
@@ -5877,7 +5879,7 @@
   }
   
   function buildInternalHeader(label) {
-    if (!showTableau || !["ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) return label;
+    if (!showTableau || !["today","ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) return label;
   
     return `
       <button class="sort-header-button ${activeSortMode === "internal" ? "active-sort" : ""}" onclick="setInternalSort()">
@@ -6110,7 +6112,7 @@
     let rows = getRepMap(repFilteredDeals);
     const useTableauColumn = activeView !== "selfgen" &&
       (activeView !== "groups" || isGroupDrillDownView()) &&
-      ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
+      ["today","ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters" || activeView === "experts") {
@@ -6289,9 +6291,9 @@
         ? rows.filter(isRowInactive)
         : getInactiveDisplayRows(rows);
       // Plata reps show only in the whole-team Inactive drill, on a real Tableau
-      // period (not Today/Custom) and not while a comparison (YOY/MOM/COC) is active.
+      // period (not Custom) and not while a comparison (YOY/MOM/COC) is active.
       if (!inactiveDrillLeader && includePlata && !isComparisonMode() &&
-          ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
+          ["today", "ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
         drillRows = addInactivePlataRows(drillRows);
       }
       // Whole-team drill: respect the office selection — drop reps from offices that
