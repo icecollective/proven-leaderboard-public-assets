@@ -6434,7 +6434,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
@@ -6568,7 +6568,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
@@ -6760,7 +6760,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("Total") : groupMetricLabel()}
     </button>
@@ -7018,7 +7018,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
     </button>
