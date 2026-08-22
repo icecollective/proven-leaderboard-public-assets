@@ -3509,6 +3509,10 @@
     const repContrib2026 = new Map();
     const repContrib2025 = new Map();
     const repContribDeals = useMom ? momCurrentDeals : (showYoy ? ytdDeals : periodDeals);
+    // Include New/Old membership is current-period vs previous-period contribution.
+    // MOM/COC must use the previous comparison range (momPreviousDeals), not full
+    // 2025 — otherwise New/Old behaves like YOY even when MTD+MOM is on.
+    const previousContribDeals = useMom ? momPreviousDeals : previousYearDeals;
     repContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
@@ -3519,9 +3523,11 @@
         repContrib2026.set(expertNorm, (repContrib2026.get(expertNorm) || 0) + 1);
       }
     });
-    previousYearDeals.forEach(deal => {
+    previousContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
+      // MOM previous range is same calendar month last year (from previousYearDeals),
+      // so the 2025 office roster is the correct umbrella — not the current-year list.
       if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
         repContrib2025.set(setterNorm, (repContrib2025.get(setterNorm) || 0) + 1);
       }
