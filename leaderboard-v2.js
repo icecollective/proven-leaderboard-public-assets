@@ -5563,6 +5563,32 @@
     return true;
   }
 
+  // YOY/MOM/COC New + Old inclusion. New-only = no prior-period CS / set / self-gen.
+  // Old-only = zero current and prior-period sets+closes. People who sold both stay
+  // either way. addOldRepsToRows stays gated on oldRepsActive(); this only filters
+  // rows. Must also run AFTER Plata / Tableau-recruiting / org-tree add-backs so
+  // those cannot put this-period-only people back on the board (or into credit
+  // totals via visible names).
+  function applyComparisonRepInclusionFilters(rows) {
+    if (isComparisonMode() && !includeNewReps) {
+      rows = rows.filter(row =>
+        getRowPreviousCs(row) > 0 ||
+        getRowPreviousSetOnly(row) > 0 ||
+        getRowPreviousSelfGen(row) > 0
+      );
+    }
+
+    if (isComparisonMode() && !oldRepsActive()) {
+      rows = rows.filter(row => {
+        const currentContrib = row.sets + row.closes;
+        const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
+        return !(currentContrib === 0 && previousContrib > 0);
+      });
+    }
+
+    return rows;
+  }
+
   function addOldRepsToRows(rows) {
     if (!isComparisonMode() || !oldRepsActive()) return rows;
 
@@ -6185,21 +6211,7 @@
     if (activeView === "selfgen" && isComparisonMode()) {
     rows = rows.filter(row => row.selfGen > 0 || getRowPreviousSelfGen(row) > 0);
     }
-    if (isComparisonMode() && !includeNewReps) {
-    rows = rows.filter(row =>
-      getRowPreviousCs(row) > 0 ||
-      getRowPreviousSetOnly(row) > 0 ||
-      getRowPreviousSelfGen(row) > 0
-    );
-  }
-
-    if (isComparisonMode() && !oldRepsActive()) {
-    rows = rows.filter(row => {
-      const currentContrib = row.sets + row.closes;
-      const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
-      return !(currentContrib === 0 && previousContrib > 0);
-    });
-  }
+    rows = applyComparisonRepInclusionFilters(rows);
 
     if (activeView === "setters" || activeView === "experts") {
       rows = rows.filter(rowMatchesActiveView);
@@ -6211,6 +6223,7 @@
 
     rows = addTableauRecruitingRepsToRows(rows);
     rows = addOrgTreeRepsToRows(rows);
+    rows = applyComparisonRepInclusionFilters(rows);
 
     // Short date modes (everything but YTD): drop reps with no activity in the
     // period (no internal CS and no Tableau CS/SRA/CAP/IC) — including from the
