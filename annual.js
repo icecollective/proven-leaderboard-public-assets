@@ -169,13 +169,27 @@
     appEl().innerHTML =
       '<div class="yr-noaccess">' +
         "<h2>Not supported on mobile yet.</h2>" +
-        "<p>Open the Annual Report on a computer for now.</p>" +
+        "<p>Open the Annual Report on a computer &mdash; or if your phone&rsquo;s screen is big enough, turn it sideways.</p>" +
       "</div>";
+  }
+
+  // Screens narrower than 700px can't fit the report; the gate lifts live if
+  // the screen gets wide enough (e.g. a big phone rotating to landscape).
+  var mobileGateMq = window.matchMedia ? window.matchMedia("(max-width: 700px)") : null;
+  function watchMobileGate() {
+    var onChange = function (e) {
+      if (e.matches) return;
+      if (mobileGateMq.removeEventListener) mobileGateMq.removeEventListener("change", onChange);
+      else mobileGateMq.removeListener(onChange);
+      bootAnnual();
+    };
+    if (mobileGateMq.addEventListener) mobileGateMq.addEventListener("change", onChange);
+    else mobileGateMq.addListener(onChange);
   }
 
   async function bootAnnual() {
     injectStyles();
-    if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) { renderMobileGate(); return; }
+    if (mobileGateMq && mobileGateMq.matches) { renderMobileGate(); watchMobileGate(); return; }
     if (!getSessionToken()) { renderLoading(""); showLoginOverlay(); return; }
     renderLoading();
     var t = getSessionToken();
