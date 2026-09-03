@@ -165,8 +165,17 @@
     app.appendChild(f);
   }
 
+  function renderMobileGate() {
+    appEl().innerHTML =
+      '<div class="yr-noaccess">' +
+        "<h2>Not supported on mobile yet.</h2>" +
+        "<p>Open the Annual Report on a computer for now.</p>" +
+      "</div>";
+  }
+
   async function bootAnnual() {
     injectStyles();
+    if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) { renderMobileGate(); return; }
     if (!getSessionToken()) { renderLoading(""); showLoginOverlay(); return; }
     renderLoading();
     var t = getSessionToken();
