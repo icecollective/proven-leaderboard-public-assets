@@ -32,6 +32,11 @@
     st.id = "annual-style";
     st.textContent =
       "#annual-app .yr-loading { text-align:center; color:#6b7280; font-weight:600; padding:80px 0; font-family:Helvetica,Arial,sans-serif; }" +
+      "#annual-app .yr-spin { width:34px; height:34px; border-radius:50%; border:3px solid #e5e7eb; border-top-color:#1c2140; margin:0 auto 14px; animation:yr-spin .8s linear infinite; }" +
+      "@keyframes yr-spin { to { transform:rotate(360deg); } }" +
+      "#annual-app .yr-loading .yr-msg { animation:yr-pulse 1.6s ease-in-out infinite; }" +
+      "@keyframes yr-pulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }" +
+      "@media (prefers-reduced-motion: reduce) { #annual-app .yr-spin, #annual-app .yr-loading .yr-msg { animation:none; } }" +
       "#annual-app .yr-noaccess { max-width:420px; margin:70px auto; text-align:center; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:28px 26px; font-family:Helvetica,Arial,sans-serif; }" +
       "#annual-app .yr-noaccess h2 { font-size:19px; font-weight:800; margin:0 0 8px; color:#0f172a; }" +
       "#annual-app .yr-noaccess p { font-size:13.5px; color:#6b7280; line-height:1.5; margin:0 0 16px; }" +
@@ -131,7 +136,9 @@
   function appEl() { return document.getElementById("annual-app"); }
 
   function renderLoading(msg) {
-    appEl().innerHTML = '<div class="yr-loading">' + esc(msg == null ? "Loading the report…" : msg) + "</div>";
+    if (msg === "") { appEl().innerHTML = ""; return; }
+    appEl().innerHTML = '<div class="yr-loading"><div class="yr-spin"></div><div class="yr-msg">' +
+      esc(msg == null ? "Loading the report…" : msg) + "</div></div>";
   }
 
   function renderNoAccess(name) {
