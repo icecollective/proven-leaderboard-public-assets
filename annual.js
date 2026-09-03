@@ -173,9 +173,9 @@
       "</div>";
   }
 
-  // Screens narrower than 700px can't fit the report; the gate lifts live if
+  // Screens under 640px can't fit the report (unfolded Folds ~673px and iPads 768px+ pass); the gate lifts live if
   // the screen gets wide enough (e.g. a big phone rotating to landscape).
-  var mobileGateMq = window.matchMedia ? window.matchMedia("(max-width: 700px)") : null;
+  var mobileGateMq = window.matchMedia ? window.matchMedia("(max-width: 640px)") : null;
   function watchMobileGate() {
     var onChange = function (e) {
       if (e.matches) return;
