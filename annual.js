@@ -160,7 +160,8 @@
     var f = document.createElement("iframe");
     f.className = "yr-frame";
     f.setAttribute("sandbox", "allow-scripts allow-same-origin");
-    f.srcdoc = html;
+    // Default the report to the 2026 tab (older Drive copies default to 2025).
+    f.srcdoc = html.replace("else showTab('25');", "else showTab('26');");
     app.appendChild(f);
   }
 
