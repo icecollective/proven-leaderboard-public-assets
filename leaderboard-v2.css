@@ -1199,6 +1199,14 @@
   }
   #pv-topbar #tableau-toggle:disabled,
   #pv-topbar #tableau-toggle.disabled { opacity:0.45; cursor:not-allowed; }
+  #pv-topbar #tableau-toggle-wrap { position:relative; display:flex; flex-direction:column; align-items:center; }
+  #pv-topbar #tableau-updated {
+    position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:4px;
+    font-size:9px; font-weight:600; color:#94a3b8; letter-spacing:.02em; line-height:1;
+    white-space:nowrap; pointer-events:none;
+  }
+  #pv-topbar #tableau-updated.on-schedule { color:#16a34a; }
+  #pv-topbar #tableau-updated.behind { color:#dc2626; }
 
   /* ---- Office row as a single white pill (All Offices / Ice / Riot / Plata) ---- */
   #office-tabs { display:flex; justify-content:center; position:relative; }

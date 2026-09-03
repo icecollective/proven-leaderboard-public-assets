@@ -88,6 +88,10 @@
   };
   
   let activeTableauMetric = "cap";
+  // True after a Today/WTD/Last Week date-tab default is applied, until the
+  // user clicks a sort header or a Tableau metric. MTD/YTD restore OG
+  // Tableau+CAP only while this is still set.
+  let dateTabDefaultActive = false;
   
   let activeView = "general";
   // Rep-type "lens" applied to the Groups view (and group drill-downs):
@@ -153,6 +157,7 @@
   }
   
   function getTableauKeyForDateMode() {
+    if (activeDateMode === "today") return "today";
     if (activeDateMode === "ytd") return "ytd";
     if (activeDateMode === "mtd") return "mtd";
     if (activeDateMode === "wtd") return "wtd";
@@ -165,7 +170,7 @@
   // in the short date modes (everything except YTD, which still shows everyone).
   function rowHasPeriodActivity(row) {
     if ((Number(row && row.cs) || 0) > 0) return true;
-    const key = getTableauKeyForDateMode();          // null for Today / Custom (no Tableau period)
+    const key = getTableauKeyForDateMode();          // null for Custom (no Tableau period)
     if (key) {
       const tr = getTableauRowForDateMode(normalizeName(row && row.name), key);
       if (tr && ((Number(tr.cs) || 0) > 0 || (Number(tr.sra) || 0) > 0 ||
@@ -557,7 +562,7 @@
 
   // Mutual exclusion between the comparison toggles (YOY/MOM/COC) and the
   // Bagels/Mexico skins — neither pair can be on together. Also, when ONLY Plata
-  // is selected, fade the views (Groups/SelfGen) and date modes (Today/Custom)
+  // is selected, fade the views (Groups/SelfGen) and date mode (Custom)
   // that Plata's Tableau data can't drive. Runs every render after the other
   // button-state updates so it has the final say on disabled state.
   function applyExclusiveToggleStates() {
@@ -604,9 +609,9 @@
       if (label === "Groups") return onlyPlata;
       return null;
     });
-    // Only Plata -> Today/Custom faded; Inactive drill -> Today/WTD faded.
+    // Only Plata -> Custom faded; Inactive drill -> Today/WTD faded.
     fadeBy("date-tabs", label => {
-      if (label === "Today") return onlyPlata || inInactiveDrill;
+      if (label === "Today") return inInactiveDrill;
       if (label === "Custom") return onlyPlata;
       if (label === "WTD") return inInactiveDrill;
       return null;
@@ -775,7 +780,7 @@
   function isTableauViewRelevant() {
     if (activeView === "selfgen") return false;
     if (activeView === "groups" && !isGroupDrillDownView()) return false;
-    return ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
+    return ["today", "ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode);
   }
 
   function canShowTableauButton() {
@@ -821,6 +826,44 @@
       desired = true;
     }
     setShowTableau(desired);
+  }
+
+  // Date-tab click defaults for periods that have a preferred pairing.
+  // Today / WTD / Last Week always apply (internal CS + TAB CS).
+  // MTD / YTD restore OG Tableau + TAB CAP only when dateTabDefaultActive
+  // is still set (user has not clicked a sort header or TAB metric since).
+  // Custom is omitted and left unchanged.
+  // Called after applyTableauAutoState so auto-off does not wipe these choices.
+  const DATE_TAB_DEFAULTS = {
+    today: { metric: "cs", sort: "internal" },
+    wtd: { metric: "cs", sort: "internal" },
+    lastWeek: { metric: "cs", sort: "internal" },
+    mtd: { metric: "cap", sort: "tableau", restoreOg: true },
+    ytd: { metric: "cap", sort: "tableau", restoreOg: true }
+  };
+
+  function markUserSortOrMetric() {
+    dateTabDefaultActive = false;
+  }
+
+  function applyDateTabDefaults(dateMode) {
+    const defaults = DATE_TAB_DEFAULTS[dateMode];
+    if (!defaults) return;
+    if (defaults.restoreOg && !dateTabDefaultActive) return;
+
+    // Bagel sort stays sticky across date switches (same as view-tab clicks).
+    if (activeSortMode !== "bagels") {
+      activeSortMode = defaults.sort;
+    }
+    activeTableauMetric = defaults.metric;
+    dateTabDefaultActive = !defaults.restoreOg;
+
+    // Auto-state can turn Tableau off (e.g. leftover mobile YOY/MOM). Periods
+    // with a TAB metric should keep the column on unless the user explicitly
+    // turned Tableau off, or there is no Tableau data for this context.
+    if (!showTableau && !tableauUserOff && canShowTableauButton()) {
+      setShowTableau(true);
+    }
   }
 
   function canUsePlataToggle() {
@@ -2086,6 +2129,7 @@
   }
   // Mexico Rep toggle: name <-> qualifying-% sort.
   function toggleMexicoNameSort() {
+    markUserSortOrMetric();
     activeSortMode = activeSortMode === "name" ? "currentContribution" : "name";
     renderLeaderboard();
   }
@@ -3294,6 +3338,7 @@
       includePlata,
       activeSortMode,
       activeTableauMetric,
+      dateTabDefaultActive,
       activeGroupDrillLeader,
       activeInactiveDrill,
       inactiveDrillLeader,
@@ -3322,6 +3367,7 @@
     includePlata = state.includePlata;
     activeSortMode = state.activeSortMode;
     activeTableauMetric = state.activeTableauMetric;
+    dateTabDefaultActive = !!state.dateTabDefaultActive;
     activeGroupDrillLeader = state.activeGroupDrillLeader;
     activeInactiveDrill = !!state.activeInactiveDrill;
     inactiveDrillLeader = state.inactiveDrillLeader || null;
@@ -3463,6 +3509,10 @@
     const repContrib2026 = new Map();
     const repContrib2025 = new Map();
     const repContribDeals = useMom ? momCurrentDeals : (showYoy ? ytdDeals : periodDeals);
+    // Include New/Old membership is current-period vs previous-period contribution.
+    // MOM/COC must use the previous comparison range (momPreviousDeals), not full
+    // 2025 — otherwise New/Old behaves like YOY even when MTD+MOM is on.
+    const previousContribDeals = useMom ? momPreviousDeals : previousYearDeals;
     repContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
@@ -3473,9 +3523,11 @@
         repContrib2026.set(expertNorm, (repContrib2026.get(expertNorm) || 0) + 1);
       }
     });
-    previousYearDeals.forEach(deal => {
+    previousContribDeals.forEach(deal => {
       const setterNorm = normalizeName(deal.setter);
       const expertNorm = normalizeName(deal.expert);
+      // MOM previous range is same calendar month last year (from previousYearDeals),
+      // so the 2025 office roster is the correct umbrella — not the current-year list.
       if (setterNorm && repInOfficeUmbrella(setterNorm, "previous")) {
         repContrib2025.set(setterNorm, (repContrib2025.get(setterNorm) || 0) + 1);
       }
@@ -4613,8 +4665,12 @@
     rebuildTableauMap();
 
     // Auto-restore Tableau when switching to a tableau-capable date (and turn it
-    // off for Today/Custom), respecting an intentional off + mobile YOY/MOM.
+    // off for Custom), respecting an intentional off + mobile YOY/MOM.
     applyTableauAutoState();
+    // Today / WTD / Last Week get internal CS sort + TAB CS after auto-state.
+    // MTD / YTD restore OG Tableau + TAB CAP only if those short-period
+    // defaults are still in effect. Custom is left unchanged.
+    applyDateTabDefaults(mode.key);
     if (!showTableau && activeSortMode === "tableau") {
       activeSortMode = "currentContribution";
     }
@@ -4916,9 +4972,13 @@
 
       var spacer = document.createElement("div");
       spacer.className = "pv-topspacer";
+      var tabWrap = document.createElement("div");
+      tabWrap.id = "tableau-toggle-wrap";
+      tabWrap.appendChild(tabBtn);
+
       bar.appendChild(leftCol);
       bar.appendChild(spacer);
-      bar.appendChild(tabBtn);
+      bar.appendChild(tabWrap);
       app.insertBefore(bar, app.firstChild);
     }
 
@@ -5153,17 +5213,20 @@
       plataBtn.classList.toggle("disabled", !canSelectPlata);
     }
 
-    // Keep the same label (incl. the date) so the button never changes size — just
-    // fade it. The active mode may have no Tableau dataset (Today/Custom), so fall
-    // back to the date from any available Tableau period — it's the same import date.
+    // Keep the label exactly "Tableau" in every state so the pill never changes
+    // size. The import stamp is a subscript for every viewer whenever Tableau
+    // lastUpdated is non-empty — not gated on name, s.exempt, or HIDDEN_REPS.
+    // Read Tableau's own lastUpdated only — never payload/apiMeta.lastUpdated
+    // (that is the deals/cache clock).
     const rawDate = (dataset && dataset.lastUpdated)
+      || (tableauData.today && tableauData.today.lastUpdated)
       || (tableauData.ytd && tableauData.ytd.lastUpdated)
       || (tableauData.mtd && tableauData.mtd.lastUpdated)
       || (tableauData.wtd && tableauData.wtd.lastUpdated)
       || (tableauData.lastWeek && tableauData.lastWeek.lastUpdated)
       || "";
-    const labelDate = rawDate ? formatShortDate(rawDate) : "";
-    btn.textContent = labelDate ? `Tableau ${labelDate}` : "Tableau";
+    btn.textContent = "Tableau";
+    syncTableauUpdatedStamp(btn, rawDate);
     if (!shouldShowTableau) {
       setShowTableau(false);
       btn.classList.remove("active");
@@ -5213,6 +5276,130 @@
     newRepsBtn.style.display = isComparisonMode() ? "inline-block" : "none";
     newRepsBtn.classList.toggle("active", includeNewReps);
   }
+  }
+
+  // Tableau import schedule (America/Los_Angeles): 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 00
+  // — hourly 8:00am–midnight PT. After midnight until the 8:00 PT
+  // slot, the last expected run is midnight (no overnight 1–7am slots). lastExpected is
+  // the most recent slot at least 25 minutes in the past (grace for Tableau +
+  // Drive + import).
+  const TABLEAU_IMPORT_TZ = "America/Los_Angeles";
+  const TABLEAU_STAMP_TZ = "America/Los_Angeles";
+  const TABLEAU_IMPORT_HOURS = [0, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+  const TABLEAU_IMPORT_GRACE_MS = 25 * 60 * 1000;
+
+  function getTimeZoneParts(date, timeZone) {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hourCycle: "h23"
+    });
+    const map = {};
+    fmt.formatToParts(date).forEach(p => {
+      if (p.type !== "literal") map[p.type] = p.value;
+    });
+    const hour = Number(map.hour);
+    return {
+      year: Number(map.year),
+      month: Number(map.month),
+      day: Number(map.day),
+      hour: hour === 24 ? 0 : hour,
+      minute: Number(map.minute),
+      second: Number(map.second)
+    };
+  }
+
+  function zonedWallTimeToDate(year, month, day, hour, minute, timeZone) {
+    const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+    const parts = getTimeZoneParts(new Date(utcGuess), timeZone);
+    const asIfUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    return new Date(utcGuess - (asIfUtc - utcGuess));
+  }
+
+  // Real datetimes only (ISO with time, offset or Z preferred). Date-only values
+  // like 8/16/2026 or 2026-08-16 must not become midnight via Date.parse.
+  function parseTableauImportInstant(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) return null;
+    if (/^\d{1,2}-\d{1,2}-\d{2,4}$/.test(s)) return null;
+    if (!/(T\d{1,2}|\d{1,2}:\d{2})/.test(s)) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatTableauStamp(instant) {
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: TABLEAU_STAMP_TZ,
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+    const map = {};
+    fmt.formatToParts(instant).forEach(p => { map[p.type] = p.value; });
+    const ap = String(map.dayPeriod || "").toLowerCase().replace(/[^apm]/g, "");
+    return map.month + "/" + map.day + " " + map.hour + ":" + map.minute + ap + " pt";
+  }
+
+  function getLastExpectedTableauImport(now) {
+    const at = now || new Date();
+    const pt = getTimeZoneParts(at, TABLEAU_IMPORT_TZ);
+    const day0 = Date.UTC(pt.year, pt.month - 1, pt.day);
+    let lastExpected = null;
+    for (let dayOffset = -1; dayOffset <= 0; dayOffset++) {
+      const day = new Date(day0 + dayOffset * 86400000);
+      const y = day.getUTCFullYear();
+      const m = day.getUTCMonth() + 1;
+      const d = day.getUTCDate();
+      for (let i = 0; i < TABLEAU_IMPORT_HOURS.length; i++) {
+        const slot = zonedWallTimeToDate(y, m, d, TABLEAU_IMPORT_HOURS[i], 0, TABLEAU_IMPORT_TZ);
+        if (at.getTime() - slot.getTime() >= TABLEAU_IMPORT_GRACE_MS) {
+          if (!lastExpected || slot > lastExpected) lastExpected = slot;
+        }
+      }
+    }
+    return lastExpected;
+  }
+
+  function isTableauImportOnSchedule(instant, now) {
+    if (!instant) return false;
+    const lastExpected = getLastExpectedTableauImport(now);
+    return !!(lastExpected && instant.getTime() >= lastExpected.getTime());
+  }
+
+  function syncTableauUpdatedStamp(btn, rawDate) {
+    const raw = String(rawDate == null ? "" : rawDate).trim();
+    const showStamp = !!raw;
+    let stamp = document.getElementById("tableau-updated");
+    if (!showStamp) {
+      if (stamp) stamp.remove();
+      return;
+    }
+    let wrap = document.getElementById("tableau-toggle-wrap");
+    if (!wrap && btn && btn.parentNode) {
+      wrap = document.createElement("div");
+      wrap.id = "tableau-toggle-wrap";
+      btn.parentNode.insertBefore(wrap, btn);
+      wrap.appendChild(btn);
+    }
+    if (!stamp) {
+      stamp = document.createElement("div");
+      stamp.id = "tableau-updated";
+      if (wrap) wrap.appendChild(stamp);
+    }
+    const instant = parseTableauImportInstant(raw);
+    stamp.textContent = instant ? formatTableauStamp(instant) : raw;
+    const onSchedule = isTableauImportOnSchedule(instant);
+    stamp.classList.toggle("on-schedule", onSchedule);
+    stamp.classList.toggle("behind", !onSchedule);
   }
   
   function dealInScope(deal) {
@@ -5380,6 +5567,32 @@
     }
 
     return true;
+  }
+
+  // YOY/MOM/COC New + Old inclusion. New-only = no prior-period CS / set / self-gen.
+  // Old-only = zero current and prior-period sets+closes. People who sold both stay
+  // either way. addOldRepsToRows stays gated on oldRepsActive(); this only filters
+  // rows. Must also run AFTER Plata / Tableau-recruiting / org-tree add-backs so
+  // those cannot put this-period-only people back on the board (or into credit
+  // totals via visible names).
+  function applyComparisonRepInclusionFilters(rows) {
+    if (isComparisonMode() && !includeNewReps) {
+      rows = rows.filter(row =>
+        getRowPreviousCs(row) > 0 ||
+        getRowPreviousSetOnly(row) > 0 ||
+        getRowPreviousSelfGen(row) > 0
+      );
+    }
+
+    if (isComparisonMode() && !oldRepsActive()) {
+      rows = rows.filter(row => {
+        const currentContrib = row.sets + row.closes;
+        const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
+        return !(currentContrib === 0 && previousContrib > 0);
+      });
+    }
+
+    return rows;
   }
 
   function addOldRepsToRows(rows) {
@@ -5700,46 +5913,55 @@
   }
   
   function setInternalSort() {
+    markUserSortOrMetric();
     activeSortMode = "internal";
     renderLeaderboard();
   }
   
   function setPreviousYearSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousYear";
     renderLeaderboard();
   }
   
   function setSelfGenSort() {
+    markUserSortOrMetric();
     activeSortMode = "selfGen";
     renderLeaderboard();
   }
   
   function setPreviousYearSelfGenSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousYearSelfGen";
     renderLeaderboard();
   }
   
   function setNameSort() {
+    markUserSortOrMetric();
     activeSortMode = "name";
     renderLeaderboard();
   }
   
   function setCurrentContributionSort() {
+    markUserSortOrMetric();
     activeSortMode = "currentContribution";
     renderLeaderboard();
   }
   
   function setPreviousContributionSort() {
+    markUserSortOrMetric();
     activeSortMode = "previousContribution";
     renderLeaderboard();
   }
   
   function setYoyPercentSort() {
+    markUserSortOrMetric();
     activeSortMode = "yoyPercent";
     renderLeaderboard();
   }
   
   function setTableauSortAndRender() {
+    markUserSortOrMetric();
     if (activeSortMode !== "tableau") {
       activeSortMode = "tableau";
       renderLeaderboard();
@@ -5747,7 +5969,7 @@
   }
   
   function buildInternalHeader(label) {
-    if (!showTableau || !["ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) return label;
+    if (!showTableau || !["today","ytd","mtd","wtd","lastWeek"].includes(activeDateMode)) return label;
   
     return `
       <button class="sort-header-button ${activeSortMode === "internal" ? "active-sort" : ""}" onclick="setInternalSort()">
@@ -5774,7 +5996,8 @@
   
   function setTableauMetric(metric) {
     if (!TABLEAU_METRICS[metric]) return;
-  
+
+    markUserSortOrMetric();
     activeTableauMetric = metric;
     activeSortMode = "tableau";
   
@@ -5980,7 +6203,7 @@
     let rows = getRepMap(repFilteredDeals);
     const useTableauColumn = activeView !== "selfgen" &&
       (activeView !== "groups" || isGroupDrillDownView()) &&
-      ["ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
+      ["today","ytd","mtd","wtd","lastWeek"].includes(activeDateMode) && showTableau;
     const useTableauSort = useTableauColumn && activeSortMode === "tableau";
   
     if (activeView === "setters" || activeView === "experts") {
@@ -5994,21 +6217,7 @@
     if (activeView === "selfgen" && isComparisonMode()) {
     rows = rows.filter(row => row.selfGen > 0 || getRowPreviousSelfGen(row) > 0);
     }
-    if (isComparisonMode() && !includeNewReps) {
-    rows = rows.filter(row =>
-      getRowPreviousCs(row) > 0 ||
-      getRowPreviousSetOnly(row) > 0 ||
-      getRowPreviousSelfGen(row) > 0
-    );
-  }
-
-    if (isComparisonMode() && !oldRepsActive()) {
-    rows = rows.filter(row => {
-      const currentContrib = row.sets + row.closes;
-      const previousContrib = getRowPreviousSets(row) + getRowPreviousCloses(row);
-      return !(currentContrib === 0 && previousContrib > 0);
-    });
-  }
+    rows = applyComparisonRepInclusionFilters(rows);
 
     if (activeView === "setters" || activeView === "experts") {
       rows = rows.filter(rowMatchesActiveView);
@@ -6020,6 +6229,7 @@
 
     rows = addTableauRecruitingRepsToRows(rows);
     rows = addOrgTreeRepsToRows(rows);
+    rows = applyComparisonRepInclusionFilters(rows);
 
     // Short date modes (everything but YTD): drop reps with no activity in the
     // period (no internal CS and no Tableau CS/SRA/CAP/IC) — including from the
@@ -6159,9 +6369,9 @@
         ? rows.filter(isRowInactive)
         : getInactiveDisplayRows(rows);
       // Plata reps show only in the whole-team Inactive drill, on a real Tableau
-      // period (not Today/Custom) and not while a comparison (YOY/MOM/COC) is active.
+      // period (not Custom) and not while a comparison (YOY/MOM/COC) is active.
       if (!inactiveDrillLeader && includePlata && !isComparisonMode() &&
-          ["ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
+          ["today", "ytd", "mtd", "wtd", "lastWeek"].includes(activeDateMode)) {
         drillRows = addInactivePlataRows(drillRows);
       }
       // Whole-team drill: respect the office selection — drop reps from offices that
@@ -6272,7 +6482,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
@@ -6406,7 +6616,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("CS") : (groupsRepType !== "general" ? groupMetricLabel() : "CS")}
     </button>
@@ -6598,7 +6808,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${useGroupsComparison ? getCurrentComparisonLabel("Total") : groupMetricLabel()}
     </button>
@@ -6856,7 +7066,7 @@
       </button>
     ` : ""}
     <button
-      class="sort-header-button ${activeSortMode === "currentContribution" ? "active-sort" : ""}"
+      class="sort-header-button ${activeSortMode === "currentContribution" || activeSortMode === "internal" ? "active-sort" : ""}"
       onclick="setCurrentContributionSort()">
       ${comparisonActive ? getCurrentComparisonLabel("CS") : "CS"}
     </button>
@@ -7048,6 +7258,7 @@
         if (s && s.name) loggedInRepName = s.name;
         compEditorFlag = !!(s && s.compEditor);
         identityResolved = true;
+        updateTableauToggle();
         if (compsOn) renderLeaderboard();
       });
     } else {
